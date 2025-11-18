@@ -57,6 +57,14 @@
     ],
     "buildPresets": [
         {
+            "name": "x64-debug-build",
+            "configurePreset": "x64-debug"
+        },
+        {
+            "name": "x64-release-build",
+            "configurePreset": "x64-release"
+        },
+        {
             "name": "vs-x64-debug",
             "displayName": "VS x64 Debug Build",
             "configurePreset": "vs-x64",

@@ -1,0 +1,61 @@
+name: CMake Build Matrix
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: "${{ matrix.generator }} | ${{ matrix.config }} | ${{ matrix.arch }}"
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - generator: Ninja
+            config: Debug
+            arch: x64
+            configure_preset: x64-debug
+            build_dir: out/build/x64-debug
+
+          - generator: Ninja
+            config: Release
+            arch: x64
+            configure_preset: x64-release
+            build_dir: out/build/x64-release
+
+          - generator: Visual Studio
+            config: Debug
+            arch: x64
+            configure_preset: vs-x64
+            build_preset: vs-x64-debug
+            build_dir: out/build/vs-x64
+
+          - generator: Visual Studio
+            config: Release
+            arch: x64
+            configure_preset: vs-x64
+            build_preset: vs-x64-release
+            build_dir: out/build/vs-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.configure_preset }}
+
+      - name: Build
+        run: |
+          if ("${{ matrix.build_preset }}" -ne "") {
+            cmake --build --preset ${{ matrix.build_preset }}
+          } else {
+            cmake --build ${{ matrix.build_dir }}
+          }
