@@ -19,4 +19,5 @@ InsertNewlineAtEOF: true
 BinPackParameters: false
 BinPackArguments: false
 AlignAfterOpenBracket: DontAlign
+AllowAllParametersOfDeclarationOnNextLine: true
 ...

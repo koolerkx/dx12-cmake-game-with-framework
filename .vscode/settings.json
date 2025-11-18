@@ -1,0 +1,8 @@
+{
+    "cmake.debugConfig": {
+        "console": "internalConsole",
+        "logging": {
+            "moduleLoad": false
+        }
+    }
+}

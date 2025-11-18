@@ -1,12 +1,8 @@
-﻿# CMakeList.txt : app の CMake プロジェクト。ソースを含めて、次を定義します:
-# プロジェクト専用ロジックはこちらです。
-#
+﻿cmake_minimum_required (VERSION 3.12)
 
-# ソースをこのプロジェクトの実行可能ファイルに追加します。
-add_executable (app "app.cpp" "app.h")
+add_executable (app WIN32 "main.cpp")
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET app PROPERTY CXX_STANDARD 20)
-endif()
+set (CMAKE_CXX_STANDARD 23)
+set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# TODO: テストを追加し、必要な場合は、ターゲットをインストールします。
+target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
