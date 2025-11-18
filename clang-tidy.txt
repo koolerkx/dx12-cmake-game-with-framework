@@ -1,0 +1,75 @@
+---
+Checks: >
+  -*,
+  clang-analyzer-*,
+  google-*,
+  bugprone-*,
+  performance-*,
+  readability-*,
+  modernize-*,
+  cppcoreguidelines-*,
+  misc-*,
+  portability-*,
+  -clang-diagnostic-invalid-utf8,
+  -clang-diagnostic-invalid-source-encoding
+
+CheckOptions:
+  - key: google-runtime-int
+    value: '1'
+  - key: google-runtime-references
+    value: '1'
+  - key: readability-identifier-naming.Enabled
+    value: 'true'
+
+  # Google naming rules
+  - key: readability-identifier-naming.ClassCase
+    value: PascalCase
+  - key: readability-identifier-naming.EnumCase
+    value: PascalCase
+  - key: readability-identifier-naming.TypeAliasCase
+    value: PascalCase
+  - key: readability-identifier-naming.TypedefCase
+    value: PascalCase
+
+  - key: readability-identifier-naming.FunctionCase
+    value: camelBack
+
+  - key: readability-identifier-naming.VariableCase
+    value: snake_case
+  - key: readability-identifier-naming.ParameterCase
+    value: snake_case
+  - key: readability-identifier-naming.NamespaceCase
+    value: snake_case
+
+  - key: readability-identifier-naming.ClassMemberCase
+    value: snake_case
+  - key: readability-identifier-naming.ClassMemberSuffix
+    value: '_'
+  - key: readability-identifier-naming.MethodCase
+    value: camelBack
+
+  - key: readability-identifier-naming.ConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.StaticConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.ConstexprVariableCase
+    value: UPPER_CASE
+
+  # Custom naming rules
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.EnumConstantCase
+    value: UPPER_CASE
+    
+  - key: cppcoreguidelines-avoid-magic-numbers.IgnoredNumbers
+    value: '0;1;2;4;8;16'
+  - key: cppcoreguidelines-avoid-magic-numbers.IgnoredConstructs
+    value: 'array;vector;static_cast'
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*'
+AnalyzeTemporaryDtors: false
+FormatStyle: google
+...
