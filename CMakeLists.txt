@@ -8,5 +8,9 @@ endif()
 
 project ("dx12-game-with-engine")
 
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # サブプロジェクトを含めます。
 add_subdirectory ("App")

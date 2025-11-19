@@ -2,7 +2,7 @@
 Language: Cpp
 BasedOnStyle: Google
 
-ColumnLimit: 120
+ColumnLimit: 140
 IncludeBlocks: Regroup
 
 FixNamespaceComments: true
@@ -20,4 +20,4 @@ BinPackParameters: false
 BinPackArguments: false
 AlignAfterOpenBracket: DontAlign
 AllowAllParametersOfDeclarationOnNextLine: true
-...
+
