@@ -1,4 +1,4 @@
-﻿cmake_minimum_required (VERSION 3.10)
+﻿cmake_minimum_required (VERSION 3.15)
 
 # サポートされている場合は、MSVC コンパイラのホット リロードを有効にします。
 if (POLICY CMP0141)
