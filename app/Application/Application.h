@@ -25,15 +25,15 @@ class Application {
   void SetFrequency(float frequency) {
     frequency_ = frequency;
   }
-  float GetFrequency() const {
+  [[nodiscard]] float GetFrequency() const {
     return frequency_;
   }
 
-  void SetTimeScale(float s) {
+  void SetTimeScale(const float s) const {
     timer_updater_->SetTimeScale(s);
   }
 
-  HWND GetHwnd() const {
+  [[nodiscard]] HWND GetHwnd() const {
     return hwnd_;
   }
 
@@ -41,7 +41,6 @@ class Application {
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
   bool InitWindow();
-  void ProcessMessages();
 
   HINSTANCE hInstance_;
   HWND hwnd_;

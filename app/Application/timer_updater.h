@@ -99,7 +99,7 @@ class TimerUpdater {
     }
 
     // Apply pause/time-scale and clamp extreme frame time
-    secondsf frame = paused_ ? secondsf::zero() : std::min(secondsf(max_frame_clamp_), raw * time_scale_);
+    secondsf frame = paused_ ? secondsf::zero() : (std::min)(secondsf(max_frame_clamp_), raw * time_scale_);
 
     // Cache totals (O(1) getters)
     total_unscaled_ += raw;
@@ -120,7 +120,7 @@ class TimerUpdater {
 
     // Spiral-of-death guard: keep at most half step to soften pacing
     if (steps == max_sub_steps_) {
-      accumulator_ = std::min(accumulator_, fixed_dt_ * 0.5f);
+      accumulator_ = (std::min)(accumulator_, fixed_dt_ * 0.5f);
     }
 
     // Interpolation alpha in [0,1]

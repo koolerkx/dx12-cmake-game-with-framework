@@ -3,3 +3,5 @@ InlayHints:
   ParameterNames: Yes
   DeducedTypes: No
   Designators: No
+CompileFlags:
+  Add: [-std=c++23]

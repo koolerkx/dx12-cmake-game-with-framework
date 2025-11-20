@@ -1,4 +1,3 @@
-#define NOMINMAX
 #include "Application.h"
 
 #include <memory>
@@ -45,8 +44,8 @@ bool Application::InitWindow() {
 
   const int desktop_width = GetSystemMetrics(SM_CXSCREEN);
   const int desktop_height = GetSystemMetrics(SM_CYSCREEN);
-  const int window_x = std::max(0, (desktop_width - window_width) / 2);
-  const int window_y = std::max(0, (desktop_height - window_height) / 2);
+  const int window_x = (std::max)(0, (desktop_width - window_width) / 2);
+  const int window_y = (std::max)(0, (desktop_height - window_height) / 2);
 
   hwnd_ = CreateWindowExW(0,
     WINDOW_CLASS.c_str(),
