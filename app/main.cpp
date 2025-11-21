@@ -1,4 +1,5 @@
 ﻿#define WIN32_LEAN_AND_MEAN
+#include <DirectXMath.h>
 #include <Windows.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
@@ -8,10 +9,14 @@
 #include <iostream>
 
 #include "Application/Application.h"
-#include "Graphic/Graphic.h"
+#include "Game/game.h"
+#include "Graphic/graphic.h"
+
 
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
+
+using namespace DirectX;
 
 ComPtr<ID3D12Device> device = nullptr;
 ComPtr<IDXGIFactory6> dxgiFactory = nullptr;
@@ -34,15 +39,17 @@ int WINAPI wWinMain([[maybe_unused]] HINSTANCE hInstance,
   try {
     Application app(hInstance, window_width, window_height);
     Graphic graphic;
-
     graphic.Initalize(app.GetHwnd(), window_width, window_height);
 
+    Game game(graphic);
+
     const std::function<void(float dt)> OnUpdate = [&]([[maybe_unused]] float dt) {
-      graphic.BeginRender();
-      graphic.EndRender();
+      game.OnUpdate(dt);
     };
 
-    const std::function<void(float fdt)> OnFixedUpdate = []([[maybe_unused]] float fdt) { std::cout << "FixedUpdate" << fdt << std::endl; };
+    const std::function<void(float fdt)> OnFixedUpdate = [&]([[maybe_unused]] float fdt) { 
+      game.OnFixedUpdate(fdt);
+     };
 
     app.Run(OnUpdate, OnFixedUpdate);
   } catch (const std::exception& e) {

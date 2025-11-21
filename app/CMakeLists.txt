@@ -24,3 +24,7 @@ target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(Graphic)
 
 target_link_libraries(app PRIVATE graphic)
+
+add_subdirectory(Game)
+
+target_link_libraries(app PRIVATE game)
