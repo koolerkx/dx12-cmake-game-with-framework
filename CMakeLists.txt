@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
 if(MSVC)
   add_compile_options(/wd4324)
 
@@ -37,4 +39,4 @@ function(set_msvc_runtime target)
 endfunction()
 
 # サブプロジェクトを含めます。
-add_subdirectory("App")
+add_subdirectory("app")
