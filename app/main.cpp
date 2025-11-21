@@ -11,7 +11,7 @@
 #include "Application/Application.h"
 #include "Game/game.h"
 #include "Graphic/graphic.h"
-
+#include "utils.h"
 
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
@@ -43,18 +43,14 @@ int WINAPI wWinMain([[maybe_unused]] HINSTANCE hInstance,
 
     Game game(graphic);
 
-    const std::function<void(float dt)> OnUpdate = [&]([[maybe_unused]] float dt) {
-      game.OnUpdate(dt);
-    };
+    const std::function<void(float dt)> OnUpdate = [&]([[maybe_unused]] float dt) { game.OnUpdate(dt); };
 
-    const std::function<void(float fdt)> OnFixedUpdate = [&]([[maybe_unused]] float fdt) { 
-      game.OnFixedUpdate(fdt);
-     };
+    const std::function<void(float fdt)> OnFixedUpdate = [&]([[maybe_unused]] float fdt) { game.OnFixedUpdate(fdt); };
 
     app.Run(OnUpdate, OnFixedUpdate);
   } catch (const std::exception& e) {
     std::cerr << "Exception: " << e.what() << std::endl;
-    MessageBoxW(nullptr, L"An exception occurred", L"Error", MB_OK | MB_ICONERROR);
+    MessageBoxW(nullptr, utils::utf8_to_wstring(e.what()).c_str(), L"Error", MB_OK | MB_ICONERROR);
   }
   return 0;
 }
