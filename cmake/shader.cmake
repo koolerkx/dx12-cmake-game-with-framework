@@ -1,3 +1,5 @@
+set(SHADER_OUT ${CMAKE_SOURCE_DIR}/Content/shaders)
+
 find_program(DXC_EXECUTABLE
     NAMES dxc dxc.exe
     PATHS
@@ -60,7 +62,7 @@ function(target_add_hlsl TARGET_NAME MODEL SHADER_TYPE)
         string(REPLACE ".hlsl" "" FILE_NAME_WE "${FILE_NAME_FULL}")
         get_filename_component(HLSL_FILE_ABS ${HLSL_FILE} ABSOLUTE)
 
-        set(OUTPUT_FILE "${CMAKE_SOURCE_DIR}/shaders/${FILE_NAME_WE}.cso")
+        set(OUTPUT_FILE "${SHADER_OUT}/${FILE_NAME_WE}.cso")
 
         # Visual Studio generator - use built-in shader compilation
         if(MSVC AND NOT CMAKE_GENERATOR MATCHES "Ninja")
@@ -105,7 +107,7 @@ function(target_add_hlsl TARGET_NAME MODEL SHADER_TYPE)
             # Add custom command for Ninja
             add_custom_command(
                 OUTPUT ${OUTPUT_FILE}
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/shaders"
+                COMMAND ${CMAKE_COMMAND} -E make_directory SHADER_OUT
                 COMMAND ${DXC_EXECUTABLE} ${DXC_ARGS} "${HLSL_FILE_ABS}"
                 MAIN_DEPENDENCY ${HLSL_FILE_ABS}
                 COMMENT "Compiling HLSL ${SHADER_TYPE} Shader: ${HLSL_FILE}"
