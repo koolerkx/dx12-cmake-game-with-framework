@@ -48,6 +48,18 @@ class Graphic {
   std::vector<ComPtr<ID3D12Resource>> _backBuffers{FRAME_BUFFER_COUNT, nullptr};
   ComPtr<ID3D12Resource> depth_stencil_buffer_ = nullptr;
 
+  // Pipeline State
+  ComPtr<ID3D12RootSignature> root_signature_ = nullptr;
+  ComPtr<ID3D12PipelineState> pipeline_state_ = nullptr;
+
+  // Viewport
+  D3D12_VIEWPORT viewport_ = {};
+  D3D12_RECT scissor_rect_ = {};
+
+  // Buffer
+  D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view_ = {};
+  D3D12_INDEX_BUFFER_VIEW index_buffer_view_ = {};
+
   // GPU Synchronization
   UINT frame_index_ = 0;
   HANDLE fence_event_ = nullptr;
