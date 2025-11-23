@@ -1,6 +1,8 @@
 include(shader)
 
 add_library(graphic STATIC
+    WICTextureLoader12.h
+    WICTextureLoader12.cpp
     graphic.cpp
     graphic.h
     d3dx12.h
