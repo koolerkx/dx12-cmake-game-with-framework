@@ -6,8 +6,13 @@
 #include <d3dcompiler.h>
 #include <dxgiformat.h>
 #include <winerror.h>
-#include <winnt.h>
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+
+#include "WICTextureLoader12.h"
+#include "d3dx12.h"
 #include "types.h"
 
 using namespace DirectX;
@@ -116,8 +121,6 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   vertex_buffer_view_.BufferLocation = vertBuff->GetGPUVirtualAddress();  // バッファの仮想アドレス
   vertex_buffer_view_.SizeInBytes = sizeof(vertices);                     // 全バイト数
   vertex_buffer_view_.StrideInBytes = sizeof(vertices[0]);                // 1頂点あたりのバイト数
-
-  command_list_->IASetVertexBuffers(0, 1, &vertex_buffer_view_);
 
   unsigned short indices[] = {0, 1, 2, 2, 1, 3};
 
@@ -288,48 +291,96 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   scissor_rect_.right = scissor_rect_.left + frame_buffer_width_;   // 切り抜き右座標
   scissor_rect_.bottom = scissor_rect_.top + frame_buffer_height_;  // 切り抜き下座標
 
-  // Texture
-  std::vector<TexRGBA> texturedata(256 * 256);
-  for (auto& rgba : texturedata) {
-    rgba.R = rand() % 256;
-    rgba.G = rand() % 256;
-    rgba.B = rand() % 256;
-    rgba.A = 255;  // αは 1.0 とする
+  // Load Texture
+  std::unique_ptr<uint8_t[]> decodedData;
+  D3D12_SUBRESOURCE_DATA subresource;
+  hr = LoadWICTextureFromFile(
+    device_.Get(), L"Content/textures/metal_plate_diff_1k.png", texture_buffer_.GetAddressOf(), decodedData, subresource);
+
+  if (FAILED(hr) || texture_buffer_ == nullptr) {
+    std::cerr << "Failed to load texture." << std::endl;
+    return false;
   }
 
-  D3D12_HEAP_PROPERTIES texHeapProp = {};
-  texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;                         // 特殊な設定なのでdefaultでもuploadでもなく
-  texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;  // ライトバックで
-  texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;           // 転送がL0つまりCPU側から直で
-  texHeapProp.CreationNodeMask = 0;                                  // 単一アダプタのため0
-  texHeapProp.VisibleNodeMask = 0;                                   // 単一アダプタのため0
+  D3D12_RESOURCE_DESC textureDesc = texture_buffer_->GetDesc();
 
-  D3D12_RESOURCE_DESC resDesc = {};
-  resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;             // DXGI_FORMAT_R8G8B8A8_UNORM;//RGBAフォーマット
-  resDesc.Width = static_cast<UINT>(256);                  // 幅
-  resDesc.Height = static_cast<UINT>(256);                 // 高さ
-  resDesc.DepthOrArraySize = static_cast<uint16_t>(1);     // 2Dで配列でもないので１
-  resDesc.SampleDesc.Count = 1;                            // 通常テクスチャなのでアンチェリしない
-  resDesc.SampleDesc.Quality = 0;                          //
-  resDesc.MipLevels = static_cast<uint16_t>(1);            // ミップマップしないのでミップ数は１つ
-  resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;  // 2Dテクスチャ用
-  resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;           // レイアウトについては決定しない
-  resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;                // とくにフラグなし
+  // Configure footprint
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+  UINT numRows = 0;
+  UINT64 rowSizeInBytes = 0;
+  UINT64 totalBytes = 0;
 
-  ID3D12Resource* texbuff = nullptr;
-  hr = device_->CreateCommittedResource(&texHeapProp,
-    D3D12_HEAP_FLAG_NONE,  // 特に指定なし
-    &resDesc,
-    D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,  // テクスチャ用(ピクセルシェーダから見る用)
-    nullptr,
-    IID_PPV_ARGS(&texbuff));
-
-  hr = texbuff->WriteToSubresource(0,
-    nullptr,                                                 // 全領域へコピー
-    texturedata.data(),                                      // 元データアドレス
-    sizeof(TexRGBA) * 256,                                   // 1 ラインサイズ
-    static_cast<UINT>(sizeof(TexRGBA) * texturedata.size())  // 全サイズ
+  device_->GetCopyableFootprints(&textureDesc,
+    0,                // FirstSubresource
+    1,                // NumSubresources
+    0,                // BaseOffset
+    &footprint,       // 輸出的佈局結構
+    &numRows,         // 輸出的行數 (Height)
+    &rowSizeInBytes,  // 輸出的每行實際數據大小 (不含對齊 Padding)
+    &totalBytes       // 輸出的總 Buffer 大小
   );
+
+  // Create upload buffer
+  CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+  auto uploadBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(totalBytes);
+
+  ComPtr<ID3D12Resource> textureUpload;
+  hr = device_->CreateCommittedResource(
+    &uploadHeapProps, D3D12_HEAP_FLAG_NONE, &uploadBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&textureUpload));
+
+  if (FAILED(hr)) {
+    std::cerr << "Failed to create texture upload buffer." << std::endl;
+    return false;
+  }
+
+  // Copy CPU data to upload buffer
+  UINT8* pMappedData = nullptr;
+  hr = textureUpload->Map(0, nullptr, reinterpret_cast<void**>(&pMappedData));
+  if (FAILED(hr)) {
+    std::cerr << "Failed to map texture upload buffer." << std::endl;
+    return false;
+  }
+
+  const UINT8* pSrcData = reinterpret_cast<const UINT8*>(subresource.pData);
+  for (UINT y = 0; y < numRows; ++y) {
+    memcpy(pMappedData + footprint.Offset + y * footprint.Footprint.RowPitch,
+      pSrcData + y * subresource.RowPitch,
+      static_cast<size_t>(rowSizeInBytes));
+  }
+  textureUpload->Unmap(0, nullptr);
+
+  command_allocator_->Reset();
+  command_list_->Reset(command_allocator_.Get(), nullptr);
+
+  D3D12_TEXTURE_COPY_LOCATION srcLocation = {};
+  srcLocation.pResource = textureUpload.Get();
+  srcLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+  srcLocation.PlacedFootprint = footprint;
+
+  D3D12_TEXTURE_COPY_LOCATION dstLocation = {};
+  dstLocation.pResource = texture_buffer_.Get();
+  dstLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+  dstLocation.SubresourceIndex = 0;
+
+  command_list_->CopyTextureRegion(&dstLocation, 0, 0, 0, &srcLocation, nullptr);
+
+  auto texBarrier =
+    CD3DX12_RESOURCE_BARRIER::Transition(texture_buffer_.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+  command_list_->ResourceBarrier(1, &texBarrier);
+  command_list_->Close();
+
+  // 4. 提交到 queue 並等待 GPU 完成
+  ID3D12CommandList* uploadCmds[] = {command_list_.Get()};
+  command_queue_->ExecuteCommandLists(1, uploadCmds);
+
+  // 使用你原本的 fence 機制等待
+  command_queue_->Signal(fence_.Get(), ++fence_val_);
+  if (fence_->GetCompletedValue() != fence_val_) {
+    HANDLE eventHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    fence_->SetEventOnCompletion(fence_val_, eventHandle);
+    WaitForSingleObject(eventHandle, INFINITE);
+    CloseHandle(eventHandle);
+  }
 
   // texture shader resource heap
   D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
@@ -339,14 +390,20 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;                                  // シェーダリソースビュー(および定数、UAVも)
   hr = device_->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&texture_descriptor_heap_));  // 生成
 
+  if (FAILED(hr) || texture_descriptor_heap_ == nullptr) {
+    std::cerr << "Failed to create texture descriptor heap." << std::endl;
+    return false;
+  }
+
   // 通常テクスチャビュー作成
+  D3D12_RESOURCE_DESC texDesc = texture_buffer_->GetDesc();
   D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-  srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;                                 // DXGI_FORMAT_R8G8B8A8_UNORM;//RGBA(0.0f～1.0fに正規化)
+  srvDesc.Format = texDesc.Format;                                             // DXGI_FORMAT_R8G8B8A8_UNORM;//RGBA(0.0f～1.0fに正規化)
   srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;  // 後述
   srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;                       // 2Dテクスチャ
-  srvDesc.Texture2D.MipLevels = 1;                                             // ミップマップは使用しないので1
+  srvDesc.Texture2D.MipLevels = texDesc.MipLevels;                             // ミップマップは使用しないので1
 
-  device_->CreateShaderResourceView(texbuff,                        // ビューと関連付けるバッファ
+  device_->CreateShaderResourceView(texture_buffer_.Get(),          // ビューと関連付けるバッファ
     &srvDesc,                                                       // 先ほど設定したテクスチャ設定情報
     texture_descriptor_heap_->GetCPUDescriptorHandleForHeapStart()  // ヒープのどこに割り当てるか
   );
@@ -386,7 +443,9 @@ void Graphic::BeginRender() {
   command_list_->IASetIndexBuffer(&index_buffer_view_);
 
   command_list_->SetGraphicsRootSignature(root_signature_.Get());
-  command_list_->SetDescriptorHeaps(1, texture_descriptor_heap_.GetAddressOf());
+
+  ID3D12DescriptorHeap* heaps[] = {texture_descriptor_heap_.Get()};
+  command_list_->SetDescriptorHeaps(_countof(heaps), heaps);
   command_list_->SetGraphicsRootDescriptorTable(0, texture_descriptor_heap_->GetGPUDescriptorHandleForHeapStart());
 
   command_list_->DrawIndexedInstanced(6, 1, 0, 0, 0);

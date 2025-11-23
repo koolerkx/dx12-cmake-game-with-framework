@@ -62,6 +62,7 @@ class Graphic {
 
   // texture
   ComPtr<ID3D12DescriptorHeap> texture_descriptor_heap_ = nullptr;
+  ComPtr<ID3D12Resource> texture_buffer_ = nullptr;
 
   // GPU Synchronization
   UINT frame_index_ = 0;
