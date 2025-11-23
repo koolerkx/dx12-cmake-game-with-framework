@@ -33,24 +33,23 @@ constexpr int window_height = 1080;
 int WINAPI wWinMain([[maybe_unused]] HINSTANCE hInstance,
   [[maybe_unused]] HINSTANCE hPrevInstance,
   [[maybe_unused]] PWSTR lpCmdLine,
-  [[maybe_unused]] int nCmdShow) {
+  [[maybe_unused]] int nCmdShow) try {
   SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
-  try {
-    Application app(hInstance, window_width, window_height);
-    Graphic graphic;
-    graphic.Initalize(app.GetHwnd(), window_width, window_height);
+  Application app(hInstance, window_width, window_height);
+  Graphic graphic;
+  graphic.Initalize(app.GetHwnd(), window_width, window_height);
 
-    Game game(graphic);
+  Game game(graphic);
 
-    const std::function<void(float dt)> OnUpdate = [&]([[maybe_unused]] float dt) { game.OnUpdate(dt); };
+  const std::function<void(float dt)> OnUpdate = [&]([[maybe_unused]] float dt) { game.OnUpdate(dt); };
 
-    const std::function<void(float fdt)> OnFixedUpdate = [&]([[maybe_unused]] float fdt) { game.OnFixedUpdate(fdt); };
+  const std::function<void(float fdt)> OnFixedUpdate = [&]([[maybe_unused]] float fdt) { game.OnFixedUpdate(fdt); };
 
-    app.Run(OnUpdate, OnFixedUpdate);
-  } catch (const std::exception& e) {
-    std::cerr << "Exception: " << e.what() << std::endl;
-    MessageBoxW(nullptr, utils::utf8_to_wstring(e.what()).c_str(), L"Error", MB_OK | MB_ICONERROR);
-  }
+  app.Run(OnUpdate, OnFixedUpdate);
+
   return 0;
+} catch (const std::exception& e) {
+  std::cerr << "Exception: " << e.what() << std::endl;
+  MessageBoxW(nullptr, utils::utf8_to_wstring(e.what()).c_str(), L"Error", MB_OK | MB_ICONERROR);
 }
