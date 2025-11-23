@@ -1,4 +1,5 @@
 set(SHADER_OUT ${CMAKE_SOURCE_DIR}/Content/shaders)
+set(SHADER_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/shaders)
 
 find_program(DXC_EXECUTABLE
     NAMES dxc dxc.exe
@@ -102,6 +103,12 @@ function(target_add_hlsl TARGET_NAME MODEL SHADER_TYPE)
             # Shader Model 6.0+ flags
             if(${MODEL} VERSION_GREATER_EQUAL "6.0")
                 list(APPEND DXC_ARGS /all_resources_bound)
+            endif()
+
+            if(SHADER_INCLUDE_DIRS)
+                foreach(INC_DIR IN LISTS SHADER_INCLUDE_DIRS)
+                    list(APPEND DXC_ARGS -I "${INC_DIR}")
+                endforeach()
             endif()
 
             # Add custom command for Ninja

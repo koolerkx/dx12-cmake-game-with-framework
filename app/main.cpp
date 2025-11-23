@@ -52,4 +52,6 @@ int WINAPI wWinMain([[maybe_unused]] HINSTANCE hInstance,
 } catch (const std::exception& e) {
   std::cerr << "Exception: " << e.what() << std::endl;
   MessageBoxW(nullptr, utils::utf8_to_wstring(e.what()).c_str(), L"Error", MB_OK | MB_ICONERROR);
+
+  return -1;
 }

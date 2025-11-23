@@ -1,11 +1,8 @@
-struct VSOUT {
-  float4 pos : POSITION;
-  float4 svpos : SV_POSITION;
-};
+#include "basic_type.hlsli"
 
-VSOUT main(float4 pos : POSITION) {
-  VSOUT output;
-  output.pos = pos;
-  output.svpos = pos;
+BasicType main(VSIN input) {
+  BasicType output;
+  output.svpos = input.pos;
+  output.uv = input.uv;
   return output;
 }

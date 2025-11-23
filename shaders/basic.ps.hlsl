@@ -1,8 +1,3 @@
-struct PSIN {
-  float4 pos : POSITION;
-  float4 svpos : SV_POSITION;
-};
+#include "basic_type.hlsli"
 
-float4 main(PSIN input) : SV_TARGET {
-  return float4((float2(0, 1) + input.pos.xy) * 0.5f, 1, 1);
-}
+float4 main(BasicType input) : SV_TARGET { return float4(input.uv, 1, 1); }

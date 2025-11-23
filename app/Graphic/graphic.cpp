@@ -1,14 +1,21 @@
 #include "graphic.h"
 
 #include <DirectXMath.h>
+#include <d3d12.h>
 #include <d3dcommon.h>
 #include <d3dcompiler.h>
+#include <dxgiformat.h>
 #include <winerror.h>
 #include <winnt.h>
 
 #include "types.h"
 
 using namespace DirectX;
+
+struct Vertex {
+  XMFLOAT3 pos;
+  XMFLOAT2 uv;
+};
 
 bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height) {
   frame_buffer_width_ = frame_buffer_width;
@@ -64,11 +71,11 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   HRESULT hr;
 
   // Draw Triangle
-  XMFLOAT3 vertices[] = {
-    {-0.4f, -0.7f, 0.0f},  // 左下
-    {-0.4f, 0.7f, 0.0f},   // 左上
-    {0.4f, -0.7f, 0.0f},   // 右下
-    {0.4f, 0.7f, 0.0f},    // 右上
+  Vertex vertices[] = {
+    {{-0.4f, -0.7f, 0.0f}, {0.0f, 1.0f}},  // 左下
+    {{-0.4f, 0.7f, 0.0f}, {0.0f, 0.0f}},   // 左上
+    {{0.4f, -0.7f, 0.0f}, {1.0f, 1.0f}},   // 右下
+    {{0.4f, 0.7f, 0.0f}, {1.0f, 0.0f}},    // 右上
   };
 
   // Create vertex buffer
@@ -97,7 +104,7 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
-  XMFLOAT3* vertMap = nullptr;
+  Vertex* vertMap = nullptr;
   hr = vertBuff->Map(0, nullptr, (void**)&vertMap);
   std::copy(std::begin(vertices), std::end(vertices), vertMap);
   vertBuff->Unmap(0, nullptr);
@@ -148,7 +155,7 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   // Input layout
   D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
     {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-  };
+    {"TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
 
   // Graphics pipeline
   D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
