@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.15)
+﻿cmake_minimum_required(VERSION 4.0)
 
 project("dx12-game-with-engine")
 
@@ -26,6 +26,7 @@ function(set_msvc_runtime target)
       $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
       $<$<CXX_COMPILER_ID:MSVC>:/W4>
       $<$<CXX_COMPILER_ID:MSVC>:/MP>
+      $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
     )
 
     target_compile_definitions(${target} PRIVATE UNICODE _UNICODE)
