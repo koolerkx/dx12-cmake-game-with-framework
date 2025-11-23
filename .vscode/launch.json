@@ -11,8 +11,8 @@
             "program": "${command:cmake.launchTargetPath}",
             "args": [],
             "stopAtEntry": false,
-            // "cwd": "${workspaceFolder}",
-            "cwd": "${command:cmake.launchTargetDirectory}",
+            "cwd": "${workspaceFolder}",
+            // "cwd": "${command:cmake.launchTargetDirectory}",
             "environment": [
                 {
                     "name": "PATH",
@@ -20,7 +20,7 @@
                 }
             ],
             "externalConsole": false,
-            "preLaunchTask": "CMake: build"
+            "preLaunchTask": "CMake: build (setting)"
         }
     ]
 }

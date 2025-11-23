@@ -7,6 +7,10 @@
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
+            "environment": {
+                "DOTNET_CLI_UI_LANGUAGE": "en-US",
+                "VSLANG": "1033"
+            },
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "cl.exe",
                 "CMAKE_CXX_COMPILER": "cl.exe"
@@ -68,13 +72,19 @@
             "name": "vs-x64-debug",
             "displayName": "VS x64 Debug Build",
             "configurePreset": "vs-x64",
-            "configuration": "Debug"
+            "configuration": "Debug",
+            "targets": [
+                "ALL_BUILD"
+            ]
         },
         {
             "name": "vs-x64-release",
             "displayName": "VS x64 Release Build",
             "configurePreset": "vs-x64",
-            "configuration": "Release"
+            "configuration": "Release",
+            "targets": [
+                "ALL_BUILD"
+            ]
         }
     ]
 }

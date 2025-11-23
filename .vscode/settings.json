@@ -4,6 +4,7 @@
         "logging": {
             "moduleLoad": false
         },
-        "cwd": "${workspaceFolder}"
-    }
+        "cwd": "${workspaceFolder}",
+    },
+    "cmake.outputLogEncoding": "utf8"
 }
