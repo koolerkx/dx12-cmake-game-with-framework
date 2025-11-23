@@ -60,6 +60,9 @@ class Graphic {
   D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view_ = {};
   D3D12_INDEX_BUFFER_VIEW index_buffer_view_ = {};
 
+  // texture
+  ComPtr<ID3D12DescriptorHeap> texture_descriptor_heap_ = nullptr;
+
   // GPU Synchronization
   UINT frame_index_ = 0;
   HANDLE fence_event_ = nullptr;
