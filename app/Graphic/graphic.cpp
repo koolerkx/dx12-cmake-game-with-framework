@@ -7,6 +7,7 @@
 #include <dxgiformat.h>
 #include <winerror.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 
@@ -290,15 +291,6 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   scissor_rect_.right = scissor_rect_.left + frame_buffer_width_;   // 切り抜き右座標
   scissor_rect_.bottom = scissor_rect_.top + frame_buffer_height_;  // 切り抜き下座標
 
-  // Texture
-  // std::vector<TexRGBA> texturedata(256 * 256);
-  // for (auto& rgba : texturedata) {
-  //   rgba.R = rand() % 256;
-  //   rgba.G = rand() % 256;
-  //   rgba.B = rand() % 256;
-  //   rgba.A = 255;  // αは 1.0 とする
-  // }
-
   // Load Texture
   std::unique_ptr<uint8_t[]> decodedData;
   D3D12_SUBRESOURCE_DATA subresource;
@@ -310,12 +302,27 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
-  // 1. 計算 upload buffer 需要的大小
-  UINT64 uploadBufferSize = GetRequiredIntermediateSize(texture_buffer_.Get(), 0, 1);
+  D3D12_RESOURCE_DESC textureDesc = texture_buffer_->GetDesc();
 
-  // 2. 建立 Upload heap 的中介 buffer
+  // Configure footprint
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+  UINT numRows = 0;
+  UINT64 rowSizeInBytes = 0;
+  UINT64 totalBytes = 0;
+
+  device_->GetCopyableFootprints(&textureDesc,
+    0,                // FirstSubresource
+    1,                // NumSubresources
+    0,                // BaseOffset
+    &footprint,       // 輸出的佈局結構
+    &numRows,         // 輸出的行數 (Height)
+    &rowSizeInBytes,  // 輸出的每行實際數據大小 (不含對齊 Padding)
+    &totalBytes       // 輸出的總 Buffer 大小
+  );
+
+  // Create upload buffer
   CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
-  auto uploadBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+  auto uploadBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(totalBytes);
 
   ComPtr<ID3D12Resource> textureUpload;
   hr = device_->CreateCommittedResource(
@@ -326,25 +333,40 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
-  // 3. 用現有的 command_list_ 記錄 copy + barrier
+  // Copy CPU data to upload buffer
+  UINT8* pMappedData = nullptr;
+  hr = textureUpload->Map(0, nullptr, reinterpret_cast<void**>(&pMappedData));
+  if (FAILED(hr)) {
+    std::cerr << "Failed to map texture upload buffer." << std::endl;
+    return false;
+  }
+
+  const UINT8* pSrcData = reinterpret_cast<const UINT8*>(subresource.pData);
+  for (UINT y = 0; y < numRows; ++y) {
+    memcpy(pMappedData + footprint.Offset + y * footprint.Footprint.RowPitch,
+      pSrcData + y * subresource.RowPitch,
+      static_cast<size_t>(rowSizeInBytes));
+  }
+  textureUpload->Unmap(0, nullptr);
+
   command_allocator_->Reset();
   command_list_->Reset(command_allocator_.Get(), nullptr);
 
-  // 把 CPU decodedData 複製到 GPU texture_res
-  UpdateSubresources(command_list_.Get(),
-    texture_buffer_.Get(),    // Destination (Default heap texture)
-    textureUpload.Get(),  // Intermediate (Upload heap)
-    0,
-    0,
-    1,
-    &subresource);
+  D3D12_TEXTURE_COPY_LOCATION srcLocation = {};
+  srcLocation.pResource = textureUpload.Get();
+  srcLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+  srcLocation.PlacedFootprint = footprint;
 
-  // Resource state: COPY_DEST -> PIXEL_SHADER_RESOURCE
+  D3D12_TEXTURE_COPY_LOCATION dstLocation = {};
+  dstLocation.pResource = texture_buffer_.Get();
+  dstLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+  dstLocation.SubresourceIndex = 0;
+
+  command_list_->CopyTextureRegion(&dstLocation, 0, 0, 0, &srcLocation, nullptr);
+
   auto texBarrier =
     CD3DX12_RESOURCE_BARRIER::Transition(texture_buffer_.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
   command_list_->ResourceBarrier(1, &texBarrier);
-
   command_list_->Close();
 
   // 4. 提交到 queue 並等待 GPU 完成
@@ -381,7 +403,7 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;                       // 2Dテクスチャ
   srvDesc.Texture2D.MipLevels = texDesc.MipLevels;                             // ミップマップは使用しないので1
 
-  device_->CreateShaderResourceView(texture_buffer_.Get(),              // ビューと関連付けるバッファ
+  device_->CreateShaderResourceView(texture_buffer_.Get(),          // ビューと関連付けるバッファ
     &srvDesc,                                                       // 先ほど設定したテクスチャ設定情報
     texture_descriptor_heap_->GetCPUDescriptorHandleForHeapStart()  // ヒープのどこに割り当てるか
   );
