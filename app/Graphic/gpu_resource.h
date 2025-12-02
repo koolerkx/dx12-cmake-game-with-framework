@@ -31,6 +31,10 @@ class GpuResource {
   void SetDebugName(const std::wstring& name);
   void SetDebugName(const std::string& name);
 
+  virtual bool IsValid() const {
+    return resource_ != nullptr;
+  }
+
  protected:
   ComPtr<ID3D12Resource> resource_ = nullptr;
   D3D12_RESOURCE_STATES current_state_ = D3D12_RESOURCE_STATE_COMMON;

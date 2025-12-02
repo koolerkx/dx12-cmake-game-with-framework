@@ -4,13 +4,10 @@
 #include <d3d12.h>
 #include <dxgi1_6.h>
 
-#include <cstdint>
-#include <iostream>
-#include <vector>
-
-#include "d3dx12.h"
+#include "depth_buffer.h"
 #include "descriptor_heap_manager.h"
-#include "gpu_resource.h"
+#include "fence_manager.h"
+#include "swapchain_manager.h"
 #include "types.h"
 
 class Graphic {
@@ -29,7 +26,6 @@ class Graphic {
   // Core
   ComPtr<ID3D12Device5> device_ = nullptr;  /// @note D3D Device, RTX graphic card required
   ComPtr<IDXGIFactory6> dxgi_factory_ = nullptr;
-  ComPtr<IDXGISwapChain4> swap_chain_ = nullptr;
 
   ComPtr<ID3D12CommandAllocator> command_allocator_ = nullptr;
   ComPtr<ID3D12GraphicsCommandList> command_list_ = nullptr;
@@ -37,25 +33,12 @@ class Graphic {
 
   // descriptor management
   DescriptorHeapManager descriptor_heap_manager_;
-
-  ComPtr<ID3D12DescriptorHeap> rtv_heaps_ = nullptr;
-  ComPtr<ID3D12DescriptorHeap> dsv_heaps_ = nullptr;
-
-  int current_back_buffer_index_ = 0;
+  SwapChainManager swap_chain_manager_;
+  DepthBuffer depth_buffer_;
+  FenceManager fence_manager_;
 
   UINT frame_buffer_width_ = 0;
   UINT frame_buffer_height_ = 0;
-
-  UINT rtv_descriptor_size_;
-  UINT dsv_descriptor_size_;
-  D3D12_CPU_DESCRIPTOR_HANDLE current_frame_buffer_rtv_handle_;
-  D3D12_CPU_DESCRIPTOR_HANDLE current_frame_buffer_dsv_handle_;
-
-  std::vector<ComPtr<ID3D12Resource>> _backBuffers{FRAME_BUFFER_COUNT, nullptr};
-  ComPtr<ID3D12Resource> depth_stencil_buffer_ = nullptr;
-
-  DescriptorHeapAllocator::Allocation back_buffer_rtv_allocations_[FRAME_BUFFER_COUNT];
-  DescriptorHeapAllocator::Allocation depth_stencil_dsv_allocation_;
 
   // Pipeline State
   ComPtr<ID3D12RootSignature> root_signature_ = nullptr;
@@ -73,13 +56,6 @@ class Graphic {
   ComPtr<ID3D12DescriptorHeap> texture_descriptor_heap_ = nullptr;
   ComPtr<ID3D12Resource> texture_buffer_ = nullptr;
 
-  // GPU Synchronization
-  UINT frame_index_ = 0;
-  HANDLE fence_event_ = nullptr;
-
-  ComPtr<ID3D12Fence> fence_ = nullptr;
-  UINT64 fence_val_ = 0;
-
   // Initialization
   bool EnableDebugLayer();
   bool CreateFactory();
@@ -88,13 +64,4 @@ class Graphic {
 
   bool CreateCommandList();
   bool CreateCommandAllocator();
-
-  bool CreateSwapChain(HWND hwnd, UINT frameBufferWidth, UINT frameBufferHeight);
-
-  bool CreateFrameBuffers();
-  bool CreateDepthStencil();
-
-  bool CreateSynchronizationWithGPUObject();
-
-  // void WaitForGpu();
 };

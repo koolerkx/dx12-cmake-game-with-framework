@@ -5,10 +5,10 @@
 #include <d3dcommon.h>
 #include <d3dcompiler.h>
 #include <dxgiformat.h>
-#include <winerror.h>
 
 #include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <memory>
 
 #include "WICTextureLoader12.h"
@@ -58,22 +58,19 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
-  if (!CreateSwapChain(hwnd, frame_buffer_width_, frame_buffer_height_)) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create swap chain", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+  if (!swap_chain_manager_.Initialize(device_.Get(),
+        dxgi_factory_.Get(),
+        command_queue_.Get(),
+        hwnd,
+        frame_buffer_width,
+        frame_buffer_height,
+        descriptor_heap_manager_)) {
     return false;
   }
-
-  if (!CreateFrameBuffers()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create frame buffers", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+  if (!depth_buffer_.Initialize(device_.Get(), frame_buffer_width, frame_buffer_height, descriptor_heap_manager_)) {
     return false;
   }
-  if (!CreateDepthStencil()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create depth stencil", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
-
-  if (!CreateSynchronizationWithGPUObject()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create fence", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+  if (!fence_manager_.Initialize(device_.Get())) {
     return false;
   }
 
@@ -291,6 +288,7 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   scissor_rect_.right = scissor_rect_.left + frame_buffer_width_;   // 切り抜き右座標
   scissor_rect_.bottom = scissor_rect_.top + frame_buffer_height_;  // 切り抜き下座標
 
+#pragma region debug_load_texture
   // Load Texture
   std::unique_ptr<uint8_t[]> decodedData;
   D3D12_SUBRESOURCE_DATA subresource;
@@ -369,18 +367,10 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   command_list_->ResourceBarrier(1, &texBarrier);
   command_list_->Close();
 
-  // 4. 提交到 queue 並等待 GPU 完成
   ID3D12CommandList* uploadCmds[] = {command_list_.Get()};
   command_queue_->ExecuteCommandLists(1, uploadCmds);
 
-  // 使用你原本的 fence 機制等待
-  command_queue_->Signal(fence_.Get(), ++fence_val_);
-  if (fence_->GetCompletedValue() != fence_val_) {
-    HANDLE eventHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-    fence_->SetEventOnCompletion(fence_val_, eventHandle);
-    WaitForSingleObject(eventHandle, INFINITE);
-    CloseHandle(eventHandle);
-  }
+  fence_manager_.WaitForGpu(command_queue_.Get());
 
   // texture shader resource heap
   D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
@@ -407,41 +397,33 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     &srvDesc,                                                       // 先ほど設定したテクスチャ設定情報
     texture_descriptor_heap_->GetCPUDescriptorHandleForHeapStart()  // ヒープのどこに割り当てるか
   );
+#pragma endregion debug_load_texture
 
   return true;
 }
 
 void Graphic::BeginRender() {
-  frame_index_ = swap_chain_->GetCurrentBackBufferIndex();
   command_allocator_->Reset();
-
   command_list_->Reset(command_allocator_.Get(), nullptr);
 
   descriptor_heap_manager_.BeginFrame();
   descriptor_heap_manager_.SetDescriptorHeaps(command_list_.Get());
 
-  current_back_buffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
+  swap_chain_manager_.TransitionToRenderTarget(command_list_.Get());
 
-  current_frame_buffer_rtv_handle_ = back_buffer_rtv_allocations_[current_back_buffer_index_].cpu;
-  current_frame_buffer_dsv_handle_ = depth_stencil_dsv_allocation_.cpu;
-
-  D3D12_RESOURCE_BARRIER BarrierDesc = {};
-  BarrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-  BarrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-  BarrierDesc.Transition.pResource = _backBuffers[frame_index_].Get();
-  BarrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-  BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-  BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-  command_list_->ResourceBarrier(1, &BarrierDesc);
+  D3D12_CPU_DESCRIPTOR_HANDLE rtv = swap_chain_manager_.GetCurrentRTV();
+  D3D12_CPU_DESCRIPTOR_HANDLE dsv = depth_buffer_.GetDSV();
 
   command_list_->RSSetViewports(1, &viewport_);
   command_list_->RSSetScissorRects(1, &scissor_rect_);
 
   float clearColor[] = {1.0f, 1.0f, 0.0f, 1.0f};
-  command_list_->ClearRenderTargetView(current_frame_buffer_rtv_handle_, clearColor, 0, nullptr);
-  command_list_->ClearDepthStencilView(current_frame_buffer_dsv_handle_, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-  command_list_->OMSetRenderTargets(1, &current_frame_buffer_rtv_handle_, FALSE, &current_frame_buffer_dsv_handle_);
+  command_list_->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
+  depth_buffer_.Clear(command_list_.Get(), 1.0, 0);
 
+  command_list_->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+
+  // Drawing Logic
   command_list_->SetPipelineState(pipeline_state_.Get());
   command_list_->RSSetViewports(1, &viewport_);
   command_list_->RSSetScissorRects(1, &scissor_rect_);
@@ -461,29 +443,16 @@ void Graphic::BeginRender() {
 }
 
 void Graphic::EndRender() {
-  D3D12_RESOURCE_BARRIER BarrierDesc = {};
-  BarrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-  BarrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-  BarrierDesc.Transition.pResource = _backBuffers[frame_index_].Get();
-  BarrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-  BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-  BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-  command_list_->ResourceBarrier(1, &BarrierDesc);
+  swap_chain_manager_.TransitionToPresent(command_list_.Get());
 
   command_list_->Close();
 
   ID3D12CommandList* cmdlists[] = {command_list_.Get()};
   command_queue_->ExecuteCommandLists(1, cmdlists);
-  command_queue_->Signal(fence_.Get(), ++fence_val_);
 
-  if (fence_->GetCompletedValue() != fence_val_) {
-    auto event = CreateEvent(nullptr, false, false, nullptr);
-    fence_->SetEventOnCompletion(fence_val_, event);
-    WaitForSingleObject(event, INFINITE);
-    CloseHandle(event);
-  }
+  fence_manager_.WaitForGpu(command_queue_.Get());
 
-  swap_chain_->Present(1, 0);
+  swap_chain_manager_.Present(1, 0);
 }
 
 bool Graphic::EnableDebugLayer() {
@@ -584,136 +553,6 @@ bool Graphic::CreateCommandAllocator() {
     std::cerr << "Failed to create command allocator." << std::endl;
     return false;
   }
-  return true;
-}
 
-bool Graphic::CreateSwapChain(HWND hwnd, UINT frameBufferWidth, UINT frameBufferHeight) {
-  DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = {};
-  swap_chain_desc.Width = frameBufferWidth;
-  swap_chain_desc.Height = frameBufferHeight;
-  swap_chain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  swap_chain_desc.Stereo = false;
-  swap_chain_desc.SampleDesc.Count = 1;
-  swap_chain_desc.SampleDesc.Quality = 0;
-  swap_chain_desc.BufferUsage = DXGI_USAGE_BACK_BUFFER;
-  swap_chain_desc.BufferCount = 2;
-  swap_chain_desc.Scaling = DXGI_SCALING_STRETCH;
-  swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-  swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-  swap_chain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-
-  ComPtr<IDXGISwapChain1> swap_chain1;
-  HRESULT hr =
-    dxgi_factory_->CreateSwapChainForHwnd(command_queue_.Get(), hwnd, &swap_chain_desc, nullptr, nullptr, (swap_chain1.GetAddressOf()));
-
-  if (FAILED(hr) || swap_chain1 == nullptr) {
-    std::cerr << "Failed to create swap chain." << std::endl;
-    return false;
-  }
-
-  swap_chain1.As(&swap_chain_);
-
-  if (FAILED(hr) || swap_chain_ == nullptr) {
-    std::cerr << "Failed to create swap chain." << std::endl;
-    return false;
-  }
-
-  return true;
-}
-
-bool Graphic::CreateFrameBuffers() {
-  rtv_heaps_ = descriptor_heap_manager_.GetRtvAllocator().GetHeap();
-  rtv_descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-  if (swap_chain_ == nullptr) {
-    std::cerr << "Failed to create RTV for frame buffer, swap chain is nullptr" << std::endl;
-    return false;
-  }
-
-  DXGI_SWAP_CHAIN_DESC swcDesc = {};
-  swap_chain_->GetDesc(&swcDesc);
-
-  for (size_t i = 0; i < swcDesc.BufferCount; ++i) {
-    HRESULT hr = swap_chain_->GetBuffer(static_cast<UINT>(i), IID_PPV_ARGS(_backBuffers[i].GetAddressOf()));
-    if (FAILED(hr)) {
-      std::cerr << "Failed to get back buffer " << i << std::endl;
-      return false;
-    }
-
-    back_buffer_rtv_allocations_[i] = descriptor_heap_manager_.GetRtvAllocator().Allocate(1);
-    if (!back_buffer_rtv_allocations_[i].IsValid()) {
-      std::cerr << "Failed to allocate RTV for back buffer " << i << std::endl;
-      return false;
-    }
-
-    device_->CreateRenderTargetView(_backBuffers[i].Get(), nullptr, back_buffer_rtv_allocations_[i].cpu);
-
-    std::wstring name = L"BackBuffer_" + std::to_wstring(i);
-    _backBuffers[i]->SetName(name.c_str());
-  }
-
-  return true;
-}
-
-bool Graphic::CreateDepthStencil() {
-  dsv_heaps_ = descriptor_heap_manager_.GetDsvAllocator().GetHeap();
-  dsv_descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-
-  D3D12_CLEAR_VALUE dsvClearValue;
-  dsvClearValue.Format = DXGI_FORMAT_D32_FLOAT;
-  dsvClearValue.DepthStencil.Depth = 1.0f;
-  dsvClearValue.DepthStencil.Stencil = 0;
-
-  CD3DX12_RESOURCE_DESC desc(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-    0,
-    frame_buffer_width_,
-    frame_buffer_height_,
-    1,
-    1,
-    DXGI_FORMAT_D32_FLOAT,
-    1,
-    0,
-    D3D12_TEXTURE_LAYOUT_UNKNOWN,
-    D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE);
-
-  auto heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-  auto hr = device_->CreateCommittedResource(&heapProp,
-    D3D12_HEAP_FLAG_NONE,
-    &desc,
-    D3D12_RESOURCE_STATE_DEPTH_WRITE,
-    &dsvClearValue,
-    IID_PPV_ARGS(depth_stencil_buffer_.GetAddressOf()));
-
-  if (FAILED(hr) || depth_stencil_buffer_ == nullptr) {
-    std::cerr << "Failed to create depth stencil buffer." << std::endl;
-    return false;
-  }
-  depth_stencil_dsv_allocation_ = descriptor_heap_manager_.GetDsvAllocator().Allocate(1);
-  if (!depth_stencil_dsv_allocation_.IsValid()) {
-    std::cerr << "Failed to allocate DSV" << std::endl;
-    return false;
-  }
-
-  device_->CreateDepthStencilView(depth_stencil_buffer_.Get(), nullptr, depth_stencil_dsv_allocation_.cpu);
-  depth_stencil_buffer_->SetName(L"DepthStencilBuffer");
-
-  return true;
-}
-
-bool Graphic::CreateSynchronizationWithGPUObject() {
-  auto hr = device_->CreateFence(fence_val_, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(fence_.GetAddressOf()));
-
-  if (FAILED(hr) || fence_ == nullptr) {
-    std::cerr << "Failed to create fence." << std::endl;
-    return false;
-  }
-
-  fence_val_ = 1;
-
-  fence_event_ = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-  if (fence_event_ == nullptr) {
-    std::cerr << "Failed to create fence event." << std::endl;
-    return false;
-  }
   return true;
 }

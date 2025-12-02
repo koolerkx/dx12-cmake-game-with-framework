@@ -15,6 +15,13 @@ add_library(graphic STATIC
     descriptor_heap_allocator.cpp
     descriptor_heap_manager.h
     descriptor_heap_manager.cpp
+
+    swapchain_manager.h
+    swapchain_manager.cpp
+    depth_buffer.h
+    depth_buffer.cpp
+    fence_manager.h
+    fence_manager.cpp
 )
 
 target_include_directories(graphic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
