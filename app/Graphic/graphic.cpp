@@ -40,8 +40,21 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     MessageBoxW(nullptr, L"Graphic: Failed to create device", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }
+  if (!descriptor_heap_manager_.Initalize(device_.Get())) {
+    MessageBoxW(nullptr, L"Graphic: Failed to initialize descriptor heap manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+    return false;
+  }
+
   if (!CreateCommandQueue()) {
     MessageBoxW(nullptr, L"Graphic: Failed to create command queue", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+    return false;
+  }
+  if (!CreateCommandAllocator()) {
+    MessageBoxW(nullptr, L"Graphic: Failed to create command allocator", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+    return false;
+  }
+  if (!CreateCommandList()) {
+    MessageBoxW(nullptr, L"Graphic: Failed to create command list", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }
 
@@ -50,25 +63,12 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
-  if (!CreateDescriptorHeapForFrameBuffer()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create descriptor heap", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+  if (!CreateFrameBuffers()) {
+    MessageBoxW(nullptr, L"Graphic: Failed to create frame buffers", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }
-  if (!CreateRTVForFameBuffer()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create RTV", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
-  if (!CreateDSVForFrameBuffer()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create DSV", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
-
-  if (!CreateCommandAllocator()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create command allocator", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
-  if (!CreateCommandList()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create command list", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+  if (!CreateDepthStencil()) {
+    MessageBoxW(nullptr, L"Graphic: Failed to create depth stencil", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }
 
@@ -417,6 +417,14 @@ void Graphic::BeginRender() {
 
   command_list_->Reset(command_allocator_.Get(), nullptr);
 
+  descriptor_heap_manager_.BeginFrame();
+  descriptor_heap_manager_.SetDescriptorHeaps(command_list_.Get());
+
+  current_back_buffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
+
+  current_frame_buffer_rtv_handle_ = back_buffer_rtv_allocations_[current_back_buffer_index_].cpu;
+  current_frame_buffer_dsv_handle_ = depth_stencil_dsv_allocation_.cpu;
+
   D3D12_RESOURCE_BARRIER BarrierDesc = {};
   BarrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   BarrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -426,12 +434,13 @@ void Graphic::BeginRender() {
   BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
   command_list_->ResourceBarrier(1, &BarrierDesc);
 
-  auto rtvH = rtv_heaps_->GetCPUDescriptorHandleForHeapStart();
-  rtvH.ptr += static_cast<ULONG_PTR>(frame_index_ * device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
-  command_list_->OMSetRenderTargets(1, &rtvH, false, nullptr);
+  command_list_->RSSetViewports(1, &viewport_);
+  command_list_->RSSetScissorRects(1, &scissor_rect_);
 
   float clearColor[] = {1.0f, 1.0f, 0.0f, 1.0f};
-  command_list_->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+  command_list_->ClearRenderTargetView(current_frame_buffer_rtv_handle_, clearColor, 0, nullptr);
+  command_list_->ClearDepthStencilView(current_frame_buffer_dsv_handle_, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+  command_list_->OMSetRenderTargets(1, &current_frame_buffer_rtv_handle_, FALSE, &current_frame_buffer_dsv_handle_);
 
   command_list_->SetPipelineState(pipeline_state_.Get());
   command_list_->RSSetViewports(1, &viewport_);
@@ -449,7 +458,14 @@ void Graphic::BeginRender() {
   command_list_->SetGraphicsRootDescriptorTable(0, texture_descriptor_heap_->GetGPUDescriptorHandleForHeapStart());
 
   command_list_->DrawIndexedInstanced(6, 1, 0, 0, 0);
+}
 
+void Graphic::EndRender() {
+  D3D12_RESOURCE_BARRIER BarrierDesc = {};
+  BarrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+  BarrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+  BarrierDesc.Transition.pResource = _backBuffers[frame_index_].Get();
+  BarrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
   BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
   BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
   command_list_->ResourceBarrier(1, &BarrierDesc);
@@ -468,9 +484,6 @@ void Graphic::BeginRender() {
   }
 
   swap_chain_->Present(1, 0);
-}
-
-void Graphic::EndRender() {
 }
 
 bool Graphic::EnableDebugLayer() {
@@ -608,60 +621,44 @@ bool Graphic::CreateSwapChain(HWND hwnd, UINT frameBufferWidth, UINT frameBuffer
   return true;
 }
 
-bool Graphic::CreateDescriptorHeapForFrameBuffer() {
-  D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
-  heap_desc.NumDescriptors = FRAME_BUFFER_COUNT;
-  heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-  heap_desc.NodeMask = 0;
-  heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-  auto hr = device_->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&rtv_heaps_));
-
+bool Graphic::CreateFrameBuffers() {
+  rtv_heaps_ = descriptor_heap_manager_.GetRtvAllocator().GetHeap();
   rtv_descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-  if (FAILED(hr) || rtv_heaps_ == nullptr) {
-    std::cerr << "Failed to create RTV descriptor heap." << std::endl;
-    return false;
-  }
-
-  heap_desc.NumDescriptors = 1;
-  heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-  hr = device_->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&dsv_heaps_));
-  if (FAILED(hr) || dsv_heaps_ == nullptr) {
-    std::cerr << "Failed to create DSV descriptor heap." << std::endl;
-    return false;
-  }
-
-  dsv_descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-
-  return true;
-}
-
-bool Graphic::CreateRTVForFameBuffer() {
   if (swap_chain_ == nullptr) {
-    std::cerr << "Failed to create RTV for frame buffer, swap_chain_ is nullptr." << std::endl;
-    return false;
-  }
-
-  if (rtv_heaps_ == nullptr) {
-    std::cerr << "Failed to create RTV for frame buffer, rtv_heaps_ is nullptr." << std::endl;
+    std::cerr << "Failed to create RTV for frame buffer, swap chain is nullptr" << std::endl;
     return false;
   }
 
   DXGI_SWAP_CHAIN_DESC swcDesc = {};
   swap_chain_->GetDesc(&swcDesc);
 
-  D3D12_CPU_DESCRIPTOR_HANDLE handle = rtv_heaps_->GetCPUDescriptorHandleForHeapStart();
   for (size_t i = 0; i < swcDesc.BufferCount; ++i) {
-    swap_chain_->GetBuffer(static_cast<UINT>(i), IID_PPV_ARGS(_backBuffers[i].GetAddressOf()));
-    device_->CreateRenderTargetView(_backBuffers[i].Get(), nullptr, handle);
-    handle.ptr += rtv_descriptor_size_;
+    HRESULT hr = swap_chain_->GetBuffer(static_cast<UINT>(i), IID_PPV_ARGS(_backBuffers[i].GetAddressOf()));
+    if (FAILED(hr)) {
+      std::cerr << "Failed to get back buffer " << i << std::endl;
+      return false;
+    }
+
+    back_buffer_rtv_allocations_[i] = descriptor_heap_manager_.GetRtvAllocator().Allocate(1);
+    if (!back_buffer_rtv_allocations_[i].IsValid()) {
+      std::cerr << "Failed to allocate RTV for back buffer " << i << std::endl;
+      return false;
+    }
+
+    device_->CreateRenderTargetView(_backBuffers[i].Get(), nullptr, back_buffer_rtv_allocations_[i].cpu);
+
+    std::wstring name = L"BackBuffer_" + std::to_wstring(i);
+    _backBuffers[i]->SetName(name.c_str());
   }
 
   return true;
 }
 
-bool Graphic::CreateDSVForFrameBuffer() {
+bool Graphic::CreateDepthStencil() {
+  dsv_heaps_ = descriptor_heap_manager_.GetDsvAllocator().GetHeap();
+  dsv_descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
   D3D12_CLEAR_VALUE dsvClearValue;
   dsvClearValue.Format = DXGI_FORMAT_D32_FLOAT;
   dsvClearValue.DepthStencil.Depth = 1.0f;
@@ -691,10 +688,14 @@ bool Graphic::CreateDSVForFrameBuffer() {
     std::cerr << "Failed to create depth stencil buffer." << std::endl;
     return false;
   }
+  depth_stencil_dsv_allocation_ = descriptor_heap_manager_.GetDsvAllocator().Allocate(1);
+  if (!depth_stencil_dsv_allocation_.IsValid()) {
+    std::cerr << "Failed to allocate DSV" << std::endl;
+    return false;
+  }
 
-  D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = dsv_heaps_->GetCPUDescriptorHandleForHeapStart();
-
-  device_->CreateDepthStencilView(depth_stencil_buffer_.Get(), nullptr, dsvHandle);
+  device_->CreateDepthStencilView(depth_stencil_buffer_.Get(), nullptr, depth_stencil_dsv_allocation_.cpu);
+  depth_stencil_buffer_->SetName(L"DepthStencilBuffer");
 
   return true;
 }

@@ -7,7 +7,17 @@ add_library(graphic STATIC
     graphic.h
     d3dx12.h
     types.h
+    ../utils.h
+
+    gpu_resource.h
+    gpu_resource.cpp
+    descriptor_heap_allocator.h
+    descriptor_heap_allocator.cpp
+    descriptor_heap_manager.h
+    descriptor_heap_manager.cpp
 )
+
+target_include_directories(graphic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
 set_msvc_runtime(graphic)
 

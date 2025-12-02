@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "d3dx12.h"
+#include "descriptor_heap_manager.h"
+#include "gpu_resource.h"
 #include "types.h"
 
 class Graphic {
@@ -19,18 +21,22 @@ class Graphic {
   bool Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height);
   void BeginRender();
   void EndRender();
+  void Shutdown();
 
   static constexpr int FRAME_BUFFER_COUNT = 2;
 
  private:
+  // Core
   ComPtr<ID3D12Device5> device_ = nullptr;  /// @note D3D Device, RTX graphic card required
   ComPtr<IDXGIFactory6> dxgi_factory_ = nullptr;
   ComPtr<IDXGISwapChain4> swap_chain_ = nullptr;
 
   ComPtr<ID3D12CommandAllocator> command_allocator_ = nullptr;
   ComPtr<ID3D12GraphicsCommandList> command_list_ = nullptr;
-
   ComPtr<ID3D12CommandQueue> command_queue_ = nullptr;
+
+  // descriptor management
+  DescriptorHeapManager descriptor_heap_manager_;
 
   ComPtr<ID3D12DescriptorHeap> rtv_heaps_ = nullptr;
   ComPtr<ID3D12DescriptorHeap> dsv_heaps_ = nullptr;
@@ -47,6 +53,9 @@ class Graphic {
 
   std::vector<ComPtr<ID3D12Resource>> _backBuffers{FRAME_BUFFER_COUNT, nullptr};
   ComPtr<ID3D12Resource> depth_stencil_buffer_ = nullptr;
+
+  DescriptorHeapAllocator::Allocation back_buffer_rtv_allocations_[FRAME_BUFFER_COUNT];
+  DescriptorHeapAllocator::Allocation depth_stencil_dsv_allocation_;
 
   // Pipeline State
   ComPtr<ID3D12RootSignature> root_signature_ = nullptr;
@@ -82,9 +91,10 @@ class Graphic {
 
   bool CreateSwapChain(HWND hwnd, UINT frameBufferWidth, UINT frameBufferHeight);
 
-  bool CreateDescriptorHeapForFrameBuffer();
-  bool CreateRTVForFameBuffer();
-  bool CreateDSVForFrameBuffer();
+  bool CreateFrameBuffers();
+  bool CreateDepthStencil();
 
   bool CreateSynchronizationWithGPUObject();
+
+  // void WaitForGpu();
 };
