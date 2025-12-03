@@ -4,6 +4,8 @@
 
 #include <cstdint>
 #include <functional>
+#include <list>
+#include <map>
 #include <queue>
 #include <vector>
 
@@ -53,6 +55,9 @@ class DescriptorHeapAllocator {
   uint32_t GetAvailable() const {
     return capacity_ - allocated_;
   }
+  uint32_t GetFragmentationCount() const {
+    return static_cast<uint32_t>(free_blocks_.size());
+  }
 
  private:
   ComPtr<ID3D12DescriptorHeap> heap_ = nullptr;
@@ -65,8 +70,21 @@ class DescriptorHeapAllocator {
   D3D12_CPU_DESCRIPTOR_HANDLE heap_start_cpu_ = {};
   D3D12_GPU_DESCRIPTOR_HANDLE heap_start_gpu_ = {};
 
-  std::priority_queue<uint32_t, std::vector<uint32_t>, std::greater<uint32_t>> free_list_ = {};
-
   D3D12_CPU_DESCRIPTOR_HANDLE GetCpuHandle(uint32_t index) const;
   D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle(uint32_t index) const;
+
+  struct FreeBlock {
+    uint32_t index;
+    uint32_t count;
+
+    bool operator<(const FreeBlock& other) const {
+      return index < other.index;
+    }
+  };
+  
+  std::list<FreeBlock> free_blocks_;
+  std::multimap<uint32_t, std::list<FreeBlock>::iterator> free_blocks_by_size_;
+  
+  void MergeFreeBlocks();
+  std::list<FreeBlock>::iterator FindBestFitBlock(uint32_t count);
 };

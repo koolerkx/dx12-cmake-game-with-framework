@@ -60,55 +60,138 @@ bool DescriptorHeapAllocator::Initialize(ID3D12Device* device, D3D12_DESCRIPTOR_
 DescriptorHeapAllocator::Allocation DescriptorHeapAllocator::Allocate(uint32_t count) {
   assert(count > 0);
 
-  if (!free_list_.empty() && count == 1) {
-    // Allocate from free list
-    uint32_t index = free_list_.top();
-    free_list_.pop();
+  // No free block
+  if (allocated_ + count > capacity_) {
+    std::cerr << "DescriptorAllocator::Allocate - Out of descriptors! "
+              << "Requested: " << count << ", Available: " << (capacity_ - allocated_) << ", Free blocks: " << free_blocks_.size()
+              << std::endl;
+    return {};
+  }
 
-    Allocation allocation;
-    allocation.cpu = GetCpuHandle(index);
-    allocation.gpu = shader_visible_ ? GetGpuHandle(index) : D3D12_GPU_DESCRIPTOR_HANDLE{0};
-    allocation.index = index;
-    allocation.count = count;
+  Allocation allocation;
+  allocation.count = count;
+
+  auto block = FindBestFitBlock(count);
+
+  // free block found
+  if (block != free_blocks_.end()) {
+    allocation.index = block->index;
+    allocation.cpu = GetCpuHandle(allocation.index);
+    allocation.gpu = shader_visible_ ? GetGpuHandle(allocation.index) : D3D12_GPU_DESCRIPTOR_HANDLE{0};
+
+    // remove the best fit from indexing map
+    auto size_range = free_blocks_by_size_.equal_range(block->count);
+    for (auto it = size_range.first; it != size_range.second; ++it) {
+      if (it->second == block) {
+        free_blocks_by_size_.erase(it);
+        break;
+      }
+    }
+
+    // put the remaining space back to indexing map
+    if (block->count > count) {
+      FreeBlock remaining;
+      remaining.index = block->index + count;
+      remaining.count = block->count - count;
+      block->index = remaining.index;  // inplace update
+      block->count = remaining.count;  // inplace update
+
+      free_blocks_by_size_.insert({remaining.count, block});  // update indexing map
+    } else {
+      free_blocks_.erase(block);
+    }
 
     return allocation;
   }
 
-  if (allocated_ + count > capacity_) {
-    std::cerr << "DescriptorAllocator::Allocate - Out of descriptors! "
-              << "Requested: " << count << ", Available: " << (capacity_ - allocated_) << std::endl;
-  }
+  allocation.index = allocated_;
+  allocation.cpu = GetCpuHandle(allocation.index);
+  allocation.gpu = shader_visible_ ? GetGpuHandle(allocation.index) : D3D12_GPU_DESCRIPTOR_HANDLE{0};
 
-  // Allocate from end
-  // TOOD: Review logic
-  uint32_t index = allocated_;
   allocated_ += count;
-
-  Allocation allocation;
-  allocation.cpu = GetCpuHandle(index);
-  allocation.gpu = shader_visible_ ? GetGpuHandle(index) : D3D12_GPU_DESCRIPTOR_HANDLE{0};
-  allocation.index = index;
-  allocation.count = count;
 
   return allocation;
 }
 
 void DescriptorHeapAllocator::Free(const Allocation& allocation) {
-  if (!allocation.IsValid()) {
+  if (!allocation.IsValid() || allocation.count == 0) {
     return;
   }
 
-  if (allocation.count == 1) {
-    free_list_.push(allocation.index);
-  } else {
-    // TOOD: multi-descriptor free
+  FreeBlock new_block;
+  new_block.index = allocation.index;
+  new_block.count = allocation.count;
+
+  auto insert_pos = free_blocks_.begin();
+  while (insert_pos != free_blocks_.end() && insert_pos->index < new_block.index) {
+    ++insert_pos;
   }
+
+  auto inserted_it = free_blocks_.insert(insert_pos, new_block);
+  free_blocks_by_size_.insert({new_block.count, inserted_it});
+
+  MergeFreeBlocks();
 }
 
 void DescriptorHeapAllocator::Reset() {
   allocated_ = 0;
-  while (!free_list_.empty()) {
-    free_list_.pop();
+  free_blocks_.clear();
+  free_blocks_by_size_.clear();
+}
+
+std::list<DescriptorHeapAllocator::FreeBlock>::iterator DescriptorHeapAllocator::FindBestFitBlock(uint32_t count) {
+  auto it = free_blocks_by_size_.lower_bound(count);
+
+  if (it != free_blocks_by_size_.end()) {
+    return it->second;
+  }
+
+  return free_blocks_.end();
+}
+
+void DescriptorHeapAllocator::MergeFreeBlocks() {
+  if (free_blocks_.size() < 2) {
+    return;
+  }
+
+  auto it = free_blocks_.begin();
+  while (it != free_blocks_.end()) {
+    auto next = std::next(it);
+
+    if (next == free_blocks_.end()) {
+      break;
+    }
+
+    // Check if current block and next block are adjacent
+    if (it->index + it->count == next->index) {
+      // Remove both blocks from indexing map
+      auto size_range1 = free_blocks_by_size_.equal_range(it->count);
+      for (auto size_it = size_range1.first; size_it != size_range1.second; ++size_it) {
+        if (size_it->second == it) {
+          free_blocks_by_size_.erase(size_it);
+          break;
+        }
+      }
+
+      auto size_range2 = free_blocks_by_size_.equal_range(next->count);
+      for (auto size_it = size_range2.first; size_it != size_range2.second; ++size_it) {
+        if (size_it->second == next) {
+          free_blocks_by_size_.erase(size_it);
+          break;
+        }
+      }
+
+      // Merge blocks
+      it->count += next->count;
+      free_blocks_.erase(next);
+
+      // Re-insert merged block into size map
+      free_blocks_by_size_.insert({it->count, it});
+
+      // Continue checking with the same iterator (in case we can merge more)
+    } else {
+      ++it;
+    }
   }
 }
 
