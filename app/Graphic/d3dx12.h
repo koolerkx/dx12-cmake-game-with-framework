@@ -1,4 +1,5 @@
-﻿//*********************************************************
+﻿// NOLINTBEGIN
+//*********************************************************
 //
 // Copyright (c) Microsoft. All rights reserved.
 // This code is licensed under the MIT License (MIT).
@@ -3434,3 +3435,4 @@ private:
 
 
 
+// NOLINTEND

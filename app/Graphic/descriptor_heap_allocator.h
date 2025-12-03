@@ -3,11 +3,8 @@
 #include <d3d12.h>
 
 #include <cstdint>
-#include <functional>
 #include <list>
 #include <map>
-#include <queue>
-#include <vector>
 
 #include "types.h"
 

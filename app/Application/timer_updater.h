@@ -1,9 +1,9 @@
 #pragma once
+// NOLINTBEGIN
 
 #include <algorithm>
 #include <cassert>
 #include <chrono>
-#include <functional>
 #include <thread>
 
 /**
@@ -81,7 +81,7 @@ class TimerUpdater {
    * @param fixedUpdate Fixed timestep update function.
    */
   template <class UpdateFn, class FixedFn>
-  void tick(UpdateFn&& update, FixedFn&& fixedUpdate) {
+  void tick(UpdateFn update, FixedFn fixedUpdate) {
     // Single-thread enforcement
     if (std::this_thread::get_id() != tick_thread_id_) {
       assert(false && "tick() must be called from the same thread");
@@ -124,7 +124,8 @@ class TimerUpdater {
     }
 
     // Interpolation alpha in [0,1]
-    alpha_ = std::clamp(accumulator_ / fixed_dt_, 0.0f, 1.0f);
+    const auto t = accumulator_ / fixed_dt_;
+    alpha_ = (std::max)(0.0f, (std::min)(1.0f, t));
   }
 
   /** @return Interpolation alpha (0..1) between last and next fixed update. */
@@ -198,3 +199,5 @@ class TimerUpdater {
   // Thread that owns tick()
   std::thread::id tick_thread_id_{};
 };
+
+// NOLINTEND

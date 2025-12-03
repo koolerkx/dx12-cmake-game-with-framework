@@ -21,7 +21,7 @@ class DepthBuffer : public GpuResource {
     return dsv_allocation_.cpu;
   }
 
-  void Clear(ID3D12GraphicsCommandList* command_list, float depth = 1.0f, UINT8 stencil = 0);
+  void Clear(ID3D12GraphicsCommandList* command_list, float depth = 1.0f, UINT8 stencil = 0) const;
 
   UINT GetWidth() const {
     return width_;
@@ -35,7 +35,7 @@ class DepthBuffer : public GpuResource {
   }
 
  private:
-  DescriptorHeapAllocator::Allocation dsv_allocation_;
+  DescriptorHeapAllocator::Allocation dsv_allocation_ = {};
   UINT width_ = 0;
   UINT height_ = 0;
   DXGI_FORMAT format_ = DXGI_FORMAT_D32_FLOAT;

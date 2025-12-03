@@ -64,15 +64,15 @@ bool SwapChainManager::Initialize(ID3D12Device* device,
 
 bool SwapChainManager::CreateBackBufferViews(DescriptorHeapManager& descriptor_manager) {
   for (UINT i = 0; i < BUFFER_COUNT; ++i) {
-    HRESULT hr = swap_chain_->GetBuffer(static_cast<UINT>(i), IID_PPV_ARGS(back_buffers_[i].GetAddressOf()));
+    HRESULT hr = swap_chain_->GetBuffer(i, IID_PPV_ARGS(back_buffers_[i].GetAddressOf()));
     if (FAILED(hr)) {
-      std::cerr << "Failed to get back buffer " << i << std::endl;
+      std::cerr << "Failed to get back buffer " << i << '\n';
       return false;
     }
 
     back_buffer_rtvs_[i] = descriptor_manager.GetRtvAllocator().Allocate(1);
     if (!back_buffer_rtvs_[i].IsValid()) {
-      std::cerr << "Failed to allocate RTV for back buffer " << i << std::endl;
+      std::cerr << "Failed to allocate RTV for back buffer " << i << '\n';
       return false;
     }
 
@@ -132,7 +132,7 @@ bool SwapChainManager::Resize(UINT width, UINT height, DescriptorHeapManager& de
   HRESULT hr = swap_chain_->ResizeBuffers(BUFFER_COUNT, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
 
   if (FAILED(hr)) {
-    std::cerr << "[SwapChainManager] Failed to resize swap chain." << std::endl;
+    std::cerr << "[SwapChainManager] Failed to resize swap chain." << '\n';
     return false;
   }
 

@@ -1,3 +1,4 @@
+// NOLINTBEGIN
 //--------------------------------------------------------------------------------------
 // File: WICTextureLoader12.cpp
 //
@@ -832,3 +833,4 @@ HRESULT DirectX::LoadWICTextureFromFileEx(
 
     return hr;
 }
+// NOLINTEND

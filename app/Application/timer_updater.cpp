@@ -1,3 +1,4 @@
+// NOLINTBEGIN
 #include "timer_updater.h"
 
 #include <cassert>
@@ -62,3 +63,5 @@ void TimerUpdater::SetPaused(bool p) {
 void TimerUpdater::BindTickThreadToCurrent() {
   tick_thread_id_ = std::this_thread::get_id();
 }
+
+//NOLINTEND

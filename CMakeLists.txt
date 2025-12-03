@@ -8,6 +8,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+# TODO: Use msvc, the current approach take the llvm gcc clang as default
+find_program(CLANG_TIDY_EXE NAMES clang-tidy)
+
+if(CLANG_TIDY_EXE)
+  message(STATUS "Found clang-tidy: ${CLANG_TIDY_EXE}")
+  set(CMAKE_CXX_CLANG_TIDY
+    "${CLANG_TIDY_EXE}"
+    "-p=${CMAKE_BINARY_DIR}"
+    "-extra-arg=/EHsc")
+else()
+  message(WARNING "clang-tidy not found")
+endif()
+
 if(MSVC)
   add_compile_options(/wd4324)
 

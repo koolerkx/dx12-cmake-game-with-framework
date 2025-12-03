@@ -128,7 +128,7 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     &heapprop, D3D12_HEAP_FLAG_NONE, &resdesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&idxBuff));
 
   unsigned short* mappedIdx = nullptr;
-  idxBuff->Map(0, nullptr, (void**)&mappedIdx);
+  idxBuff->Map(0, nullptr, reinterpret_cast<void**>(&mappedIdx));
   std::copy(std::begin(indices), std::end(indices), mappedIdx);
   idxBuff->Unmap(0, nullptr);
 
@@ -173,37 +173,37 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
 
   // まだアンチエイリアスは使わないためfalse
-  gpipeline.RasterizerState.MultisampleEnable = false;
+  gpipeline.RasterizerState.MultisampleEnable = FALSE;
   gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;   // カリングしない
   gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;  // 中身を塗りつぶす
-  gpipeline.RasterizerState.DepthClipEnable = true;            // 深度方向のクリッピングは有効に
+  gpipeline.RasterizerState.DepthClipEnable = TRUE;            // 深度方向のクリッピングは有効に
 
   // Alpha Blend
-  gpipeline.BlendState.AlphaToCoverageEnable = false;
-  gpipeline.BlendState.IndependentBlendEnable = false;
+  gpipeline.BlendState.AlphaToCoverageEnable = FALSE;
+  gpipeline.BlendState.IndependentBlendEnable = FALSE;
 
   D3D12_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc = {};
 
   // ひとまず加算や乗算やαブレンディングは使用しない
-  renderTargetBlendDesc.BlendEnable = false;
+  renderTargetBlendDesc.BlendEnable = FALSE;
   renderTargetBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
   // ひとまず論理演算は使用しない
-  renderTargetBlendDesc.LogicOpEnable = false;
+  renderTargetBlendDesc.LogicOpEnable = FALSE;
 
   gpipeline.BlendState.RenderTarget[0] = renderTargetBlendDesc;
 
   // Rasterizer State
-  gpipeline.RasterizerState.MultisampleEnable = false;         // まだアンチェリは使わない
+  gpipeline.RasterizerState.MultisampleEnable = FALSE;         // まだアンチェリは使わない
   gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;   // カリングしない
   gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;  // 中身を塗りつぶす
-  gpipeline.RasterizerState.DepthClipEnable = true;            // 深度方向のクリッピングは有効に
+  gpipeline.RasterizerState.DepthClipEnable = TRUE;            // 深度方向のクリッピングは有効に
 
   // 残り
-  gpipeline.RasterizerState.FrontCounterClockwise = false;
+  gpipeline.RasterizerState.FrontCounterClockwise = FALSE;
   gpipeline.RasterizerState.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
   gpipeline.RasterizerState.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
   gpipeline.RasterizerState.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-  gpipeline.RasterizerState.AntialiasedLineEnable = false;
+  gpipeline.RasterizerState.AntialiasedLineEnable = FALSE;
   gpipeline.RasterizerState.ForcedSampleCount = 0;
   gpipeline.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
 
@@ -211,8 +211,8 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   gpipeline.InputLayout.NumElements = _countof(inputLayout);  // レイアウト配列数
 
   // Depth stencil
-  gpipeline.DepthStencilState.DepthEnable = false;
-  gpipeline.DepthStencilState.StencilEnable = false;
+  gpipeline.DepthStencilState.DepthEnable = FALSE;
+  gpipeline.DepthStencilState.StencilEnable = FALSE;
 
   // Input layout
   gpipeline.InputLayout.pInputElementDescs = inputLayout;     // レイアウト先頭アドレス

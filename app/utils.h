@@ -11,16 +11,17 @@ namespace utils {
  * @return std::wstring
  * @throws std::runtime_error On conversion failure.
  */
-inline std::wstring utf8_to_wstring(const std::string& utf8_str) {
-  if (utf8_str.empty()) return std::wstring();
+inline std::wstring Utf8ToWstring(const std::string& utf8_str) {
+  if (utf8_str.empty()) return L"";
 
-  int size_needed = MultiByteToWideChar(CP_UTF8, 0, utf8_str.c_str(), (int)utf8_str.size(), NULL, 0);
+  int size_needed = MultiByteToWideChar(CP_UTF8, 0, utf8_str.c_str(), static_cast<int>(utf8_str.size()), NULL, 0);
   if (size_needed == 0) {
     throw std::runtime_error("Utils: UTF-8 to UTF-16 conversion failed");
   }
 
   std::wstring wstr(size_needed, 0);
-  MultiByteToWideChar(CP_UTF8, 0, utf8_str.c_str(), (int)utf8_str.size(), &wstr[0], size_needed);
+  MultiByteToWideChar(
+    CP_UTF8, 0, utf8_str.c_str(), static_cast<int>(utf8_str.size()), &wstr[0], size_needed);  // NOLINT readability-container-data-pointer
   return wstr;
 }
 
@@ -30,16 +31,23 @@ inline std::wstring utf8_to_wstring(const std::string& utf8_str) {
  * @return std::string
  * @throws std::runtime_error On conversion failure.
  */
-inline std::string wstring_to_utf8(const std::wstring& wstr) {
+inline std::string WstringToUtf8(const std::wstring& wstr) {
   if (wstr.empty()) return std::string();
 
-  int size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), (int)wstr.size(), NULL, 0, NULL, NULL);
+  int size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), static_cast<int>(wstr.size()), NULL, 0, NULL, NULL);
   if (size_needed == 0) {
     throw std::runtime_error("Utils: UTF-16 to UTF-8 conversion failed");
   }
 
   std::string utf8_str(size_needed, 0);
-  WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), (int)wstr.size(), &utf8_str[0], size_needed, NULL, NULL);
+  WideCharToMultiByte(CP_UTF8,
+    0,
+    wstr.c_str(),
+    static_cast<int>(wstr.size()),
+    &utf8_str[0],  // NOLINT readability-container-data-pointer
+    size_needed,
+    NULL,
+    NULL);  // NOLINT readability-container-data-pointer
   return utf8_str;
 }
 }  // namespace utils
