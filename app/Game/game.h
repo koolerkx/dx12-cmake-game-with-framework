@@ -4,7 +4,7 @@
 
 class Game {
  public:
-  Game(Graphic& graphic) : graphic_(graphic) {};
+  explicit Game(Graphic& graphic) : graphic_(graphic) {};
   ~Game() = default;
 
   void OnUpdate([[maybe_unused]] float dt);

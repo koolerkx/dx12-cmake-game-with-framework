@@ -1,11 +1,11 @@
 include(shader)
 
 add_library(graphic STATIC
-    WICTextureLoader12.h
-    WICTextureLoader12.cpp
+    ThirdParty/WICTextureLoader12.h
+    ThirdParty/WICTextureLoader12.cpp
+    ThirdParty/d3dx12.h
     graphic.cpp
     graphic.h
-    d3dx12.h
     types.h
     ../utils.h
 
@@ -25,6 +25,8 @@ add_library(graphic STATIC
 )
 
 target_include_directories(graphic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_include_directories(graphic SYSTEM PRIVATE ThirdParty)
+target_include_directories(graphic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 set_msvc_runtime(graphic)
 
@@ -41,4 +43,3 @@ target_add_hlsl_auto(graphic "6.5"
 #     "${CMAKE_SOURCE_DIR}/shaders/basic_ps.hlsl"
 # )
 
-target_include_directories(graphic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

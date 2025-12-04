@@ -11,7 +11,7 @@ Application::Application(HINSTANCE__* const hInstance, const int width, const in
 }
 
 Application::~Application() {
-  if (hwnd_) {
+  if (hwnd_ != nullptr) {
     DestroyWindow(hwnd_);
   }
 }
@@ -25,19 +25,19 @@ bool Application::InitWindow() {
   wc.hInstance = hInstance_;
   // wc.hIcon = LoadIcon(hInstance_, MAKEINTRESOURCE(IDI_APP_ICON));
   wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-  wc.hbrBackground = reinterpret_cast<HBRUSH>((COLOR_WINDOW + 1));
+  wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
   wc.lpszMenuName = nullptr;
   wc.lpszClassName = WINDOW_CLASS.c_str();
   wc.hIconSm = LoadIcon(hInstance_, IDI_APPLICATION);
 
-  if (!RegisterClassExW(&wc)) {
+  if (RegisterClassExW(&wc) == 0U) {
     return false;
   }
 
-  constexpr DWORD style = WS_OVERLAPPEDWINDOW & ~(WS_MAXIMIZEBOX | WS_THICKFRAME);
+  constexpr DWORD STYLE = WS_OVERLAPPEDWINDOW & ~(WS_MAXIMIZEBOX | WS_THICKFRAME);
 
   RECT window_rect = {0, 0, static_cast<LONG>(width_), static_cast<LONG>(height_)};
-  AdjustWindowRect(&window_rect, style, FALSE);
+  AdjustWindowRect(&window_rect, STYLE, FALSE);
 
   const int window_width = window_rect.right - window_rect.left;
   const int window_height = window_rect.bottom - window_rect.top;
@@ -50,7 +50,7 @@ bool Application::InitWindow() {
   hwnd_ = CreateWindowExW(0,
     WINDOW_CLASS.c_str(),
     WINDOW_NAME.c_str(),
-    style,
+    STYLE,
     window_x,
     window_y,
     window_width,
@@ -60,14 +60,14 @@ bool Application::InitWindow() {
     hInstance_,
     this);
 
-  if (!hwnd_) {
+  if (hwnd_ == nullptr) {
     return false;
   }
 
   ShowWindow(hwnd_, SW_SHOW);
   UpdateWindow(hwnd_);
 
-  timer_updater_ = std::make_unique<TimerUpdater>(60.0f);
+  timer_updater_ = std::make_unique<TimerUpdater>(FIXED_HZ);
 
   return true;
 }
@@ -85,7 +85,7 @@ LRESULT CALLBACK Application::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
 
   switch (msg) {
     case WM_DESTROY:
-      if (app) {
+      if (app != nullptr) {
         app->running_ = false;
       }
       // PostQuitMessage(0);
@@ -93,7 +93,7 @@ LRESULT CALLBACK Application::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
 
     case WM_KEYDOWN:
       if (wParam == VK_ESCAPE) {
-        if (app) {
+        if (app != nullptr) {
           app->running_ = false;
         }
         DestroyWindow(hwnd);
@@ -125,3 +125,4 @@ int Application::Run(const std::function<void(float dt)>& OnUpdate, const std::f
 
   return static_cast<int>(msg.wParam);
 }
+// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast, performance-no-int-to-ptr)

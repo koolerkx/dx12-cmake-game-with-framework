@@ -6,6 +6,7 @@
 #include <d3dcompiler.h>
 #include <dxgiformat.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
@@ -74,6 +75,7 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
+  // NOLINTBEGIN
   HRESULT hr;
 
   // Draw Triangle
@@ -128,7 +130,7 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     &heapprop, D3D12_HEAP_FLAG_NONE, &resdesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&idxBuff));
 
   unsigned short* mappedIdx = nullptr;
-  idxBuff->Map(0, nullptr, (void**)&mappedIdx);
+  idxBuff->Map(0, nullptr, reinterpret_cast<void**>(&mappedIdx));
   std::copy(std::begin(indices), std::end(indices), mappedIdx);
   idxBuff->Unmap(0, nullptr);
 
@@ -173,37 +175,37 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
 
   // まだアンチエイリアスは使わないためfalse
-  gpipeline.RasterizerState.MultisampleEnable = false;
+  gpipeline.RasterizerState.MultisampleEnable = FALSE;
   gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;   // カリングしない
   gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;  // 中身を塗りつぶす
-  gpipeline.RasterizerState.DepthClipEnable = true;            // 深度方向のクリッピングは有効に
+  gpipeline.RasterizerState.DepthClipEnable = TRUE;            // 深度方向のクリッピングは有効に
 
   // Alpha Blend
-  gpipeline.BlendState.AlphaToCoverageEnable = false;
-  gpipeline.BlendState.IndependentBlendEnable = false;
+  gpipeline.BlendState.AlphaToCoverageEnable = FALSE;
+  gpipeline.BlendState.IndependentBlendEnable = FALSE;
 
   D3D12_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc = {};
 
   // ひとまず加算や乗算やαブレンディングは使用しない
-  renderTargetBlendDesc.BlendEnable = false;
+  renderTargetBlendDesc.BlendEnable = FALSE;
   renderTargetBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
   // ひとまず論理演算は使用しない
-  renderTargetBlendDesc.LogicOpEnable = false;
+  renderTargetBlendDesc.LogicOpEnable = FALSE;
 
   gpipeline.BlendState.RenderTarget[0] = renderTargetBlendDesc;
 
   // Rasterizer State
-  gpipeline.RasterizerState.MultisampleEnable = false;         // まだアンチェリは使わない
+  gpipeline.RasterizerState.MultisampleEnable = FALSE;         // まだアンチェリは使わない
   gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;   // カリングしない
   gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;  // 中身を塗りつぶす
-  gpipeline.RasterizerState.DepthClipEnable = true;            // 深度方向のクリッピングは有効に
+  gpipeline.RasterizerState.DepthClipEnable = TRUE;            // 深度方向のクリッピングは有効に
 
   // 残り
-  gpipeline.RasterizerState.FrontCounterClockwise = false;
+  gpipeline.RasterizerState.FrontCounterClockwise = FALSE;
   gpipeline.RasterizerState.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
   gpipeline.RasterizerState.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
   gpipeline.RasterizerState.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-  gpipeline.RasterizerState.AntialiasedLineEnable = false;
+  gpipeline.RasterizerState.AntialiasedLineEnable = FALSE;
   gpipeline.RasterizerState.ForcedSampleCount = 0;
   gpipeline.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
 
@@ -211,8 +213,8 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   gpipeline.InputLayout.NumElements = _countof(inputLayout);  // レイアウト配列数
 
   // Depth stencil
-  gpipeline.DepthStencilState.DepthEnable = false;
-  gpipeline.DepthStencilState.StencilEnable = false;
+  gpipeline.DepthStencilState.DepthEnable = FALSE;
+  gpipeline.DepthStencilState.StencilEnable = FALSE;
 
   // Input layout
   gpipeline.InputLayout.pInputElementDescs = inputLayout;     // レイアウト先頭アドレス
@@ -327,7 +329,7 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     &uploadHeapProps, D3D12_HEAP_FLAG_NONE, &uploadBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&textureUpload));
 
   if (FAILED(hr)) {
-    std::cerr << "Failed to create texture upload buffer." << std::endl;
+    std::cerr << "Failed to create texture upload buffer." << '\n';
     return false;
   }
 
@@ -335,14 +337,14 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   UINT8* pMappedData = nullptr;
   hr = textureUpload->Map(0, nullptr, reinterpret_cast<void**>(&pMappedData));
   if (FAILED(hr)) {
-    std::cerr << "Failed to map texture upload buffer." << std::endl;
+    std::cerr << "Failed to map texture upload buffer." << '\n';
     return false;
   }
 
   const UINT8* pSrcData = reinterpret_cast<const UINT8*>(subresource.pData);
   for (UINT y = 0; y < numRows; ++y) {
-    memcpy(pMappedData + footprint.Offset + y * footprint.Footprint.RowPitch,
-      pSrcData + y * subresource.RowPitch,
+    memcpy(pMappedData + footprint.Offset + (static_cast<size_t>(y * footprint.Footprint.RowPitch)),
+      pSrcData + (y * subresource.RowPitch),
       static_cast<size_t>(rowSizeInBytes));
   }
   textureUpload->Unmap(0, nullptr);
@@ -398,6 +400,7 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     texture_descriptor_heap_->GetCPUDescriptorHandleForHeapStart()  // ヒープのどこに割り当てるか
   );
 #pragma endregion debug_load_texture
+  // NOLINTEND
 
   return true;
 }
@@ -417,8 +420,8 @@ void Graphic::BeginRender() {
   command_list_->RSSetViewports(1, &viewport_);
   command_list_->RSSetScissorRects(1, &scissor_rect_);
 
-  float clearColor[] = {1.0f, 1.0f, 0.0f, 1.0f};
-  command_list_->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
+  std::array<float, 4> clearColor = {1.0f, 1.0f, 0.0f, 1.0f};
+  command_list_->ClearRenderTargetView(rtv, clearColor.data(), 0, nullptr);
   depth_buffer_.Clear(command_list_.Get(), 1.0, 0);
 
   command_list_->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
@@ -435,11 +438,11 @@ void Graphic::BeginRender() {
 
   command_list_->SetGraphicsRootSignature(root_signature_.Get());
 
-  ID3D12DescriptorHeap* heaps[] = {texture_descriptor_heap_.Get()};
-  command_list_->SetDescriptorHeaps(_countof(heaps), heaps);
+  std::array<ID3D12DescriptorHeap*, 1> heaps = {texture_descriptor_heap_.Get()};
+  command_list_->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
   command_list_->SetGraphicsRootDescriptorTable(0, texture_descriptor_heap_->GetGPUDescriptorHandleForHeapStart());
 
-  command_list_->DrawIndexedInstanced(6, 1, 0, 0, 0);
+  command_list_->DrawIndexedInstanced(6, 1, 0, 0, 0);  // NOLINT (cppcoreguidelines-avoid-magic-numbers)
 }
 
 void Graphic::EndRender() {
@@ -447,8 +450,8 @@ void Graphic::EndRender() {
 
   command_list_->Close();
 
-  ID3D12CommandList* cmdlists[] = {command_list_.Get()};
-  command_queue_->ExecuteCommandLists(1, cmdlists);
+  std::array<ID3D12CommandList*, 1> cmdlists = {command_list_.Get()};
+  command_queue_->ExecuteCommandLists(static_cast<UINT>(cmdlists.size()), cmdlists.data());
 
   fence_manager_.WaitForGpu(command_queue_.Get());
 
@@ -478,6 +481,7 @@ bool Graphic::CreateFactory() {
 
   auto hr = CreateDXGIFactory2(dxgi_factory_flag, IID_PPV_ARGS(&dxgi_factory_));
   if (FAILED(hr)) {
+    std::cerr << "Failed to create dxgi factory." << '\n';
     return false;
   }
   return true;
@@ -491,7 +495,7 @@ bool Graphic::CreateDevice() {
     adapters.push_back(tmpAdapter);
   }
 
-  for (auto adapter : adapters) {
+  for (const auto& adapter : adapters) {
     DXGI_ADAPTER_DESC adapter_desc = {};
     adapter->GetDesc(&adapter_desc);
     if (std::wstring desc_str = adapter_desc.Description; desc_str.find(L"NVIDIA") != std::string::npos) {
@@ -500,13 +504,14 @@ bool Graphic::CreateDevice() {
     }
   }
 
-  D3D_FEATURE_LEVEL levels[] = {
-    D3D_FEATURE_LEVEL_12_2,
-    D3D_FEATURE_LEVEL_12_1,
-    D3D_FEATURE_LEVEL_12_0,
-    D3D_FEATURE_LEVEL_11_1,
-    D3D_FEATURE_LEVEL_11_0,
-  };
+  D3D_FEATURE_LEVEL levels[]  // NOLINT (modernize-avoid-c-arrays)
+    = {
+      D3D_FEATURE_LEVEL_12_2,
+      D3D_FEATURE_LEVEL_12_1,
+      D3D_FEATURE_LEVEL_12_0,
+      D3D_FEATURE_LEVEL_11_1,
+      D3D_FEATURE_LEVEL_11_0,
+    };
 
   for (auto level : levels) {
     auto hr = D3D12CreateDevice(tmpAdapter.Get(), level, IID_PPV_ARGS(&device_));
@@ -515,7 +520,7 @@ bool Graphic::CreateDevice() {
     }
   }
 
-  std::cerr << "Failed to create device." << std::endl;
+  std::cerr << "Failed to create device." << '\n';
   return false;
 }
 
@@ -528,7 +533,7 @@ bool Graphic::CreateCommandQueue() {
 
   auto hr = device_->CreateCommandQueue(&command_queue_desc, IID_PPV_ARGS(&command_queue_));
   if (FAILED(hr) || command_queue_ == nullptr) {
-    std::cerr << "Failed to create command queue." << std::endl;
+    std::cerr << "Failed to create command queue." << '\n';
     return false;
   }
   return true;
@@ -538,7 +543,7 @@ bool Graphic::CreateCommandList() {
   auto hr = device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocator_.Get(), nullptr, IID_PPV_ARGS(&command_list_));
 
   if (FAILED(hr) || command_list_ == nullptr) {
-    std::cerr << "Failed to create command list." << std::endl;
+    std::cerr << "Failed to create command list." << '\n';
     return false;
   }
 
@@ -550,7 +555,7 @@ bool Graphic::CreateCommandAllocator() {
   auto hr = device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocator_));
 
   if (FAILED(hr) || command_allocator_ == nullptr) {
-    std::cerr << "Failed to create command allocator." << std::endl;
+    std::cerr << "Failed to create command allocator." << '\n';
     return false;
   }
 

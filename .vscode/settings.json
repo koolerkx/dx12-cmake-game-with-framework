@@ -7,6 +7,6 @@
         "cwd": "${workspaceFolder}",
     },
     "cmake.outputLogEncoding": "utf8",
-    "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json"
-
+    "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
+    "C_Cpp.intelliSenseEngine": "disabled",
 }

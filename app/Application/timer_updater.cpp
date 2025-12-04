@@ -1,17 +1,21 @@
 #include "timer_updater.h"
 
+#include <algorithm>
 #include <cassert>
+
+constexpr float MIN_TIME_SCALE = 0.0f;
+constexpr float MAX_TIME_SCALE = 10.0f;
 
 TimerUpdater::TimerUpdater(float fixedHz, float maxClamp, int maxSteps) {
   // Parameter validation (assert + runtime fallback)
   assert(fixedHz > 0.0f && "fixedHz must be > 0");
-  if (fixedHz <= 0.0f) fixedHz = 60.0f;
+  if (fixedHz <= 0.0f) fixedHz = DEFAULT_FIXED_HZ;
 
   assert(maxClamp >= 0.0f && "maxClamp must be >= 0");
-  if (maxClamp < 0.0f) maxClamp = 0.25f;
+  if (maxClamp < 0.0f) maxClamp = DEFAULT_MAX_CLAMP;
 
   assert(maxSteps >= 1 && "maxSteps must be >= 1");
-  if (maxSteps < 1) maxSteps = 1;
+  if (maxSteps < 1) maxSteps = DEFAULT_MAX_STEPS;
 
   fixed_dt_ = secondsf(1.0f / fixedHz);
   max_frame_clamp_ = maxClamp;
@@ -33,25 +37,25 @@ void TimerUpdater::reset() {
 
 void TimerUpdater::SetFixedHz(float hz) {
   assert(hz > 0.0f && "fixedHz must be > 0");
-  if (hz <= 0.0f) hz = 60.0f;
+  if (hz <= 0.0f) hz = DEFAULT_FIXED_HZ;
   fixed_dt_ = secondsf(1.0f / hz);
 }
 
 void TimerUpdater::SetTimeScale(float s) {
-  if (s < 0.0f) s = 0.0f;
-  if (s > 10.0f) s = 10.0f;
+  s = std::max(s, MIN_TIME_SCALE);
+  s = std::min(s, MAX_TIME_SCALE);
   time_scale_ = s;
 }
 
 void TimerUpdater::SetMaxFrameClamp(float seconds) {
   assert(seconds >= 0.0f);
-  if (seconds < 0.0f) seconds = 0.0f;
+  seconds = std::max(seconds, 0.0f);
   max_frame_clamp_ = seconds;
 }
 
 void TimerUpdater::SetMaxSubSteps(int n) {
   assert(n >= 1);
-  if (n < 1) n = 1;
+  n = std::max(n, 1);
   max_sub_steps_ = n;
 }
 

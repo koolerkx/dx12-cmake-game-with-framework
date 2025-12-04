@@ -8,15 +8,15 @@ bool FenceManager::Initialize(ID3D12Device* device) {
 
   HRESULT hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence_));
   if (FAILED(hr)) {
-    std::cerr << "[FenceManager] Failed to create fence." << std::endl;
+    std::cerr << "[FenceManager] Failed to create fence." << '\n';
     return false;
   }
 
   fence_value_ = 1;
 
-  fence_event_ = CreateEvent(nullptr, false, false, nullptr);
-  if (!fence_event_) {
-    std::cerr << "[FenceManager] Failed to create fence event." << std::endl;
+  fence_event_ = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+  if (fence_event_ == nullptr) {
+    std::cerr << "[FenceManager] Failed to create fence event." << '\n';
     return false;
   }
 
@@ -57,7 +57,7 @@ void FenceManager::WaitForGpu(ID3D12CommandQueue* command_queue) {
 }
 
 void FenceManager::ShutDown() {
-  if (fence_event_) {
+  if (fence_event_ != nullptr) {
     CloseHandle(fence_event_);
     fence_event_ = nullptr;
   }

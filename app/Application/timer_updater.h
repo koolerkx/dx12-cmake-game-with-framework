@@ -3,8 +3,13 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
-#include <functional>
 #include <thread>
+
+constexpr float DEFAULT_FIXED_HZ = 60.0f;
+constexpr float DEFAULT_MAX_CLAMP = 0.25f;
+constexpr int DEFAULT_MAX_STEPS = 1;
+constexpr float DEFAULT_MAX_FRAME_CLAMP_SECONDS = 0.25f;
+constexpr int DEFAULT_MAX_SUB_STEPS = 8;
 
 /**
  * @brief High-precision game loop timer supporting both variable and fixed time steps.
@@ -32,7 +37,7 @@ class TimerUpdater {
    * @param maxClamp max frame time in seconds
    * @param maxSteps max tick in per frame
    */
-  explicit TimerUpdater(float fixedHz = 60.0f, float maxClamp = 0.25f, int maxSteps = 8);
+  explicit TimerUpdater(float fixedHz = DEFAULT_FIXED_HZ, float maxClamp = DEFAULT_MAX_CLAMP, int maxSteps = DEFAULT_MAX_STEPS);
 
   /**
    * @brief reset timer
@@ -43,7 +48,7 @@ class TimerUpdater {
    * @brief Set fixed update frequency in Hz
    * @param hz Frequency (> 0)
    */
-  void SetFixedHz(float hz = 60.0f);
+  void SetFixedHz(float hz = DEFAULT_FIXED_HZ);
 
   /**
    * @brief Set timescale
@@ -81,7 +86,7 @@ class TimerUpdater {
    * @param fixedUpdate Fixed timestep update function.
    */
   template <class UpdateFn, class FixedFn>
-  void tick(UpdateFn&& update, FixedFn&& fixedUpdate) {
+  void tick(UpdateFn update, FixedFn fixedUpdate) {
     // Single-thread enforcement
     if (std::this_thread::get_id() != tick_thread_id_) {
       assert(false && "tick() must be called from the same thread");
@@ -93,7 +98,8 @@ class TimerUpdater {
     prev_ = now;
 
     // Treat very long stalls as suspend/minimize: drop accumulated work
-    if (raw > secondsf(5.0f)) {
+    constexpr float STALL_THRESHOLD_SECONDS = 5.0f;
+    if (raw > secondsf(STALL_THRESHOLD_SECONDS)) {
       raw = secondsf::zero();
       accumulator_ = secondsf::zero();
     }
@@ -120,11 +126,13 @@ class TimerUpdater {
 
     // Spiral-of-death guard: keep at most half step to soften pacing
     if (steps == max_sub_steps_) {
-      accumulator_ = (std::min)(accumulator_, fixed_dt_ * 0.5f);
+      constexpr float ACCUMULATOR_SPIRAL_CLAMP = 0.5f;
+      accumulator_ = (std::min)(accumulator_, fixed_dt_ * ACCUMULATOR_SPIRAL_CLAMP);
     }
 
     // Interpolation alpha in [0,1]
-    alpha_ = std::clamp(accumulator_ / fixed_dt_, 0.0f, 1.0f);
+    const auto t = accumulator_ / fixed_dt_;
+    alpha_ = (std::max)(0.0f, (std::min)(1.0f, t));
   }
 
   /** @return Interpolation alpha (0..1) between last and next fixed update. */
@@ -187,8 +195,8 @@ class TimerUpdater {
 
   // Parameters
   float time_scale_{1.0f};
-  float max_frame_clamp_{0.25f};
-  int max_sub_steps_{8};
+  float max_frame_clamp_{DEFAULT_MAX_FRAME_CLAMP_SECONDS};
+  int max_sub_steps_{DEFAULT_MAX_SUB_STEPS};
   bool paused_{false};
 
   // Cached totals

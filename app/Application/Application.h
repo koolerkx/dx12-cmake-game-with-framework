@@ -5,11 +5,15 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
+#include <functional>
 #include <memory>
 #include <string>
 
 const std::wstring WINDOW_CLASS = L"DirectX 12 Game with Engine";
 const std::wstring WINDOW_NAME = L"DirectX 12 Game with Engine";
+
+// todo: extract
+constexpr float FIXED_HZ = 60.0f;
 
 // Extract to config
 constexpr int INIT_WINDOW_WIDTH = 1920;
@@ -17,7 +21,7 @@ constexpr int INIT_WINDOW_HEIGHT = 1080;
 
 class Application {
  public:
-  Application(HINSTANCE hInstance, int width = INIT_WINDOW_WIDTH, int height = INIT_WINDOW_HEIGHT, float frequency = 60.0f);
+  explicit Application(HINSTANCE hInstance, int width = INIT_WINDOW_WIDTH, int height = INIT_WINDOW_HEIGHT, float frequency = FIXED_HZ);
   ~Application();
 
   int Run(const std::function<void(float dt)>& OnUpdate = nullptr, const std::function<void(float fdt)>& OnFixedUpdate = nullptr);

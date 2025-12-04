@@ -25,7 +25,7 @@ class GpuResource {
   };
 
   D3D12_RESOURCE_DESC GetDesc() const {
-    return resource_ ? resource_->GetDesc() : D3D12_RESOURCE_DESC{};
+    return (resource_ != nullptr) ? resource_->GetDesc() : D3D12_RESOURCE_DESC{};
   }
 
   void SetDebugName(const std::wstring& name);
@@ -41,7 +41,7 @@ class GpuResource {
   std::string debug_name;
 
   void SetResource(ComPtr<ID3D12Resource> resource, D3D12_RESOURCE_STATES initial_state) {
-    resource_ = resource;
+    resource_ = resource; // NOLINT
     current_state_ = initial_state;
   }
 };

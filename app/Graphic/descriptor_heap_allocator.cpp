@@ -22,14 +22,14 @@ bool DescriptorHeapAllocator::Initialize(ID3D12Device* device, D3D12_DESCRIPTOR_
 
   HRESULT hr = device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&heap_));
   if (FAILED(hr)) {
-    std::cerr << "DescriptorAllocator::Initialize - Failed to create descriptor heap" << std::endl;
+    std::cerr << "DescriptorAllocator::Initialize - Failed to create descriptor heap" << "\n";
     return false;
   }
 
   heap_start_cpu_ = heap_->GetCPUDescriptorHandleForHeapStart();
   heap_start_gpu_ = heap_->GetGPUDescriptorHandleForHeapStart();
 
-  const wchar_t* typeName;
+  const wchar_t* typeName = nullptr;
   switch (type) {
     case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV:
       typeName = L"CBV_SRV_UAV";
@@ -64,11 +64,11 @@ DescriptorHeapAllocator::Allocation DescriptorHeapAllocator::Allocate(uint32_t c
   if (allocated_ + count > capacity_) {
     std::cerr << "DescriptorAllocator::Allocate - Out of descriptors! "
               << "Requested: " << count << ", Available: " << (capacity_ - allocated_) << ", Free blocks: " << free_blocks_.size()
-              << std::endl;
+              << '\n';
     return {};
   }
 
-  Allocation allocation;
+  Allocation allocation{};
   allocation.count = count;
 
   auto block = FindBestFitBlock(count);
@@ -90,7 +90,7 @@ DescriptorHeapAllocator::Allocation DescriptorHeapAllocator::Allocate(uint32_t c
 
     // put the remaining space back to indexing map
     if (block->count > count) {
-      FreeBlock remaining;
+      FreeBlock remaining{};
       remaining.index = block->index + count;
       remaining.count = block->count - count;
       block->index = remaining.index;  // inplace update
@@ -118,7 +118,7 @@ void DescriptorHeapAllocator::Free(const Allocation& allocation) {
     return;
   }
 
-  FreeBlock new_block;
+  FreeBlock new_block{};
   new_block.index = allocation.index;
   new_block.count = allocation.count;
 

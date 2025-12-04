@@ -1,7 +1,6 @@
 #include "depth_buffer.h"
 
 #include <d3d12.h>
-#include <winerror.h>
 
 #include <cassert>
 #include <iostream>
@@ -34,7 +33,7 @@ bool DepthBuffer::Initialize(ID3D12Device* device, UINT width, UINT height, Desc
     IID_PPV_ARGS(resource.GetAddressOf()));
 
   if (FAILED(hr)) {
-    std::cerr << "[DepthBuffer] Failed to create depth stencil resource" << std::endl;
+    std::cerr << "[DepthBuffer] Failed to create depth stencil resource" << '\n';
     return false;
   }
 
@@ -42,7 +41,7 @@ bool DepthBuffer::Initialize(ID3D12Device* device, UINT width, UINT height, Desc
 
   dsv_allocation_ = descriptor_manager.GetDsvAllocator().Allocate(1);
   if (!dsv_allocation_.IsValid()) {
-    std::cerr << "[DepthBuffer] Failed to allocate DSV" << std::endl;
+    std::cerr << "[DepthBuffer] Failed to allocate DSV" << '\n';
     return false;
   }
 
@@ -58,7 +57,7 @@ bool DepthBuffer::Initialize(ID3D12Device* device, UINT width, UINT height, Desc
   return true;
 }
 
-void DepthBuffer::Clear(ID3D12GraphicsCommandList* command_list, float depth, UINT8 stencil) {
+void DepthBuffer::Clear(ID3D12GraphicsCommandList* command_list, float depth, UINT8 stencil) const {
   assert(command_list != nullptr);
   if (!IsValid()) return;
 

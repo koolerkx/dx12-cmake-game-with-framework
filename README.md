@@ -1,5 +1,17 @@
 # Game with engine
 
+## Code Style
+
+The code style is flexible and may evolve during development.
+Rules are defined in `.clang-format` and `.clang-tidy`. refer to them for details.
+
+Principles:
+
+Consistency across the entire project.
+
+Bug prevention through clear and stable patterns.
+
+Readability over performance in all non-hot paths.
 ## Build and Run
 
 Please use MSVC to compile.

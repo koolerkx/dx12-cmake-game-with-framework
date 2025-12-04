@@ -25,7 +25,7 @@ class FenceManager {
   }
 
   UINT64 GetCompletedFenceValue() const {
-    return fence_ ? fence_->GetCompletedValue() : 0;
+    return (fence_ != nullptr) ? fence_->GetCompletedValue() : 0;
   }
 
   bool IsValid() const {
