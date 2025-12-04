@@ -125,4 +125,3 @@ int Application::Run(const std::function<void(float dt)>& OnUpdate, const std::f
 
   return static_cast<int>(msg.wParam);
 }
-// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast, performance-no-int-to-ptr)

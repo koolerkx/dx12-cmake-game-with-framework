@@ -442,7 +442,8 @@ void Graphic::BeginRender() {
   command_list_->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
   command_list_->SetGraphicsRootDescriptorTable(0, texture_descriptor_heap_->GetGPUDescriptorHandleForHeapStart());
 
-  command_list_->DrawIndexedInstanced(6, 1, 0, 0, 0);  // NOLINT (cppcoreguidelines-avoid-magic-numbers)
+  constexpr int index_count = 6;
+  command_list_->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
 }
 
 void Graphic::EndRender() {
@@ -498,20 +499,20 @@ bool Graphic::CreateDevice() {
   for (const auto& adapter : adapters) {
     DXGI_ADAPTER_DESC adapter_desc = {};
     adapter->GetDesc(&adapter_desc);
-    if (std::wstring desc_str = adapter_desc.Description; desc_str.find(L"NVIDIA") != std::string::npos) {
+    if (std::wstring desc_str = adapter_desc.Description;  // NOLINT (cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+      desc_str.find(L"NVIDIA") != std::string::npos) {
       tmpAdapter = adapter;
       break;
     }
   }
 
-  D3D_FEATURE_LEVEL levels[]  // NOLINT (modernize-avoid-c-arrays)
-    = {
-      D3D_FEATURE_LEVEL_12_2,
-      D3D_FEATURE_LEVEL_12_1,
-      D3D_FEATURE_LEVEL_12_0,
-      D3D_FEATURE_LEVEL_11_1,
-      D3D_FEATURE_LEVEL_11_0,
-    };
+  std::array<D3D_FEATURE_LEVEL, 5> levels = {
+    D3D_FEATURE_LEVEL_12_2,
+    D3D_FEATURE_LEVEL_12_1,
+    D3D_FEATURE_LEVEL_12_0,
+    D3D_FEATURE_LEVEL_11_1,
+    D3D_FEATURE_LEVEL_11_0,
+  };
 
   for (auto level : levels) {
     auto hr = D3D12CreateDevice(tmpAdapter.Get(), level, IID_PPV_ARGS(&device_));

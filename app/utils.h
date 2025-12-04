@@ -20,8 +20,7 @@ inline std::wstring Utf8ToWstring(const std::string& utf8_str) {
   }
 
   std::wstring wstr(size_needed, 0);
-  MultiByteToWideChar(
-    CP_UTF8, 0, utf8_str.c_str(), static_cast<int>(utf8_str.size()), &wstr[0], size_needed);  // NOLINT readability-container-data-pointer
+  MultiByteToWideChar(CP_UTF8, 0, utf8_str.c_str(), static_cast<int>(utf8_str.size()), &wstr[0], size_needed);
   return wstr;
 }
 
@@ -40,14 +39,7 @@ inline std::string WstringToUtf8(const std::wstring& wstr) {
   }
 
   std::string utf8_str(size_needed, 0);
-  WideCharToMultiByte(CP_UTF8,
-    0,
-    wstr.c_str(),
-    static_cast<int>(wstr.size()),
-    &utf8_str[0],  // NOLINT readability-container-data-pointer
-    size_needed,
-    NULL,
-    NULL);  // NOLINT readability-container-data-pointer
+  WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), static_cast<int>(wstr.size()), &utf8_str[0], size_needed, NULL, NULL);
   return utf8_str;
 }
 }  // namespace utils

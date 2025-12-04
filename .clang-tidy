@@ -51,15 +51,10 @@ Checks: >
   -cppcoreguidelines-c-copy-assignment-signature,
   -cppcoreguidelines-macro-usage,
   -cppcoreguidelines-pro-type-static-cast-downcast,
-  
 
 CheckOptions:
-  - key: google-runtime-int
-    value: '1'
-  - key: google-runtime-references
-    value: '1'
   - key: readability-identifier-naming.Enabled
-    value: 'true'
+    value: "true"
 
   # Google naming rules
   - key: readability-identifier-naming.ClassCase
@@ -84,7 +79,7 @@ CheckOptions:
   - key: readability-identifier-naming.ClassMemberCase
     value: snake_case
   - key: readability-identifier-naming.ClassMemberSuffix
-    value: '_'
+    value: "_"
   - key: readability-identifier-naming.MethodCase
     value: PascalCase
 
@@ -106,10 +101,7 @@ CheckOptions:
     value: UPPER_CASE
 
   - key: cppcoreguidelines-avoid-magic-numbers.IgnoredNumbers
-    value: '0;1;2;4;8;16;60;120'
-  - key: cppcoreguidelines-avoid-magic-numbers.IgnoredConstructs
-    value: 'array;vector;static_cast'
+    value: { 0, 1, 2, 3, 4, 5, 8, 16 }
 
-WarningsAsErrors: ''
-HeaderFilterRegex: '^(?!.*ThirdParty).*(app)/.*'
-...
+WarningsAsErrors: ""
+HeaderFilterRegex: "^(?!.*ThirdParty).*(app)/.*"

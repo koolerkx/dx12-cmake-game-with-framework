@@ -41,7 +41,7 @@ class GpuResource {
   std::string debug_name;
 
   void SetResource(ComPtr<ID3D12Resource> resource, D3D12_RESOURCE_STATES initial_state) {
-    resource_ = resource; // NOLINT
+    resource_ = resource;
     current_state_ = initial_state;
   }
 };
