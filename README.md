@@ -3,15 +3,24 @@
 ## Code Style
 
 The code style is flexible and may evolve during development.
-Rules are defined in `.clang-format` and `.clang-tidy`. refer to them for details.
+All formatting and linting rules are defined in `.clang-format` and `.clang-tidy`; refer to those files for full details.
 
-Principles:
+### Principles
 
-Consistency across the entire project.
+* Maintain consistent style across the entire project.
+* Prevent bugs through clear, stable, and predictable coding patterns.
+* Prioritize readability over performance in all non-hot paths.
+* Naming must be self-explanatory.
+  * Name length is not a constraint; longer names are acceptable.
+  * However, if a name becomes excessively long, consider whether the function or method is taking too much responsibility and should be refactored.
+* Comments should be used only for:
+  * algorithms or non-trivial logic
+  * workarounds
+  * TODO items
+  * exceptional cases requiring clarification
+  * brief reminders of specific API behavior (not full explanations)
+* Write code in a style that both users and maintainers can easily understand.
 
-Bug prevention through clear and stable patterns.
-
-Readability over performance in all non-hot paths.
 ## Build and Run
 
 Please use MSVC to compile.
