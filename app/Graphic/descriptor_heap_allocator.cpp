@@ -27,7 +27,11 @@ bool DescriptorHeapAllocator::Initialize(ID3D12Device* device, D3D12_DESCRIPTOR_
   }
 
   heap_start_cpu_ = heap_->GetCPUDescriptorHandleForHeapStart();
-  heap_start_gpu_ = heap_->GetGPUDescriptorHandleForHeapStart();
+  if (shader_visible) {
+    heap_start_gpu_ = heap_->GetGPUDescriptorHandleForHeapStart();
+  } else {
+    heap_start_gpu_.ptr = 0;
+  }
 
   const wchar_t* typeName = nullptr;
   switch (type) {
@@ -63,8 +67,7 @@ DescriptorHeapAllocator::Allocation DescriptorHeapAllocator::Allocate(uint32_t c
   // No free block
   if (allocated_ + count > capacity_) {
     std::cerr << "DescriptorAllocator::Allocate - Out of descriptors! "
-              << "Requested: " << count << ", Available: " << (capacity_ - allocated_) << ", Free blocks: " << free_blocks_.size()
-              << '\n';
+              << "Requested: " << count << ", Available: " << (capacity_ - allocated_) << ", Free blocks: " << free_blocks_.size() << '\n';
     return {};
   }
 
