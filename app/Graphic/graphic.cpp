@@ -11,6 +11,7 @@
 
 #include "pipeline_state_builder.h"
 #include "root_signature_builder.h"
+#include "scene_renderer.h"
 #include "texture.h"
 #include "types.h"
 
@@ -193,6 +194,11 @@ void Graphic::Shutdown() {
   material_manager_.Clear();
 
   std::cout << "[Graphic] Shutdown complete" << '\n';
+}
+
+void Graphic::FlushRenderQueue() {
+  // Execute render queue (sort and draw)
+  scene_renderer_.Flush(command_list_.Get(), texture_manager_);
 }
 
 bool Graphic::EnableDebugLayer() {

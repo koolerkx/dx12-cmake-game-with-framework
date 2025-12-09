@@ -1,6 +1,6 @@
 #include "game_object.h"
 
-#include "component.h"
+#include "Component/component.h"
 
 void GameObject::AddComponent(Component* component) {
   if (component == nullptr) {

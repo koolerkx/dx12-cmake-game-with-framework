@@ -1,15 +1,25 @@
 #pragma once
 
-#include "../Graphic/graphic.h"
+#include "Scene/scene.h"
+#include "scene_renderer.h"
+
+class Graphic;
 
 class Game {
  public:
-  explicit Game(Graphic& graphic) : graphic_(graphic) {};
+  Game() = default;
   ~Game() = default;
 
-  void OnUpdate([[maybe_unused]] float dt);
-  void OnFixedUpdate([[maybe_unused]] float dt);
+  void Initialize(Graphic& graphic);
+  void OnUpdate(float dt);
+  void OnFixedUpdate(float dt);
+  void SubmitRenderPackets(SceneRenderer& scene_renderer);
+
+  Scene& GetScene() {
+    return scene_;
+  }
 
  private:
-  Graphic& graphic_;
+  Scene scene_;
+  Graphic* graphic_ = nullptr;
 };

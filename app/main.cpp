@@ -21,18 +21,38 @@ int WINAPI wWinMain([[maybe_unused]] HINSTANCE hInstance,
   [[maybe_unused]] int nShowCmd) try {
   SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
+  // Initialize application and graphics
   Application app(hInstance, WINDOW_WIDTH, WINDOW_HEIGHT);
   Graphic graphic;
   graphic.Initalize(app.GetHwnd(), WINDOW_WIDTH, WINDOW_HEIGHT);
 
-  Game game(graphic);
+  // Initialize game
+  Game game;
+  game.Initialize(graphic);
 
-  std::function<void(float dt)> OnUpdate = [&]([[maybe_unused]] float dt) { game.OnUpdate(dt); };
+  // Step 5: Pull-Based Game Loop
+  std::function<void(float dt)> OnUpdate = [&](float dt) {
+    // 1. Update Phase: Game logic, transforms, physics
+    game.OnUpdate(dt);
 
-  std::function<void(float fdt)> OnFixedUpdate = [&]([[maybe_unused]] float fdt) { game.OnFixedUpdate(fdt); };
+    // 2. Render Phase: Clear separation of CPU and GPU work
+    graphic.BeginRender();
+    graphic.GetSceneRenderer().Clear();
+    graphic.GetSceneRenderer().ResetStats();
+    game.SubmitRenderPackets(graphic.GetSceneRenderer());
+    graphic.FlushRenderQueue();
+
+    graphic.EndRender();
+  };
+
+  std::function<void(float fdt)> OnFixedUpdate = [&](float fdt) {
+    // Fixed timestep updates
+    game.OnFixedUpdate(fdt);
+  };
 
   app.Run(OnUpdate, OnFixedUpdate);
 
+  // Cleanup
   graphic.Shutdown();
 
   return 0;

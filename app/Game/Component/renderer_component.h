@@ -1,8 +1,5 @@
 #pragma once
 
-#include <map>
-#include <string>
-
 #include "component.h"
 #include "material_instance.h"
 #include "mesh.h"

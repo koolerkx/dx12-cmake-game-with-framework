@@ -18,6 +18,8 @@
 #include "texture_manager.h"
 #include "types.h"
 
+class Scene;
+
 class Graphic {
  public:
   Graphic() = default;
@@ -30,6 +32,19 @@ class Graphic {
 
   // Forward rendering
   void DrawTestQuad();
+
+  SceneRenderer& GetSceneRenderer() {
+    return scene_renderer_;
+  }
+  void FlushRenderQueue();
+
+  Mesh* GetTestMesh() {
+    return &test_mesh_;
+  }
+
+  MaterialInstance* GetTestMaterial() {
+    return test_material_instance_.get();
+  }
 
   static constexpr int FRAME_BUFFER_COUNT = 2;
 
