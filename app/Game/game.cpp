@@ -15,7 +15,7 @@ void Game::Initialize(Graphic& graphic) {
 
   // Add transform component
   auto* transform = new TransformComponent();
-  transform->SetPosition(1.0f, 0.0f, 0.0f);
+  transform->SetPosition(5.0f, 0.0f, 0.0f);
   transform->SetScale(1.0f);
   test_object->AddComponent(transform);
 

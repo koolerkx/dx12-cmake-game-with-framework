@@ -81,6 +81,7 @@ void MaterialInstance::SetConstantBufferData(const std::string& cb_name, const v
   std::memcpy(buffer.data(), data, size);
 }
 
+/// @pre the pipeline state and rootsignature should be set before bind the buffer
 void MaterialInstance::Bind(ID3D12GraphicsCommandList* command_list, TextureManager& texture_manager) const {
   assert(command_list != nullptr);
 
@@ -88,10 +89,6 @@ void MaterialInstance::Bind(ID3D12GraphicsCommandList* command_list, TextureMana
     std::cerr << "[MaterialInstance] Cannot bind invalid material instance" << '\n';
     return;
   }
-
-  // Set PSO and root signature
-  command_list->SetPipelineState(template_->GetPSO());
-  command_list->SetGraphicsRootSignature(template_->GetRootSignature());
 
   // Bind textures
   for (int i = 0; i < template_->GetTextureSlotCount(); ++i) {
@@ -119,11 +116,7 @@ void MaterialInstance::Bind(ID3D12GraphicsCommandList* command_list, TextureMana
     }
   }
 
-  // Bind constant buffers
-  // Note: For now, we're not implementing GPU upload of CB data
-  // This would require upload buffers and proper synchronization
-  // For Step 2, we'll leave this as a placeholder
-  // Full implementation would be in Step 3 or later
+  // TOOD: Bind constant buffers
 }
 
 void MaterialInstance::PrintInfo() const {

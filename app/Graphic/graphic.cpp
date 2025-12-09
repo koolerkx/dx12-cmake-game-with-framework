@@ -386,9 +386,13 @@ bool Graphic::CreateRootSignature() {
   // Use RootSignatureBuilder to create root signature
   RootSignatureBuilder builder;
 
+  // TODO: Extract param index to unified structure, defined as engine convention of fixed root signature buffer
   builder
-    .AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL)  // t0 - texture
-    .AddStaticSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_SHADER_VISIBILITY_PIXEL)
+    .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)  // b0
+    // .AddRootCBV(1, D3D12_SHADER_VISIBILITY_ALL) // b1, Frame CB (camera, lighting)
+    // .AddRootCBV(2, D3D12_SHADER_VISIBILITY_ALL) // b2, Material CB (per-material buffer)
+    .AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL)                              // t0 - texture
+    .AddStaticSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_SHADER_VISIBILITY_PIXEL)  // s0
     .AllowInputLayout();
 
   if (!builder.Build(device_.Get(), root_signature_)) {
@@ -445,7 +449,7 @@ bool Graphic::CreatePipelineState() {
 bool Graphic::CreateTestMaterial() {
   // Define texture slots for this material
   std::vector<TextureSlotDefinition> texture_slots;
-  texture_slots.push_back({"albedo", 0, D3D12_SHADER_VISIBILITY_PIXEL});  // Root parameter 0
+  texture_slots.push_back({"albedo", 1, D3D12_SHADER_VISIBILITY_PIXEL});  // Root parameter 0
 
   // Create material template
   test_material_template_ = material_manager_.CreateTemplate("BasicMaterial", pipeline_state_.Get(), root_signature_.Get(), texture_slots);

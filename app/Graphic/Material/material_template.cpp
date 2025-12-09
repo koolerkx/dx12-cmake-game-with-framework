@@ -3,6 +3,7 @@
 #include <cassert>
 #include <iostream>
 
+// TODO: validate the param index doesn't violate the engine convention (fixed root signature buffer)
 bool MaterialTemplate::Initialize(ID3D12PipelineState* pso,
   ID3D12RootSignature* root_signature,
   const std::string& name,

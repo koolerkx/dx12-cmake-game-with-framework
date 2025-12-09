@@ -4,6 +4,8 @@
 #include <cassert>
 #include <iostream>
 
+#include "utils.h"
+
 void SceneRenderer::Submit(const RenderPacket& packet) {
   if (!packet.IsValid()) {
     std::cerr << "[SceneRenderer] Warning: Invalid render packet submitted" << '\n';
@@ -34,6 +36,11 @@ void SceneRenderer::Flush(ID3D12GraphicsCommandList* command_list, TextureManage
     MaterialTemplate* packet_template = packet.material->GetTemplate();
     if (packet_template != current_template) {
       current_template = packet_template;
+
+      // Set PSO and root signature
+      command_list->SetPipelineState(current_template->GetPSO());
+      command_list->SetGraphicsRootSignature(current_template->GetRootSignature());
+
       ++pso_switches;
     }
 
@@ -43,9 +50,12 @@ void SceneRenderer::Flush(ID3D12GraphicsCommandList* command_list, TextureManage
     // Bind mesh (vertex/index buffers, topology)
     packet.mesh->Bind(command_list);
 
-    // TODO: Set transform constant buffer here
-    // For now, we skip transform upload since it requires upload buffer management
-    // This will be implemented in a future iteration
+    struct ObjectConstants {
+      XMMATRIX world_transform;
+    };
+    ObjectConstants obj_constants;
+    obj_constants.world_transform = packet.transform;
+    command_list->SetGraphicsRoot32BitConstants(0, 16, &obj_constants, 0);
 
     // Draw
     packet.mesh->Draw(command_list);
