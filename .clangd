@@ -4,7 +4,7 @@ InlayHints:
   DeducedTypes: No
   Designators: No
 CompileFlags:
-  Add: [-std=c++23, --driver-mode=cl]
+  Add: [--driver-mode=cl, "-Xclang", "-std=c++23"]
 ---
 If:
   PathMatch: ".*ThirdParty/.*"
