@@ -8,6 +8,7 @@
 #include "depth_buffer.h"
 #include "descriptor_heap_manager.h"
 #include "fence_manager.h"
+#include "shader_manager.h"
 #include "swapchain_manager.h"
 #include "texture.h"
 #include "types.h"
@@ -45,7 +46,8 @@ class Graphic {
   UINT frame_buffer_width_ = 0;
   UINT frame_buffer_height_ = 0;
 
-  // Pipeline State
+  // Rendering system
+  ShaderManager shader_manager_;
   ComPtr<ID3D12RootSignature> root_signature_ = nullptr;
   ComPtr<ID3D12PipelineState> pipeline_state_ = nullptr;
 
@@ -68,5 +70,7 @@ class Graphic {
 
   bool InitializeTestGeometry();
   bool InitializeTestTexture();
+  bool LoadShaders();
+  bool CreateRootSignature();
   bool CreatePipelineState();
 };

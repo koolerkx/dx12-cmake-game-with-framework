@@ -3,13 +3,14 @@
 #include <DirectXMath.h>
 #include <d3d12.h>
 #include <d3dcommon.h>
-#include <d3dcompiler.h>
 #include <dxgiformat.h>
 
 #include <array>
 #include <cstdint>
 #include <iostream>
 
+#include "pipeline_state_builder.h"
+#include "root_signature_builder.h"
 #include "texture.h"
 #include "types.h"
 
@@ -62,12 +63,12 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
-  // Create depth buffer using new API (without SRV for simple forward rendering)
+  // Create depth buffer
   if (!depth_buffer_.Create(device_.Get(),
         frame_buffer_width,
         frame_buffer_height,
         descriptor_heap_manager_.GetDsvAllocator(),
-        nullptr,  // No SRV needed for basic forward rendering
+        nullptr,
         DXGI_FORMAT_D32_FLOAT)) {
     MessageBoxW(nullptr, L"Graphic: Failed to create depth buffer", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
@@ -84,7 +85,19 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
-  // Create pipeline state
+  // Load shaders using ShaderManager
+  if (!LoadShaders()) {
+    MessageBoxW(nullptr, L"Graphic: Failed to load shaders", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+    return false;
+  }
+
+  // Create root signature using RootSignatureBuilder
+  if (!CreateRootSignature()) {
+    MessageBoxW(nullptr, L"Graphic: Failed to create root signature", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+    return false;
+  }
+
+  // Create pipeline state using PipelineStateBuilder
   if (!CreatePipelineState()) {
     MessageBoxW(nullptr, L"Graphic: Failed to create pipeline state", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
@@ -104,9 +117,7 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   command_queue_->ExecuteCommandLists(1, cmdlists.data());
   fence_manager_.WaitForGpu(command_queue_.Get());
 
-  test_texture_.ReleaseUploadHeap();
-
-  std::cout << "[Graphic] Initialization complete - Simple Forward Rendering" << '\n';
+  std::cout << "[Graphic] Initialization complete - Forward Rendering with Abstracted Pipeline" << '\n';
   return true;
 }
 
@@ -131,7 +142,7 @@ void Graphic::BeginRender() {
   command_list_->RSSetScissorRects(1, &scissor_rect_);
 
   // Clear render target and depth buffer
-  std::array<float, 4> clear_color = {0.2f, 0.3f, 0.4f, 1.0f};  // Nice blue-gray background
+  std::array<float, 4> clear_color = {0.2f, 0.3f, 0.4f, 1.0f};
   command_list_->ClearRenderTargetView(rtv, clear_color.data(), 0, nullptr);
   depth_buffer_.Clear(command_list_.Get(), 1.0f, 0);
 
@@ -159,6 +170,9 @@ void Graphic::EndRender() {
 void Graphic::Shutdown() {
   // Wait for GPU to finish all work
   fence_manager_.WaitForGpu(command_queue_.Get());
+
+  // Clean up shader manager
+  shader_manager_.Clear();
 
   std::cout << "[Graphic] Shutdown complete" << '\n';
 }
@@ -224,27 +238,40 @@ bool Graphic::CreateDevice() {
     }
   }
 
-  std::cerr << "[Graphic] Failed to create device." << '\n';
+  std::cerr << "[Graphic] Failed to create D3D12 device." << '\n';
   return false;
 }
 
 bool Graphic::CreateCommandQueue() {
-  D3D12_COMMAND_QUEUE_DESC command_queue_desc = {};
-  command_queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-  command_queue_desc.NodeMask = 0;
-  command_queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
-  command_queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+  D3D12_COMMAND_QUEUE_DESC queue_desc = {};
+  queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+  queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+  queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+  queue_desc.NodeMask = 0;
 
-  auto hr = device_->CreateCommandQueue(&command_queue_desc, IID_PPV_ARGS(&command_queue_));
+  HRESULT hr = device_->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&command_queue_));
+
   if (FAILED(hr) || command_queue_ == nullptr) {
     std::cerr << "[Graphic] Failed to create command queue." << '\n';
+    return false;
+  }
+
+  return true;
+}
+
+bool Graphic::CreateCommandAllocator() {
+  HRESULT hr = device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocator_));
+
+  if (FAILED(hr) || command_allocator_ == nullptr) {
+    std::cerr << "[Graphic] Failed to create command allocator." << '\n';
     return false;
   }
   return true;
 }
 
 bool Graphic::CreateCommandList() {
-  auto hr = device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocator_.Get(), nullptr, IID_PPV_ARGS(&command_list_));
+  HRESULT hr =
+    device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocator_.Get(), nullptr, IID_PPV_ARGS(&command_list_));
 
   if (FAILED(hr) || command_list_ == nullptr) {
     std::cerr << "[Graphic] Failed to create command list." << '\n';
@@ -255,19 +282,8 @@ bool Graphic::CreateCommandList() {
   return true;
 }
 
-bool Graphic::CreateCommandAllocator() {
-  auto hr = device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocator_));
-
-  if (FAILED(hr) || command_allocator_ == nullptr) {
-    std::cerr << "[Graphic] Failed to create command allocator." << '\n';
-    return false;
-  }
-
-  return true;
-}
-
 bool Graphic::InitializeTestGeometry() {
-  // Define test quad vertices
+  // Define vertices
   Vertex vertices[] = {
     {{-0.4f, -0.7f, 0.0f}, {0.0f, 1.0f}},  // bottom-left
     {{-0.4f, 0.7f, 0.0f}, {0.0f, 0.0f}},   // top-left
@@ -298,7 +314,6 @@ bool Graphic::InitializeTestGeometry() {
 }
 
 bool Graphic::InitializeTestTexture() {
-  // Load texture from file using new Texture class
   if (!test_texture_.LoadFromFile(
         device_.Get(), command_list_.Get(), L"Content/textures/metal_plate_nor_dx_1k.png", descriptor_heap_manager_.GetSrvAllocator())) {
     std::cerr << "[Graphic] Failed to load test texture." << '\n';
@@ -311,142 +326,63 @@ bool Graphic::InitializeTestTexture() {
   return true;
 }
 
+bool Graphic::LoadShaders() {
+  // Load vertex shader
+  if (!shader_manager_.LoadShader(L"Content/shaders/basic.vs.cso", ShaderType::Vertex, "BasicVS")) {
+    std::cerr << "[Graphic] Failed to load vertex shader" << '\n';
+    return false;
+  }
+
+  // Load pixel shader
+  if (!shader_manager_.LoadShader(L"Content/shaders/basic.ps.cso", ShaderType::Pixel, "BasicPS")) {
+    std::cerr << "[Graphic] Failed to load pixel shader" << '\n';
+    return false;
+  }
+
+  std::cout << "[Graphic] Shaders loaded: " << shader_manager_.GetShaderCount() << " shaders" << '\n';
+  return true;
+}
+
+bool Graphic::CreateRootSignature() {
+  // Use RootSignatureBuilder to create root signature
+  RootSignatureBuilder builder;
+
+  builder
+    .AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL)  // t0 - texture
+    .AddStaticSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_SHADER_VISIBILITY_PIXEL)
+    .AllowInputLayout();
+
+  if (!builder.Build(device_.Get(), root_signature_)) {
+    std::cerr << "[Graphic] Failed to build root signature" << '\n';
+    return false;
+  }
+
+  std::cout << "[Graphic] Root signature created using RootSignatureBuilder" << '\n';
+  return true;
+}
+
 bool Graphic::CreatePipelineState() {
-  // Read Shader
-  ID3DBlob* vs_blob = nullptr;
-  ID3DBlob* ps_blob = nullptr;
+  // Get shaders from shader manager
+  const ShaderBlob* vs = shader_manager_.GetShader("BasicVS");
+  const ShaderBlob* ps = shader_manager_.GetShader("BasicPS");
 
-  if (FAILED(D3DReadFileToBlob(L"Content/shaders/basic.vs.cso", &vs_blob))) {
-    std::cerr << "[Graphic] Failed to read vertex shader" << '\n';
+  if (!vs || !ps) {
+    std::cerr << "[Graphic] Shaders not loaded" << '\n';
     return false;
   }
 
-  if (FAILED(D3DReadFileToBlob(L"Content/shaders/basic.ps.cso", &ps_blob))) {
-    std::cerr << "[Graphic] Failed to read pixel shader" << '\n';
-    return false;
-  }
+  // Use PipelineStateBuilder to create PSO
+  PipelineStateBuilder builder;
 
-  // Root signature
-  D3D12_DESCRIPTOR_RANGE desc_tbl_range[1] = {};
-  desc_tbl_range[0].NumDescriptors = 1;
-  desc_tbl_range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-  desc_tbl_range[0].BaseShaderRegister = 0;
-  desc_tbl_range[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+  builder.SetRootSignature(root_signature_.Get())
+    .SetVertexShader(vs)
+    .SetPixelShader(ps)
+    .AddInputElement("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0)
+    .AddInputElement("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0)
+    .UseForwardRenderingDefaults();  // Apply forward rendering defaults
 
-  D3D12_ROOT_PARAMETER root_param[1] = {};
-  root_param[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-  root_param[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-  root_param[0].DescriptorTable.pDescriptorRanges = desc_tbl_range;
-  root_param[0].DescriptorTable.NumDescriptorRanges = 1;
-
-  D3D12_STATIC_SAMPLER_DESC sampler_desc[1] = {};
-  sampler_desc[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-  sampler_desc[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-  sampler_desc[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-  sampler_desc[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-  sampler_desc[0].MipLODBias = 0;
-  sampler_desc[0].MaxAnisotropy = 0;
-  sampler_desc[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-  sampler_desc[0].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-  sampler_desc[0].MinLOD = 0.0f;
-  sampler_desc[0].MaxLOD = D3D12_FLOAT32_MAX;
-  sampler_desc[0].ShaderRegister = 0;
-  sampler_desc[0].RegisterSpace = 0;
-  sampler_desc[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-
-  D3D12_ROOT_SIGNATURE_DESC root_signature_desc = {};
-  root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-  root_signature_desc.pParameters = root_param;
-  root_signature_desc.NumParameters = 1;
-  root_signature_desc.pStaticSamplers = sampler_desc;
-  root_signature_desc.NumStaticSamplers = 1;
-
-  ID3DBlob* root_sig_blob = nullptr;
-  ID3DBlob* error_blob = nullptr;
-  HRESULT hr = D3D12SerializeRootSignature(&root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1_0, &root_sig_blob, &error_blob);
-
-  if (FAILED(hr) || root_sig_blob == nullptr) {
-    std::cerr << "[Graphic] Failed to serialize root signature." << '\n';
-    if (error_blob) {
-      std::cerr << static_cast<char*>(error_blob->GetBufferPointer()) << '\n';
-      error_blob->Release();
-    }
-    return false;
-  }
-
-  hr = device_->CreateRootSignature(0, root_sig_blob->GetBufferPointer(), root_sig_blob->GetBufferSize(), IID_PPV_ARGS(&root_signature_));
-  root_sig_blob->Release();
-
-  if (FAILED(hr) || root_signature_ == nullptr) {
-    std::cerr << "[Graphic] Failed to create root signature." << '\n';
-    return false;
-  }
-
-  // Input layout
-  D3D12_INPUT_ELEMENT_DESC input_layout[] = {
-    {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-    {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
-
-  // Graphics pipeline
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
-  gpipeline.pRootSignature = root_signature_.Get();
-  gpipeline.VS.pShaderBytecode = vs_blob->GetBufferPointer();
-  gpipeline.VS.BytecodeLength = vs_blob->GetBufferSize();
-  gpipeline.PS.pShaderBytecode = ps_blob->GetBufferPointer();
-  gpipeline.PS.BytecodeLength = ps_blob->GetBufferSize();
-
-  gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
-
-  gpipeline.RasterizerState.MultisampleEnable = FALSE;
-  gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-  gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-  gpipeline.RasterizerState.DepthClipEnable = TRUE;
-  gpipeline.RasterizerState.FrontCounterClockwise = FALSE;
-  gpipeline.RasterizerState.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
-  gpipeline.RasterizerState.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
-  gpipeline.RasterizerState.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-  gpipeline.RasterizerState.AntialiasedLineEnable = FALSE;
-  gpipeline.RasterizerState.ForcedSampleCount = 0;
-  gpipeline.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-
-  // Alpha Blend
-  gpipeline.BlendState.AlphaToCoverageEnable = FALSE;
-  gpipeline.BlendState.IndependentBlendEnable = FALSE;
-
-  D3D12_RENDER_TARGET_BLEND_DESC render_target_blend_desc = {};
-  render_target_blend_desc.BlendEnable = FALSE;
-  render_target_blend_desc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-  render_target_blend_desc.LogicOpEnable = FALSE;
-
-  gpipeline.BlendState.RenderTarget[0] = render_target_blend_desc;
-
-  gpipeline.InputLayout.pInputElementDescs = input_layout;
-  gpipeline.InputLayout.NumElements = _countof(input_layout);
-
-  // Depth stencil - Enable depth testing for forward rendering
-  gpipeline.DepthStencilState.DepthEnable = TRUE;
-  gpipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-  gpipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-  gpipeline.DepthStencilState.StencilEnable = FALSE;
-
-  gpipeline.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-
-  gpipeline.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
-  gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-
-  gpipeline.NumRenderTargets = 1;
-  gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-
-  gpipeline.SampleDesc.Count = 1;
-  gpipeline.SampleDesc.Quality = 0;
-
-  hr = device_->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&pipeline_state_));
-
-  vs_blob->Release();
-  ps_blob->Release();
-
-  if (FAILED(hr) || pipeline_state_ == nullptr) {
-    std::cerr << "[Graphic] Failed to create graphics pipeline state." << '\n';
+  if (!builder.Build(device_.Get(), pipeline_state_)) {
+    std::cerr << "[Graphic] Failed to build pipeline state" << '\n';
     return false;
   }
 
@@ -463,6 +399,7 @@ bool Graphic::CreatePipelineState() {
   scissor_rect_.right = frame_buffer_width_;
   scissor_rect_.bottom = frame_buffer_height_;
 
+  std::cout << "[Graphic] Pipeline state created using PipelineStateBuilder" << '\n';
   return true;
 }
 
