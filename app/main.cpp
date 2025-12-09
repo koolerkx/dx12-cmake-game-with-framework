@@ -32,17 +32,8 @@ int WINAPI wWinMain([[maybe_unused]] HINSTANCE hInstance,
 
   // Step 5: Pull-Based Game Loop
   std::function<void(float dt)> OnUpdate = [&](float dt) {
-    // 1. Update Phase: Game logic, transforms, physics
     game.OnUpdate(dt);
-
-    // 2. Render Phase: Clear separation of CPU and GPU work
-    graphic.BeginRender();
-    graphic.GetSceneRenderer().Clear();
-    graphic.GetSceneRenderer().ResetStats();
-    game.SubmitRenderPackets(graphic.GetSceneRenderer());
-    graphic.FlushRenderQueue();
-
-    graphic.EndRender();
+    game.OnRender(dt);
   };
 
   std::function<void(float fdt)> OnFixedUpdate = [&](float fdt) {

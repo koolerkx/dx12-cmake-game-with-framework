@@ -8,13 +8,14 @@
 
 void Game::Initialize(Graphic& graphic) {
   graphic_ = &graphic;
+  render_system_.Initialize(graphic);
 
   // Create test game object with components
   GameObject* test_object = scene_.CreateGameObject("TestQuad");
 
   // Add transform component
   auto* transform = new TransformComponent();
-  transform->SetPosition(0.0f, 0.0f, 0.0f);
+  transform->SetPosition(1.0f, 0.0f, 0.0f);
   transform->SetScale(1.0f);
   test_object->AddComponent(transform);
 
@@ -35,6 +36,6 @@ void Game::OnFixedUpdate(float dt) {
   scene_.FixedUpdate(dt);
 }
 
-void Game::SubmitRenderPackets(SceneRenderer& scene_renderer) {
-  scene_.SubmitRenderPackets(scene_renderer);
+void Game::OnRender(float) {
+  render_system_.RenderFrame(scene_);
 }

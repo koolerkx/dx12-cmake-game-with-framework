@@ -12,6 +12,9 @@ add_library(game STATIC
 
     Scene/scene.h
     Scene/scene.cpp
+
+    render_system.h
+    render_system.cpp
 )
 
 set_msvc_runtime(game)

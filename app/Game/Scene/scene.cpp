@@ -1,7 +1,5 @@
 #include "scene.h"
 
-#include "Component/renderer_component.h"
-
 GameObject* Scene::CreateGameObject(const std::string& name) {
   auto game_object = std::make_unique<GameObject>(name);
   GameObject* ptr = game_object.get();
@@ -26,20 +24,6 @@ void Scene::Update(float dt) {
 void Scene::FixedUpdate(float dt) {
   for (auto& obj : game_objects_) {
     obj->FixedUpdate(dt);
-  }
-}
-
-void Scene::SubmitRenderPackets(SceneRenderer& scene_renderer) {
-  for (auto& obj : game_objects_) {
-    if (!obj->IsActive()) {
-      continue;
-    }
-
-    // Get renderer component and submit
-    RendererComponent* renderer = obj->GetComponent<RendererComponent>();
-    if (renderer != nullptr) {
-      renderer->OnRender(scene_renderer);
-    }
   }
 }
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Scene/scene.h"
-#include "scene_renderer.h"
+#include "render_system.h"
 
 class Graphic;
 
@@ -13,7 +13,7 @@ class Game {
   void Initialize(Graphic& graphic);
   void OnUpdate(float dt);
   void OnFixedUpdate(float dt);
-  void SubmitRenderPackets(SceneRenderer& scene_renderer);
+  void OnRender(float dt);
 
   Scene& GetScene() {
     return scene_;
@@ -21,5 +21,6 @@ class Game {
 
  private:
   Scene scene_;
+  RenderSystem render_system_;
   Graphic* graphic_ = nullptr;
 };

@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "game_object.h"
-#include "scene_renderer.h"
 
 class Scene {
  public:
@@ -20,7 +19,9 @@ class Scene {
   void Update(float dt);
   void FixedUpdate(float dt);
 
-  void SubmitRenderPackets(SceneRenderer& scene_renderer);
+  const std::vector<std::unique_ptr<GameObject>>& GetGameObjects() const {
+    return game_objects_;
+  }
 
   size_t GetGameObjectCount() const {
     return game_objects_.size();
