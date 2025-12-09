@@ -37,11 +37,19 @@ add_library(graphic STATIC
 
     texture_manager.h
     texture_manager.cpp
+
+    Material/material_template.h
+    Material/material_template.cpp
+    Material/material_instance.h
+    Material/material_instance.cpp
+    Material/material_manager.h
+    Material/material_manager.cpp
 )
 
 target_include_directories(graphic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_include_directories(graphic SYSTEM PRIVATE ThirdParty)
 target_include_directories(graphic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(graphic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Material)
 
 set_msvc_runtime(graphic)
 

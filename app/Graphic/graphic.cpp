@@ -122,6 +122,12 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
   command_queue_->ExecuteCommandLists(1, cmdlists.data());
   fence_manager_.WaitForGpu(command_queue_.Get());
 
+  // Create test material
+  if (!CreateTestMaterial()) {
+    MessageBoxW(nullptr, L"Graphic: Failed to create test material", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+    return false;
+  }
+
   std::cout << "[Graphic] Initialization complete - Forward Rendering with Abstracted Pipeline" << '\n';
   return true;
 }
@@ -424,9 +430,10 @@ bool Graphic::CreatePipelineState() {
 }
 
 void Graphic::DrawTestQuad() {
-  // Set pipeline state and root signature
-  command_list_->SetPipelineState(pipeline_state_.Get());
-  command_list_->SetGraphicsRootSignature(root_signature_.Get());
+  // Bind material (sets PSO, root signature, and textures)
+  if (test_material_instance_ != nullptr) {
+    test_material_instance_->Bind(command_list_.Get(), texture_manager_);
+  }
 
   // Set primitive topology
   command_list_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -438,16 +445,36 @@ void Graphic::DrawTestQuad() {
   command_list_->IASetVertexBuffers(0, 1, &vertex_buffer);
   command_list_->IASetIndexBuffer(&index_buffer);
 
-  // Bind texture SRV
-  const Texture* texture = texture_manager_.GetTexture(test_texture_handle_);
-  if (texture != nullptr) {
-    auto srv = texture->GetSRV();
-    if (srv.IsValid() && srv.IsShaderVisible()) {
-      command_list_->SetGraphicsRootDescriptorTable(0, srv.gpu);
-    }
-  }
-
   // Draw
   constexpr int index_count = 6;
   command_list_->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
+}
+
+bool Graphic::CreateTestMaterial() {
+  // Define texture slots for this material
+  std::vector<TextureSlotDefinition> texture_slots;
+  texture_slots.push_back({"albedo", 0, D3D12_SHADER_VISIBILITY_PIXEL});  // Root parameter 0
+
+  // Create material template
+  test_material_template_ = material_manager_.CreateTemplate("BasicMaterial", pipeline_state_.Get(), root_signature_.Get(), texture_slots);
+
+  if (test_material_template_ == nullptr) {
+    std::cerr << "[Graphic] Failed to create material template" << '\n';
+    return false;
+  }
+
+  // Create material instance
+  test_material_instance_ = std::make_unique<MaterialInstance>();
+  if (!test_material_instance_->Initialize(test_material_template_)) {
+    std::cerr << "[Graphic] Failed to initialize material instance" << '\n';
+    return false;
+  }
+
+  // Assign texture to material
+  test_material_instance_->SetTexture("albedo", test_texture_handle_);
+
+  test_material_template_->PrintInfo();
+  test_material_instance_->PrintInfo();
+
+  return true;
 }

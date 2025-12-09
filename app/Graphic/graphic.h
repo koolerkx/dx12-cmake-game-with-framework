@@ -8,9 +8,11 @@
 #include "depth_buffer.h"
 #include "descriptor_heap_manager.h"
 #include "fence_manager.h"
+#include "material_instance.h"
+#include "material_manager.h"
+#include "material_template.h"
 #include "shader_manager.h"
 #include "swapchain_manager.h"
-#include "texture.h"
 #include "texture_manager.h"
 #include "types.h"
 
@@ -44,6 +46,7 @@ class Graphic {
   DepthBuffer depth_buffer_;
   FenceManager fence_manager_;
   TextureManager texture_manager_;
+  MaterialManager material_manager_;
 
   UINT frame_buffer_width_ = 0;
   UINT frame_buffer_height_ = 0;
@@ -57,10 +60,14 @@ class Graphic {
   D3D12_VIEWPORT viewport_ = {};
   D3D12_RECT scissor_rect_ = {};
 
+  // Test material
+  MaterialTemplate* test_material_template_ = nullptr;
+  std::unique_ptr<MaterialInstance> test_material_instance_ = nullptr;
+
   // Test resources
   Buffer vertex_buffer_;
   Buffer index_buffer_;
-  TextureHandle test_texture_handle_ = INVALID_TEXTURE_HANDLE;
+  TextureHandle test_texture_handle_ = INVALID_TEXTURE_HANDLE;  // Temporary, assigned to material
 
   // Initialization helpers
   bool EnableDebugLayer();
@@ -72,6 +79,8 @@ class Graphic {
 
   bool InitializeTestGeometry();
   bool InitializeTestTexture();
+  bool CreateTestMaterial();
+
   bool LoadShaders();
   bool CreateRootSignature();
   bool CreatePipelineState();
