@@ -184,10 +184,13 @@ void Graphic::Shutdown() {
 
   // Print statistics before cleanup
   texture_manager_.PrintStats();
+  material_manager_.PrintStats();
+  scene_renderer_.PrintStats();
 
   // Clean up managers
   shader_manager_.Clear();
   texture_manager_.Clear();
+  material_manager_.Clear();
 
   std::cout << "[Graphic] Shutdown complete" << '\n';
 }
@@ -325,6 +328,10 @@ bool Graphic::InitializeTestGeometry() {
   index_buffer_.Upload(indices, sizeof(indices));
   index_buffer_.SetDebugName("TestQuad_IndexBuffer");
 
+  // Initialize mesh
+  test_mesh_.Initialize(&vertex_buffer_, &index_buffer_, sizeof(Vertex), 6, DXGI_FORMAT_R16_UINT);
+  test_mesh_.SetDebugName("TestQuad");
+
   return true;
 }
 
@@ -429,27 +436,6 @@ bool Graphic::CreatePipelineState() {
   return true;
 }
 
-void Graphic::DrawTestQuad() {
-  // Bind material (sets PSO, root signature, and textures)
-  if (test_material_instance_ != nullptr) {
-    test_material_instance_->Bind(command_list_.Get(), texture_manager_);
-  }
-
-  // Set primitive topology
-  command_list_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-  // Bind vertex and index buffers
-  D3D12_VERTEX_BUFFER_VIEW vertex_buffer = vertex_buffer_.GetVBV(sizeof(Vertex));
-  D3D12_INDEX_BUFFER_VIEW index_buffer = index_buffer_.GetIBV(DXGI_FORMAT_R16_UINT);
-
-  command_list_->IASetVertexBuffers(0, 1, &vertex_buffer);
-  command_list_->IASetIndexBuffer(&index_buffer);
-
-  // Draw
-  constexpr int index_count = 6;
-  command_list_->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
-}
-
 bool Graphic::CreateTestMaterial() {
   // Define texture slots for this material
   std::vector<TextureSlotDefinition> texture_slots;
@@ -477,4 +463,21 @@ bool Graphic::CreateTestMaterial() {
   test_material_instance_->PrintInfo();
 
   return true;
+}
+
+void Graphic::DrawTestQuad() {
+  // Clear previous frame packets
+  scene_renderer_.Clear();
+  scene_renderer_.ResetStats();
+
+  // Submit render packet
+  RenderPacket packet;
+  packet.mesh = &test_mesh_;
+  packet.material = test_material_instance_.get();
+  packet.transform = XMMatrixIdentity();
+
+  scene_renderer_.Submit(packet);
+
+  // Flush render queue (sorts and executes)
+  scene_renderer_.Flush(command_list_.Get(), texture_manager_);
 }

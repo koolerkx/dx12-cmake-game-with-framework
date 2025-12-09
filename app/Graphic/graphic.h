@@ -11,6 +11,8 @@
 #include "material_instance.h"
 #include "material_manager.h"
 #include "material_template.h"
+#include "mesh.h"
+#include "scene_renderer.h"
 #include "shader_manager.h"
 #include "swapchain_manager.h"
 #include "texture_manager.h"
@@ -55,6 +57,7 @@ class Graphic {
   ShaderManager shader_manager_;
   ComPtr<ID3D12RootSignature> root_signature_ = nullptr;
   ComPtr<ID3D12PipelineState> pipeline_state_ = nullptr;
+  SceneRenderer scene_renderer_;
 
   // Viewport and scissor
   D3D12_VIEWPORT viewport_ = {};
@@ -67,6 +70,7 @@ class Graphic {
   // Test resources
   Buffer vertex_buffer_;
   Buffer index_buffer_;
+  Mesh test_mesh_;
   TextureHandle test_texture_handle_ = INVALID_TEXTURE_HANDLE;  // Temporary, assigned to material
 
   // Initialization helpers

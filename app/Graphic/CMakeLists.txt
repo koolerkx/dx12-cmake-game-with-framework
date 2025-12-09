@@ -44,6 +44,11 @@ add_library(graphic STATIC
     Material/material_instance.cpp
     Material/material_manager.h
     Material/material_manager.cpp
+
+    mesh.h
+    mesh.cpp
+    scene_renderer.h
+    scene_renderer.cpp
 )
 
 target_include_directories(graphic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)

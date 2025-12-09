@@ -33,6 +33,8 @@ int WINAPI wWinMain([[maybe_unused]] HINSTANCE hInstance,
 
   app.Run(OnUpdate, OnFixedUpdate);
 
+  graphic.Shutdown();
+
   return 0;
 } catch (const std::exception& e) {
   std::cerr << "Exception: " << e.what() << "\n";
