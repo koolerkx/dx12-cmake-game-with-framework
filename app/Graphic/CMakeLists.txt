@@ -34,6 +34,9 @@ add_library(graphic STATIC
     root_signature_builder.cpp
     shader_manager.h
     shader_manager.cpp
+
+    texture_manager.h
+    texture_manager.cpp
 )
 
 target_include_directories(graphic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)

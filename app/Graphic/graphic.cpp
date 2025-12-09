@@ -40,6 +40,11 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
+  if (!texture_manager_.Initialize(device_.Get(), &descriptor_heap_manager_.GetSrvAllocator(), 1024)) {
+    MessageBoxW(nullptr, L"Graphic: Failed to initialize texture manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+    return false;
+  }
+
   if (!CreateCommandQueue()) {
     MessageBoxW(nullptr, L"Graphic: Failed to create command queue", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
@@ -171,8 +176,12 @@ void Graphic::Shutdown() {
   // Wait for GPU to finish all work
   fence_manager_.WaitForGpu(command_queue_.Get());
 
-  // Clean up shader manager
+  // Print statistics before cleanup
+  texture_manager_.PrintStats();
+
+  // Clean up managers
   shader_manager_.Clear();
+  texture_manager_.Clear();
 
   std::cout << "[Graphic] Shutdown complete" << '\n';
 }
@@ -314,14 +323,25 @@ bool Graphic::InitializeTestGeometry() {
 }
 
 bool Graphic::InitializeTestTexture() {
-  if (!test_texture_.LoadFromFile(
-        device_.Get(), command_list_.Get(), L"Content/textures/metal_plate_nor_dx_1k.png", descriptor_heap_manager_.GetSrvAllocator())) {
+  // Define texture loading parameters
+  TextureLoadParams params;
+  params.file_path = L"Content/textures/metal_plate_nor_dx_1k.png";
+  params.generate_mips = false;
+  params.force_srgb = false;
+
+  // Load texture through TextureManager
+  test_texture_handle_ = texture_manager_.LoadTexture(command_list_.Get(), params);
+
+  if (!test_texture_handle_.IsValid()) {
     std::cerr << "[Graphic] Failed to load test texture." << '\n';
     return false;
   }
 
-  test_texture_.SetDebugName("TestTexture");
-  std::cout << "[Graphic] Loaded test texture: " << test_texture_.GetWidth() << "x" << test_texture_.GetHeight() << '\n';
+  // Get texture for info logging
+  const Texture* texture = texture_manager_.GetTexture(test_texture_handle_);
+  if (texture) {
+    std::cout << "[Graphic] Loaded test texture: " << texture->GetWidth() << "x" << texture->GetHeight() << '\n';
+  }
 
   return true;
 }
@@ -419,9 +439,12 @@ void Graphic::DrawTestQuad() {
   command_list_->IASetIndexBuffer(&index_buffer);
 
   // Bind texture SRV
-  auto srv = test_texture_.GetSRV();
-  if (srv.IsValid() && srv.IsShaderVisible()) {
-    command_list_->SetGraphicsRootDescriptorTable(0, srv.gpu);
+  const Texture* texture = texture_manager_.GetTexture(test_texture_handle_);
+  if (texture != nullptr) {
+    auto srv = texture->GetSRV();
+    if (srv.IsValid() && srv.IsShaderVisible()) {
+      command_list_->SetGraphicsRootDescriptorTable(0, srv.gpu);
+    }
   }
 
   // Draw

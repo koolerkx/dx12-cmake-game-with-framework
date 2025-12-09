@@ -11,6 +11,7 @@
 #include "shader_manager.h"
 #include "swapchain_manager.h"
 #include "texture.h"
+#include "texture_manager.h"
 #include "types.h"
 
 class Graphic {
@@ -42,6 +43,7 @@ class Graphic {
   SwapChainManager swap_chain_manager_;
   DepthBuffer depth_buffer_;
   FenceManager fence_manager_;
+  TextureManager texture_manager_;
 
   UINT frame_buffer_width_ = 0;
   UINT frame_buffer_height_ = 0;
@@ -58,7 +60,7 @@ class Graphic {
   // Test resources
   Buffer vertex_buffer_;
   Buffer index_buffer_;
-  Texture test_texture_;
+  TextureHandle test_texture_handle_ = INVALID_TEXTURE_HANDLE;
 
   // Initialization helpers
   bool EnableDebugLayer();
