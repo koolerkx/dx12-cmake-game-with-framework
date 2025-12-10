@@ -55,6 +55,7 @@ void RendererComponent::OnRender(SceneRenderer& scene_renderer) {
   packet.tag = tag_;
   packet.color = color_;
   packet.uv_transform = uv_transform_;
+  packet.sort_order = sort_order_;
 
   scene_renderer.Submit(packet);
 }

@@ -120,7 +120,7 @@ bool Game::CreateDemoMaterial() {
     .AddRootConstant(4, 3, D3D12_SHADER_VISIBILITY_VERTEX)   // b3 - Per-object UV transform (offset.xy, scale.xy)
     .AddRootCBV(1, D3D12_SHADER_VISIBILITY_ALL)              // b1 - Frame CB
     .AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL)                              // t0 - Texture
-    .AddStaticSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_SHADER_VISIBILITY_PIXEL)  // s0
+    .AddStaticSampler(0, D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_SHADER_VISIBILITY_PIXEL)  // s0
     .AllowInputLayout();
 
   if (!rs_builder.Build(graphic_->GetDevice(), root_signature)) {
@@ -148,7 +148,7 @@ bool Game::CreateDemoMaterial() {
 
   // Load texture using a short-lived upload command list
   TextureLoadParams tex_params;
-  tex_params.file_path = L"Content/textures/metal_plate_nor_dx_1k.png";
+  tex_params.file_path = L"Content/textures/block_test.png";
   tex_params.force_srgb = false;
 
   graphic_->ExecuteImmediate([this, &texture_manager, tex_params](ID3D12GraphicsCommandList* cmd_list) {
@@ -210,56 +210,79 @@ void Game::CreateDemoScene() {
 
   active_camera_ = camera_3d;
 
-  // Create sprite quad object (Background - Opaque layer) using helper API
-  SpriteParams bg_params;
-  bg_params.position = DirectX::XMFLOAT2(960.0f, 540.0f);
-  bg_params.size = DirectX::XMFLOAT2(1920.0f, 1080.0f);
-  bg_params.texture = sprite_texture_handle_;
-  bg_params.layer = RenderLayer::Opaque;
-  bg_params.tag = RenderTag::Static | RenderTag::Lit;
-  CreateSprite("SpriteQuad3D", bg_params);
+  // // Create sprite quad object (Background - Opaque layer) using helper API
+  // SpriteParams bg_params;
+  // bg_params.position = DirectX::XMFLOAT2(960.0f, 540.0f);
+  // bg_params.size = DirectX::XMFLOAT2(1920.0f, 1080.0f);
+  // bg_params.texture = sprite_texture_handle_;
+  // bg_params.layer = RenderLayer::Opaque;
+  // bg_params.tag = RenderTag::Static | RenderTag::Lit;
+  // CreateSprite("SpriteQuad3D", bg_params);
 
-  // Create UI sprite quad object (UI layer, corner) using helper API
-  SpriteParams ui_params;
-  ui_params.position = DirectX::XMFLOAT2(192.0f, 256.0f);
-  ui_params.size = DirectX::XMFLOAT2(128.0f, 128.0f);
-  ui_params.texture = sprite_texture_handle_;
-  ui_params.layer = RenderLayer::UI;
-  ui_params.tag = RenderTag::Static | RenderTag::Unlit;
-  ui_params.color = DirectX::XMFLOAT4(1.0f, 0.5f, 0.5f, 1.0f);
-  CreateSprite("SpriteQuadUI", ui_params);
+  // // Create UI sprite quad object (UI layer, corner) using helper API
+  // SpriteParams ui_params;
+  // ui_params.position = DirectX::XMFLOAT2(192.0f, 256.0f);
+  // ui_params.size = DirectX::XMFLOAT2(128.0f, 128.0f);
+  // ui_params.texture = sprite_texture_handle_;
+  // ui_params.layer = RenderLayer::UI;
+  // ui_params.tag = RenderTag::Static | RenderTag::Unlit;
+  // ui_params.color = DirectX::XMFLOAT4(1.0f, 0.5f, 0.5f, 1.0f);
+  // CreateSprite("SpriteQuadUI", ui_params);
 
-  // Test: create several world sprites with different sizes, positions and tags
-  for (int i = -2; i <= 2; ++i) {
-    SpriteParams world_p;
-    world_p.position = DirectX::XMFLOAT2(960.0f + i * 200.0f, 540.0f);
-    world_p.size = DirectX::XMFLOAT2(150.0f + (i + 2) * 40.0f, 150.0f + (i + 2) * 40.0f);
-    world_p.texture = sprite_texture_handle_;
-    world_p.layer = RenderLayer::Opaque;
-    // Alternate Lit/Unlit tags
-    world_p.tag = (i % 2 == 0) ? RenderTag::Lit : RenderTag::Unlit;
-    world_p.color = DirectX::XMFLOAT4(1.0f, 1.0f - (0.2f * (i + 2)), 1.0f - (0.1f * (i + 2)), 1.0f);
-    CreateSprite("WorldSprite_" + std::to_string(i + 3), world_p);
-  }
+  // // Test: create several world sprites with different sizes, positions and tags
+  // for (int i = -2; i <= 2; ++i) {
+  //   SpriteParams world_p;
+  //   world_p.position = DirectX::XMFLOAT2(960.0f + i * 200.0f, 540.0f);
+  //   world_p.size = DirectX::XMFLOAT2(150.0f + (i + 2) * 40.0f, 150.0f + (i + 2) * 40.0f);
+  //   world_p.texture = sprite_texture_handle_;
+  //   world_p.layer = RenderLayer::Opaque;
+  //   // Alternate Lit/Unlit tags
+  //   world_p.tag = (i % 2 == 0) ? RenderTag::Lit : RenderTag::Unlit;
+  //   world_p.color = DirectX::XMFLOAT4(1.0f, 1.0f - (0.2f * (i + 2)), 1.0f - (0.1f * (i + 2)), 1.0f);
+  //   CreateSprite("WorldSprite_" + std::to_string(i + 3), world_p);
+  // }
 
-  // Test: create multiple UI sprites in a row to verify ordering and batching
-  for (int i = 0; i < 10; ++i) {
-    SpriteParams p;
-    p.position = DirectX::XMFLOAT2(50.0f + i * 90.0f, 60.0f);
-    p.size = DirectX::XMFLOAT2(64.0f, 64.0f);
-    // Alternate materials for texture switching test
-    p.material = (i % 3 == 0 && sprite_material_instance_2_) ? sprite_material_instance_2_.get() : sprite_material_instance_.get();
-    p.material = sprite_material_instance_2_.get();
-    p.layer = RenderLayer::UI;
-    p.tag = RenderTag::Static | RenderTag::Unlit;
-    // Every third sprite uses a UV offset to show atlas-like effect
-    if (i % 3 == 0) {
-      p.uv_transform = DirectX::XMFLOAT4(0.0f, 0.0f, 0.5f, 0.5f);  // Top-left quarter
-    }
-    // Give a distinct tint for testing
-    p.color = DirectX::XMFLOAT4(1.0f - 0.08f * i, 0.7f, 0.7f + 0.02f * i, 1.0f);
-    CreateSprite("UISprite_" + std::to_string(i), p);
-  }
+  // // Test: create multiple UI sprites in a row to verify ordering and batching
+  // for (int i = 0; i < 10; ++i) {
+  //   SpriteParams p;
+  //   p.position = DirectX::XMFLOAT2(50.0f + i * 90.0f, 60.0f);
+  //   p.size = DirectX::XMFLOAT2(64.0f, 64.0f);
+  //   // Alternate materials for texture switching test
+  //   p.material = (i % 3 == 0 && sprite_material_instance_2_) ? sprite_material_instance_2_.get() : sprite_material_instance_.get();
+  //   p.material = sprite_material_instance_2_.get();
+  //   p.layer = RenderLayer::UI;
+  //   p.tag = RenderTag::Static | RenderTag::Unlit;
+  //   // Every third sprite uses a UV offset to show atlas-like effect
+  //   if (i % 3 == 0) {
+  //     p.uv_transform = DirectX::XMFLOAT4(0.0f, 0.0f, 0.5f, 0.5f);  // Top-left quarter
+  //   }
+  //   // Give a distinct tint for testing
+  //   p.color = DirectX::XMFLOAT4(1.0f - 0.08f * i, 0.7f, 0.7f + 0.02f * i, 1.0f);
+  //   CreateSprite("UISprite_" + std::to_string(i), p);
+  // }
+
+  // Test: overlapping UI sprites with different sort_order to verify rendering order
+  // Red sprite with sort_order 0 (drawn first, behind others)
+  SpriteParams red_sprite;
+  red_sprite.position = DirectX::XMFLOAT2(960.0f, 540.0f);
+  red_sprite.size = DirectX::XMFLOAT2(200.0f, 200.0f);
+  red_sprite.color = DirectX::XMFLOAT4(1.0f, 0.0f, 0.0f, 0.7f);
+  red_sprite.sort_order = 0.0f;
+  red_sprite.layer = RenderLayer::UI;
+  red_sprite.tag = RenderTag::Static | RenderTag::Unlit;
+  CreateSprite("TestRedSprite", red_sprite);
+
+  // Green sprite with sort_order 1 (drawn second, in front of red)
+  SpriteParams green_sprite = red_sprite;
+  green_sprite.color = DirectX::XMFLOAT4(0.0f, 1.0f, 0.0f, 0.7f);
+  green_sprite.sort_order = 1.0f;
+  CreateSprite("TestGreenSprite", green_sprite);
+
+  // Blue sprite with sort_order 2 (drawn last, in front of all)
+  SpriteParams blue_sprite = red_sprite;
+  blue_sprite.color = DirectX::XMFLOAT4(0.0f, 0.0f, 1.0f, 0.7f);
+  blue_sprite.sort_order = 2.0f;
+  CreateSprite("TestBlueSprite", blue_sprite);
 
   std::cout << "[Game] Created demo scene with " << scene_.GetGameObjectCount() << " objects" << '\n';
 }
@@ -288,7 +311,7 @@ GameObject* Game::CreateSprite(const std::string& name, const SpriteParams& para
 
   // Transform
   auto* transform = new TransformComponent();
-  transform->SetPosition(params.position.x, params.position.y, 0.0f);
+  transform->SetPosition(params.position.x, params.position.y, params.sort_order);
   transform->SetScale(params.size.x, params.size.y, 1.0f);
   obj->AddComponent(transform);
 
@@ -331,6 +354,7 @@ GameObject* Game::CreateSprite(const std::string& name, const SpriteParams& para
   // Layer & Tag
   renderer->SetLayer(params.layer);
   renderer->SetTag(params.tag);
+  renderer->SetSortOrder(params.sort_order);
 
   obj->AddComponent(renderer);
 

@@ -82,6 +82,9 @@ void RenderSystem::Submit(Scene& scene, RenderPassManager& render_pass_manager) 
     packet.material = renderer->GetMaterial();
     packet.layer = renderer->GetLayer();
     packet.tag = renderer->GetTag();
+    packet.color = renderer->GetColor();
+    packet.uv_transform = renderer->GetUVTransform();
+    packet.sort_order = renderer->GetSortOrder();
 
     // Get transform from the owning GameObject
     auto* transform = game_object->GetComponent<TransformComponent>();

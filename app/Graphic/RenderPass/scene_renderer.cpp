@@ -53,9 +53,23 @@ void SceneRenderer::Flush(ID3D12GraphicsCommandList* command_list, TextureManage
     packet.sort_key = GenerateSortKey(packet);
   }
 
-  // Sort filtered packets
-  std::sort(
-    filtered_packets.begin(), filtered_packets.end(), [](const RenderPacket& a, const RenderPacket& b) { return a.sort_key < b.sort_key; });
+  // Sort filtered packets using custom comparator that incorporates sort_order for UI layer
+  std::sort(filtered_packets.begin(), filtered_packets.end(), [](const RenderPacket& a, const RenderPacket& b) {
+    // First by layer
+    if (a.layer != b.layer) {
+      return static_cast<int>(a.layer) < static_cast<int>(b.layer);
+    }
+
+    // For UI layer, sort by sort_order (lower values first)
+    if (a.layer == RenderLayer::UI) {
+      if (a.sort_order != b.sort_order) {
+        return a.sort_order < b.sort_order;
+      }
+    }
+
+    // Then by sort_key (which includes material, texture, etc.)
+    return a.sort_key < b.sort_key;
+  });
 
   // Track state changes
   MaterialTemplate* current_template = nullptr;

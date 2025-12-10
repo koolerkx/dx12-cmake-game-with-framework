@@ -34,6 +34,7 @@ struct RenderPacket {
 
   // Sorting key helpers
   uint64_t sort_key = 0;
+  float sort_order = 0.0f;  // Sorting hint for UI/2D rendering order
 
   RenderLayer layer = RenderLayer::Opaque;
   RenderTag tag = RenderTag::None;

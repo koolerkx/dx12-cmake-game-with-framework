@@ -45,6 +45,14 @@ class RendererComponent : public Component {
     return uv_transform_;
   }
 
+  void SetSortOrder(float sort_order) {
+    sort_order_ = sort_order;
+  }
+
+  float GetSortOrder() const {
+    return sort_order_;
+  }
+
   Mesh* GetMesh() const {
     return mesh_;
   }
@@ -76,4 +84,5 @@ class RendererComponent : public Component {
   mutable bool missing_transform_warned_ = false;
   DirectX::XMFLOAT4 color_ = {1.0f, 1.0f, 1.0f, 1.0f};
   DirectX::XMFLOAT4 uv_transform_ = {0.0f, 0.0f, 1.0f, 1.0f};
+  float sort_order_ = 0.0f;
 };

@@ -20,6 +20,9 @@ class MaterialTemplate;
 struct SpriteParams {
   DirectX::XMFLOAT2 position = {0.0f, 0.0f};
   DirectX::XMFLOAT2 size = {1.0f, 1.0f};
+
+  float sort_order = 0.0f;  // Sorting hint for UI/2D rendering order, higher values render in front (or lower, depending on convention)
+
   TextureHandle texture = INVALID_TEXTURE_HANDLE;             // Optional: specific texture to use
   MaterialInstance* material = nullptr;                       // Optional: provide a pre-allocated material instance
   RenderLayer layer = RenderLayer::UI;                        // Default layer
