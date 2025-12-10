@@ -26,15 +26,35 @@ void SceneRenderer::Submit(const RenderPacket& packet) {
   packets_.push_back(packet);
 }
 
-void SceneRenderer::Flush(ID3D12GraphicsCommandList* command_list, TextureManager& texture_manager) {
+void SceneRenderer::Flush(ID3D12GraphicsCommandList* command_list, TextureManager& texture_manager, const RenderFilter& filter) {
   assert(command_list != nullptr);
 
   if (packets_.empty()) {
     return;
   }
 
-  // Sort packets for optimal rendering
-  SortPackets();
+  // Filter packets
+  std::vector<RenderPacket> filtered_packets;
+  filtered_packets.reserve(packets_.size());
+
+  for (const auto& packet : packets_) {
+    if (filter.Match(packet)) {
+      filtered_packets.push_back(packet);
+    }
+  }
+
+  if (filtered_packets.empty()) {
+    return;
+  }
+
+  // Generate sort keys for filtered packets
+  for (auto& packet : filtered_packets) {
+    packet.sort_key = GenerateSortKey(packet);
+  }
+
+  // Sort filtered packets
+  std::sort(
+    filtered_packets.begin(), filtered_packets.end(), [](const RenderPacket& a, const RenderPacket& b) { return a.sort_key < b.sort_key; });
 
   // Track state changes
   MaterialTemplate* current_template = nullptr;
@@ -42,7 +62,7 @@ void SceneRenderer::Flush(ID3D12GraphicsCommandList* command_list, TextureManage
   size_t pso_switches = 0;
 
   // Execute render packets
-  for (const auto& packet : packets_) {
+  for (const auto& packet : filtered_packets) {
     // Check if we need to switch PSO
     MaterialTemplate* packet_template = packet.material->GetTemplate();
     if (packet_template != current_template) {
@@ -77,8 +97,8 @@ void SceneRenderer::Flush(ID3D12GraphicsCommandList* command_list, TextureManage
   }
 
   // Update statistics
-  draw_call_count_ = draw_calls;
-  pso_switch_count_ = pso_switches;
+  draw_call_count_ += draw_calls;
+  pso_switch_count_ += pso_switches;
 }
 
 void SceneRenderer::Clear() {

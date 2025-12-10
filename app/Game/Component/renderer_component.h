@@ -1,9 +1,10 @@
 #pragma once
 
+#include "RenderPass/scene_renderer.h"
 #include "component.h"
 #include "material_instance.h"
 #include "mesh.h"
-#include "scene_renderer.h"
+
 
 // RendererComponent: Submits render packets to scene renderer
 class RendererComponent : public Component {

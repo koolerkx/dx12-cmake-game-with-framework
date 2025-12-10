@@ -1,0 +1,114 @@
+#include "fullscreen_pass_helper.h"
+
+#include <DirectXMath.h>
+
+#include <cassert>
+#include <iostream>
+
+using namespace DirectX;
+
+struct FullscreenVertex {
+  XMFLOAT3 pos;
+  XMFLOAT2 uv;
+};
+
+bool FullscreenPassHelper::Initialize(ID3D12Device* device) {
+  assert(device != nullptr);
+
+  if (!CreateFullscreenQuadGeometry(device)) {
+    std::cerr << "[FullscreenPassHelper] Failed to create fullscreen quad geometry" << '\n';
+    return false;
+  }
+
+  std::cout << "[FullscreenPassHelper] Initialized" << '\n';
+  return true;
+}
+
+void FullscreenPassHelper::DrawQuad(
+  ID3D12GraphicsCommandList* command_list, ID3D12PipelineState* pso, ID3D12RootSignature* root_signature, const RenderTarget& output) {
+  assert(command_list != nullptr);
+  assert(pso != nullptr);
+  assert(root_signature != nullptr);
+
+  // Set render target
+  D3D12_CPU_DESCRIPTOR_HANDLE rtv = output.GetRTV();
+  command_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+
+  // Set PSO and root signature
+  command_list->SetPipelineState(pso);
+  command_list->SetGraphicsRootSignature(root_signature);
+
+  // Bind and draw fullscreen quad
+  fullscreen_quad_.Bind(command_list);
+  fullscreen_quad_.Draw(command_list);
+}
+
+void FullscreenPassHelper::DrawQuadWithTexture(ID3D12GraphicsCommandList* command_list,
+  ID3D12PipelineState* pso,
+  ID3D12RootSignature* root_signature,
+  TextureHandle input,
+  const RenderTarget& output,
+  TextureManager& texture_manager) {
+  assert(command_list != nullptr);
+  assert(pso != nullptr);
+  assert(root_signature != nullptr);
+
+  // Set render target
+  D3D12_CPU_DESCRIPTOR_HANDLE rtv = output.GetRTV();
+  command_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+
+  // Set PSO and root signature
+  command_list->SetPipelineState(pso);
+  command_list->SetGraphicsRootSignature(root_signature);
+
+  // Bind input texture (assume root parameter 0 for descriptor table)
+  if (input.IsValid()) {
+    const Texture* input_texture = texture_manager.GetTexture(input);
+    if (input_texture != nullptr) {
+      auto srv = input_texture->GetSRV();
+      if (srv.IsValid() && srv.IsShaderVisible()) {
+        command_list->SetGraphicsRootDescriptorTable(0, srv.gpu);
+      }
+    }
+  }
+
+  // Bind and draw fullscreen quad
+  fullscreen_quad_.Bind(command_list);
+  fullscreen_quad_.Draw(command_list);
+}
+
+bool FullscreenPassHelper::CreateFullscreenQuadGeometry(ID3D12Device* device) {
+  // Fullscreen quad vertices (NDC space: -1 to 1)
+  // Counter-clockwise winding
+  FullscreenVertex vertices[] = {
+    {{-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},  // bottom-left
+    {{-1.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},   // top-left
+    {{1.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},   // bottom-right
+    {{1.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},    // top-right
+  };
+
+  // Create vertex buffer
+  if (!vertex_buffer_.Create(device, sizeof(vertices), Buffer::Type::Vertex)) {
+    std::cerr << "[FullscreenPassHelper] Failed to create vertex buffer" << '\n';
+    return false;
+  }
+  vertex_buffer_.Upload(vertices, sizeof(vertices));
+  vertex_buffer_.SetDebugName("FullscreenQuad_VertexBuffer");
+
+  // Indices for two triangles
+  uint16_t indices[] = {0, 1, 2, 2, 1, 3};
+
+  // Create index buffer
+  if (!index_buffer_.Create(device, sizeof(indices), Buffer::Type::Index)) {
+    std::cerr << "[FullscreenPassHelper] Failed to create index buffer" << '\n';
+    return false;
+  }
+  index_buffer_.Upload(indices, sizeof(indices));
+  index_buffer_.SetDebugName("FullscreenQuad_IndexBuffer");
+
+  // Initialize mesh
+  fullscreen_quad_.Initialize(&vertex_buffer_, &index_buffer_, sizeof(FullscreenVertex), 6, DXGI_FORMAT_R16_UINT);
+  fullscreen_quad_.SetDebugName("FullscreenQuad");
+
+  return true;
+}

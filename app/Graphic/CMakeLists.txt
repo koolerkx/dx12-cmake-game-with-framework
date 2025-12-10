@@ -47,8 +47,23 @@ add_library(graphic STATIC
 
     mesh.h
     mesh.cpp
-    scene_renderer.h
-    scene_renderer.cpp
+    RenderPass/scene_renderer.h
+    RenderPass/scene_renderer.cpp
+    RenderPass/render_layer.h
+    RenderPass/render_pass_manager.h
+    RenderPass/render_pass_manager.cpp
+    RenderPass/fullscreen_pass_helper.h
+    RenderPass/fullscreen_pass_helper.cpp
+
+    RenderPass/render_pass.h
+    RenderPass/forward_pass.h
+    RenderPass/forward_pass.cpp
+    RenderPass/ui_pass.h
+    RenderPass/ui_pass.cpp
+    RenderPass/depth_prepass.h
+    RenderPass/depth_prepass.cpp
+    RenderPass/postprocess_pass.h
+    RenderPass/postprocess_pass.cpp
 )
 
 target_include_directories(graphic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)

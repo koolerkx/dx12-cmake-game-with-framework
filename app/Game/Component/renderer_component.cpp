@@ -52,5 +52,11 @@ void RendererComponent::OnRender(SceneRenderer& scene_renderer) {
   packet.material = material_;
   packet.transform = transform->GetWorldMatrix();
 
+  // Get layer/tag from owner GameObject
+  if (owner_ != nullptr) {
+    packet.layer = owner_->GetRenderLayer();
+    packet.tag = owner_->GetRenderTag();
+  }
+
   scene_renderer.Submit(packet);
 }

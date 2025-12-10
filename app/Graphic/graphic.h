@@ -4,6 +4,7 @@
 #include <d3d12.h>
 #include <dxgi1_6.h>
 
+#include "RenderPass/scene_renderer.h"
 #include "buffer.h"
 #include "depth_buffer.h"
 #include "descriptor_heap_manager.h"
@@ -12,7 +13,6 @@
 #include "material_manager.h"
 #include "material_template.h"
 #include "mesh.h"
-#include "scene_renderer.h"
 #include "shader_manager.h"
 #include "swapchain_manager.h"
 #include "texture_manager.h"

@@ -9,11 +9,12 @@
 #include <cstdint>
 #include <iostream>
 
+#include "RenderPass/scene_renderer.h"
 #include "pipeline_state_builder.h"
 #include "root_signature_builder.h"
-#include "scene_renderer.h"
 #include "texture.h"
 #include "types.h"
+
 
 using namespace DirectX;
 
@@ -320,9 +321,9 @@ bool Graphic::InitializeTestGeometry() {
   // };
 
   Vertex vertices[] = {
-    {{0, 100, 0.0f}, {0.0f, 1.0f}},  // bottom-left
-    {{0, 0, 0.0f}, {0.0f, 0.0f}},   // top-left
-    {{100, 100, 0.0f}, {1.0f, 1.0f}},   // bottom-right
+    {{0, 100, 0.0f}, {0.0f, 1.0f}},    // bottom-left
+    {{0, 0, 0.0f}, {0.0f, 0.0f}},      // top-left
+    {{100, 100, 0.0f}, {1.0f, 1.0f}},  // bottom-right
     {{100, 0, 0.0f}, {1.0f, 0.0f}},    // top-right
   };
 

@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include "RenderPass/render_layer.h"
+
 class Component;
 
 class GameObject {
@@ -47,8 +49,40 @@ class GameObject {
     active_ = active;
   }
 
+  // Render Layer & Tag system
+  void SetRenderLayer(RenderLayer layer) {
+    render_layer_ = layer;
+  }
+
+  RenderLayer GetRenderLayer() const {
+    return render_layer_;
+  }
+
+  void SetRenderTag(RenderTag tag) {
+    render_tag_ = tag;
+  }
+
+  RenderTag GetRenderTag() const {
+    return render_tag_;
+  }
+
+  bool HasLayer(RenderLayer layer) const {
+    return ::HasLayer(render_layer_, layer);
+  }
+
+  bool HasTag(RenderTag tag) const {
+    return ::HasTag(render_tag_, tag);
+  }
+
+  bool HasAnyTag(RenderTag mask) const {
+    return ::HasAnyTag(render_tag_, mask);
+  }
+
  private:
   std::string name_;
   bool active_ = true;
   std::vector<Component*> components_;
+
+  RenderLayer render_layer_ = RenderLayer::Opaque;
+  RenderTag render_tag_ = RenderTag::None;
 };

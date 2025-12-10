@@ -5,8 +5,8 @@
 #include "Component/camera_component.h"
 #include "Component/renderer_component.h"
 #include "Component/transform_component.h"
+#include "RenderPass/scene_renderer.h"
 #include "graphic.h"
-#include "scene_renderer.h"
 
 void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   assert(graphic_ != nullptr);

@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "RenderPass/render_layer.h"
 #include "buffer.h"
 #include "material_instance.h"
 #include "mesh.h"
@@ -32,8 +33,41 @@ struct RenderPacket {
   // Sorting key helpers
   uint64_t sort_key = 0;
 
+  RenderLayer layer = RenderLayer::Opaque;
+  RenderTag tag = RenderTag::None;
+
   bool IsValid() const {
     return mesh != nullptr && material != nullptr && mesh->IsValid() && material->IsValid();
+  }
+};
+
+// Filter for selecting render packets
+struct RenderFilter {
+  RenderLayer layer_mask = RenderLayer::All;
+  RenderTag tag_mask = RenderTag::All;
+  RenderTag tag_exclude_mask = RenderTag::None;
+
+  bool Match(const RenderPacket& packet) const {
+    // Check layer
+    if (!HasLayer(packet.layer, layer_mask)) {
+      return false;
+    }
+
+    // Check required tags
+    if (tag_mask != RenderTag::All) {
+      if (!HasAnyTag(packet.tag, tag_mask)) {
+        return false;
+      }
+    }
+
+    // Check excluded tags
+    if (tag_exclude_mask != RenderTag::None) {
+      if (HasAnyTag(packet.tag, tag_exclude_mask)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 };
 
@@ -52,7 +86,7 @@ class SceneRenderer {
   void Submit(const RenderPacket& packet);
 
   // Sort and execute all render packets
-  void Flush(ID3D12GraphicsCommandList* command_list, TextureManager& texture_manager);
+  void Flush(ID3D12GraphicsCommandList* command_list, TextureManager& texture_manager, const RenderFilter& filter = RenderFilter{});
 
   // Clear all packets (call after flush or at frame start)
   void Clear();
