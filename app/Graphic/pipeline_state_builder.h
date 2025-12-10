@@ -76,6 +76,8 @@ class PipelineStateBuilder {
   PipelineStateBuilder& UseDeferredGBufferDefaults();
   PipelineStateBuilder& UseDeferredLightingDefaults();
   PipelineStateBuilder& UsePostProcessDefaults();
+  PipelineStateBuilder& UseUIDefaults();
+  PipelineStateBuilder& UseForwardTransparentDefaults();
 
   // Build final PSO
   bool Build(ID3D12Device* device, ComPtr<ID3D12PipelineState>& out_pso);

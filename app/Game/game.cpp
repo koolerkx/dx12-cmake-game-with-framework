@@ -119,7 +119,7 @@ bool Game::CreateDemoMaterial() {
     .AddRootConstant(4, 2, D3D12_SHADER_VISIBILITY_VERTEX)   // b2 - Per-object color tint
     .AddRootConstant(4, 3, D3D12_SHADER_VISIBILITY_VERTEX)   // b3 - Per-object UV transform (offset.xy, scale.xy)
     .AddRootCBV(1, D3D12_SHADER_VISIBILITY_ALL)              // b1 - Frame CB
-    .AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL)                              // t0 - Texture
+    .AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL)                             // t0 - Texture
     .AddStaticSampler(0, D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_SHADER_VISIBILITY_PIXEL)  // s0
     .AllowInputLayout();
 
@@ -139,7 +139,7 @@ bool Game::CreateDemoMaterial() {
     .SetPixelShader(ps)
     .AddInputElement("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0)
     .AddInputElement("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0)
-    .UseForwardRenderingDefaults();
+    .UseUIDefaults();
 
   if (!pso_builder.Build(graphic_->GetDevice(), pso)) {
     std::cerr << "[Game] Failed to build pipeline state" << '\n';

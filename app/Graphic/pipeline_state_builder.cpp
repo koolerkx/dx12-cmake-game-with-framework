@@ -309,10 +309,10 @@ PipelineStateBuilder& PipelineStateBuilder::UseForwardRenderingDefaults() {
 PipelineStateBuilder& PipelineStateBuilder::UseDeferredGBufferDefaults() {
   // Deferred G-Buffer pass: multiple render targets, depth write enabled
   // Typical G-Buffer: Albedo, Normal, Roughness/Metallic, Emission
-  SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM, 0);        // Albedo
-  SetRenderTargetFormat(DXGI_FORMAT_R16G16B16A16_FLOAT, 1);    // Normal
-  SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM, 2);        // Roughness/Metallic
-  SetRenderTargetFormat(DXGI_FORMAT_R16G16B16A16_FLOAT, 3);    // Emission
+  SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM, 0);      // Albedo
+  SetRenderTargetFormat(DXGI_FORMAT_R16G16B16A16_FLOAT, 1);  // Normal
+  SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM, 2);      // Roughness/Metallic
+  SetRenderTargetFormat(DXGI_FORMAT_R16G16B16A16_FLOAT, 3);  // Emission
   SetDepthStencilFormat(DXGI_FORMAT_D32_FLOAT);
 
   SetDepthEnable(true);
@@ -362,6 +362,39 @@ PipelineStateBuilder& PipelineStateBuilder::UsePostProcessDefaults() {
   SetFillMode(D3D12_FILL_MODE_SOLID);
 
   SetBlendEnable(false, 0);
+
+  return *this;
+}
+
+PipelineStateBuilder& PipelineStateBuilder::UseUIDefaults() {
+  SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM, 0);
+  SetDepthStencilFormat(DXGI_FORMAT_D32_FLOAT);
+
+  SetDepthEnable(false);
+  SetDepthWriteMask(D3D12_DEPTH_WRITE_MASK_ZERO);
+
+  SetCullMode(D3D12_CULL_MODE_NONE);
+  SetFillMode(D3D12_FILL_MODE_SOLID);
+
+  SetBlendEnable(true, 0);
+  SetBlendFactors(D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, 0);
+
+  return *this;
+}
+
+PipelineStateBuilder& PipelineStateBuilder::UseForwardTransparentDefaults() {
+  SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM, 0);
+  SetDepthStencilFormat(DXGI_FORMAT_D32_FLOAT);
+
+  SetDepthEnable(true);
+  SetDepthWriteMask(D3D12_DEPTH_WRITE_MASK_ZERO);
+  SetDepthFunc(D3D12_COMPARISON_FUNC_LESS_EQUAL);
+
+  SetCullMode(D3D12_CULL_MODE_BACK);
+  SetFillMode(D3D12_FILL_MODE_SOLID);
+
+  SetBlendEnable(true, 0);
+  SetBlendFactors(D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, 0);
 
   return *this;
 }
