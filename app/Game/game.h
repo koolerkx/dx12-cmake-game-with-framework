@@ -53,9 +53,7 @@ class Game {
   GameObject* active_camera_ = nullptr;
 
 #pragma region Demo // Temp: Demo resources
-  std::unique_ptr<Buffer> sprite_vertex_buffer_;
-  std::unique_ptr<Buffer> sprite_index_buffer_;
-  std::unique_ptr<Mesh> sprite_mesh_;
+  std::shared_ptr<Mesh> sprite_mesh_;
 
   MaterialTemplate* sprite_material_template_ = nullptr;
   std::unique_ptr<MaterialInstance> sprite_material_instance_;

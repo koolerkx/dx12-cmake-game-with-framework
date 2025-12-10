@@ -4,6 +4,7 @@
 #include <dxgiformat.h>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "buffer.h"
@@ -18,8 +19,8 @@ class Mesh {
   Mesh& operator=(const Mesh&) = delete;
 
   // Initialize with existing buffers
-  void Initialize(Buffer* vertex_buffer,
-    Buffer* index_buffer,
+  void Initialize(std::shared_ptr<Buffer> vertex_buffer,
+    std::shared_ptr<Buffer> index_buffer,
     uint32_t vertex_stride,
     uint32_t index_count,
     DXGI_FORMAT index_format = DXGI_FORMAT_R16_UINT,
@@ -57,8 +58,8 @@ class Mesh {
   }
 
  private:
-  Buffer* vertex_buffer_ = nullptr;
-  Buffer* index_buffer_ = nullptr;
+  std::shared_ptr<Buffer> vertex_buffer_;
+  std::shared_ptr<Buffer> index_buffer_;
 
   uint32_t vertex_stride_ = 0;
   uint32_t index_count_ = 0;

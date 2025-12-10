@@ -36,8 +36,8 @@ class FullscreenPassHelper {
   }
 
  private:
-  Buffer vertex_buffer_;
-  Buffer index_buffer_;
+  std::shared_ptr<Buffer> vertex_buffer_;
+  std::shared_ptr<Buffer> index_buffer_;
   Mesh fullscreen_quad_;
 
   bool CreateFullscreenQuadGeometry(ID3D12Device* device);

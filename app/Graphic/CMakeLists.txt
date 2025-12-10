@@ -7,6 +7,8 @@ add_library(graphic STATIC
     graphic.cpp
     graphic.h
     types.h
+    vertex_types.h
+    vertex_types.cpp
     ../utils.h
 
     gpu_resource.h
@@ -48,6 +50,9 @@ add_library(graphic STATIC
     Material/material_instance.cpp
     Material/material_manager.h
     Material/material_manager.cpp
+
+    primitive_geometry_2d.h
+    primitive_geometry_2d.cpp
 
     mesh.h
     mesh.cpp

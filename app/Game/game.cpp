@@ -9,7 +9,6 @@
 #include "Component/renderer_component.h"
 #include "Component/transform_component.h"
 #include "RenderPass/render_layer.h"
-#include "buffer.h"
 #include "graphic.h"
 #include "material_instance.h"
 #include "material_template.h"
@@ -17,11 +16,6 @@
 #include "root_signature_builder.h"
 
 using namespace DirectX;
-
-struct Vertex {
-  XMFLOAT3 pos;
-  XMFLOAT2 uv;
-};
 
 void Game::Initialize(Graphic& graphic) {
   graphic_ = &graphic;
@@ -54,42 +48,7 @@ bool Game::InitializeDemoResources() {
 }
 
 bool Game::CreateDemoGeometry() {
-  // Create vertex buffer
-  sprite_vertex_buffer_ = std::make_unique<Buffer>();
-  sprite_index_buffer_ = std::make_unique<Buffer>();
-  sprite_mesh_ = std::make_unique<Mesh>();
-
-  // Define vertices for a simple unit quad (model space: [-0.5, +0.5])
-  // The mesh is centered at origin and should be scaled using TransformComponent::scale
-  // to control pixel-based width/height in world space.
-  Vertex vertices[] = {
-    {{-0.5f, 0.5f, 0.0f}, {0.0f, 1.0f}},   // bottom-left (local: -0.5, +0.5)
-    {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}},  // top-left (local: -0.5, -0.5)
-    {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}},    // bottom-right (local: +0.5, +0.5)
-    {{0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},   // top-right (local: +0.5, -0.5)
-  };
-
-  if (!sprite_vertex_buffer_->Create(graphic_->GetDevice(), sizeof(vertices), Buffer::Type::Vertex)) {
-    std::cerr << "[Game] Failed to create vertex buffer" << '\n';
-    return false;
-  }
-  sprite_vertex_buffer_->Upload(vertices, sizeof(vertices));
-  sprite_vertex_buffer_->SetDebugName("SpriteQuad_VertexBuffer");
-
-  // Define indices
-  uint16_t indices[] = {0, 1, 2, 2, 1, 3};
-
-  if (!sprite_index_buffer_->Create(graphic_->GetDevice(), sizeof(indices), Buffer::Type::Index)) {
-    std::cerr << "[Game] Failed to create index buffer" << '\n';
-    return false;
-  }
-  sprite_index_buffer_->Upload(indices, sizeof(indices));
-  sprite_index_buffer_->SetDebugName("SpriteQuad_IndexBuffer");
-
-  // Initialize mesh
-  sprite_mesh_->Initialize(
-    sprite_vertex_buffer_.get(), sprite_index_buffer_.get(), sizeof(Vertex), 6, DXGI_FORMAT_R16_UINT, D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-  sprite_mesh_->SetDebugName("SpriteQuad");
+  sprite_mesh_ = graphic_->GetPrimitiveGeometry2D().CreateSpriteQuad();
 
   std::cout << "[Game] Created sprite geometry" << '\n';
   return true;

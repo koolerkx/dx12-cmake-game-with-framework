@@ -20,6 +20,10 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
     MessageBoxW(nullptr, L"Graphic: Failed to create device", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }
+
+  // Initialize primitive geometry 2D
+  primitive_geometry_2d_ = std::make_unique<PrimitiveGeometry2D>(device_.Get());
+
   if (!descriptor_heap_manager_.Initalize(device_.Get())) {
     MessageBoxW(nullptr, L"Graphic: Failed to initialize descriptor heap manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;

@@ -88,26 +88,28 @@ bool FullscreenPassHelper::CreateFullscreenQuadGeometry(ID3D12Device* device) {
   };
 
   // Create vertex buffer
-  if (!vertex_buffer_.Create(device, sizeof(vertices), Buffer::Type::Vertex)) {
+  vertex_buffer_ = std::make_shared<Buffer>();
+  if (!vertex_buffer_->Create(device, sizeof(vertices), Buffer::Type::Vertex)) {
     std::cerr << "[FullscreenPassHelper] Failed to create vertex buffer" << '\n';
     return false;
   }
-  vertex_buffer_.Upload(vertices, sizeof(vertices));
-  vertex_buffer_.SetDebugName("FullscreenQuad_VertexBuffer");
+  vertex_buffer_->Upload(vertices, sizeof(vertices));
+  vertex_buffer_->SetDebugName("FullscreenQuad_VertexBuffer");
 
   // Indices for two triangles
   uint16_t indices[] = {0, 1, 2, 2, 1, 3};
 
   // Create index buffer
-  if (!index_buffer_.Create(device, sizeof(indices), Buffer::Type::Index)) {
+  index_buffer_ = std::make_shared<Buffer>();
+  if (!index_buffer_->Create(device, sizeof(indices), Buffer::Type::Index)) {
     std::cerr << "[FullscreenPassHelper] Failed to create index buffer" << '\n';
     return false;
   }
-  index_buffer_.Upload(indices, sizeof(indices));
-  index_buffer_.SetDebugName("FullscreenQuad_IndexBuffer");
+  index_buffer_->Upload(indices, sizeof(indices));
+  index_buffer_->SetDebugName("FullscreenQuad_IndexBuffer");
 
   // Initialize mesh
-  fullscreen_quad_.Initialize(&vertex_buffer_, &index_buffer_, sizeof(FullscreenVertex), 6, DXGI_FORMAT_R16_UINT);
+  fullscreen_quad_.Initialize(vertex_buffer_, index_buffer_, sizeof(FullscreenVertex), 6, DXGI_FORMAT_R16_UINT);
   fullscreen_quad_.SetDebugName("FullscreenQuad");
 
   return true;

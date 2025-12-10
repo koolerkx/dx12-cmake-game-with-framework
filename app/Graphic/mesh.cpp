@@ -2,8 +2,8 @@
 
 #include <cassert>
 
-void Mesh::Initialize(Buffer* vertex_buffer,
-  Buffer* index_buffer,
+void Mesh::Initialize(std::shared_ptr<Buffer> vertex_buffer,
+  std::shared_ptr<Buffer> index_buffer,
   uint32_t vertex_stride,
   uint32_t index_count,
   DXGI_FORMAT index_format,

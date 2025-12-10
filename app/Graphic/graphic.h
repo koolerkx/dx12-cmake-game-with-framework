@@ -5,6 +5,7 @@
 #include <dxgi1_6.h>
 
 #include <functional>
+#include <memory>
 
 #include "RenderPass/forward_pass.h"
 #include "RenderPass/render_pass_manager.h"
@@ -13,12 +14,12 @@
 #include "descriptor_heap_manager.h"
 #include "fence_manager.h"
 #include "material_manager.h"
+#include "primitive_geometry_2d.h"
 #include "shader_manager.h"
 #include "swapchain_manager.h"
 #include "texture_manager.h"
 #include "types.h"
 #include "upload_context.h"
-
 
 class Scene;
 
@@ -60,6 +61,10 @@ class Graphic {
     return shader_manager_;
   }
 
+  PrimitiveGeometry2D& GetPrimitiveGeometry2D() {
+    return *primitive_geometry_2d_;
+  }
+
   ID3D12Device* GetDevice() const {
     return device_.Get();
   }
@@ -95,6 +100,7 @@ class Graphic {
   TextureManager texture_manager_;
   MaterialManager material_manager_;
   ShaderManager shader_manager_;
+  std::unique_ptr<PrimitiveGeometry2D> primitive_geometry_2d_;
 
   // Upload context for one-shot resource uploads
   UploadContext upload_context_;
