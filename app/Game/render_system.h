@@ -1,9 +1,10 @@
 #pragma once
 
-#include "Component/camera_component.h"
 #include "Scene/scene.h"
 #include "game_object.h"
-#include "graphic.h"
+
+class Graphic;
+class RenderPassManager;
 
 class RenderSystem {
  public:
@@ -18,5 +19,5 @@ class RenderSystem {
 
  private:
   Graphic* graphic_ = nullptr;
-  void Submit(Scene& scene);
+  void Submit(Scene& scene, RenderPassManager& render_pass_manager);
 };

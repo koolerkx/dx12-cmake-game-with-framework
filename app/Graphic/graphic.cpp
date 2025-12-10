@@ -1,29 +1,12 @@
 #include "graphic.h"
 
-#include <DirectXMath.h>
-#include <d3d12.h>
-#include <d3dcommon.h>
-#include <dxgiformat.h>
-
 #include <array>
-#include <cstdint>
 #include <iostream>
 
-#include "RenderPass/scene_renderer.h"
-#include "pipeline_state_builder.h"
-#include "root_signature_builder.h"
-#include "texture.h"
-#include "types.h"
+#include "RenderPass/forward_pass.h"
+#include "RenderPass/ui_pass.h"
 
-
-using namespace DirectX;
-
-struct Vertex {
-  XMFLOAT3 pos;
-  XMFLOAT2 uv;
-};
-
-bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height) {
+bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height) {
   frame_buffer_width_ = frame_buffer_width;
   frame_buffer_height_ = frame_buffer_height;
 
@@ -42,10 +25,6 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
-  if (!scene_renderer_.Initialize(device_.Get())) {
-    MessageBoxW(nullptr, L"Graphic: Failed to initialize scene renderer", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
   if (!texture_manager_.Initialize(device_.Get(), &descriptor_heap_manager_.GetSrvAllocator(), 1024)) {
     MessageBoxW(nullptr, L"Graphic: Failed to initialize texture manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
@@ -90,55 +69,77 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
-  // Initialize test geometry
-  if (!InitializeTestGeometry()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to initialize test geometry", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+  // Initialize upload context for one-shot resource uploads
+  if (!upload_context_.Initialize(device_.Get(), command_queue_.Get(), &fence_manager_)) {
+    MessageBoxW(nullptr, L"Graphic: Failed to initialize upload context", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }
 
-  // Load shaders using ShaderManager
-  if (!LoadShaders()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to load shaders", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+  if (!render_pass_manager_.Initialize(device_.Get())) {
+    MessageBoxW(nullptr, L"Graphic: Failed to initialize render pass manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }
 
-  // Create root signature using RootSignatureBuilder
-  if (!CreateRootSignature()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create root signature", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+  // Setup viewport
+  viewport_.Width = static_cast<FLOAT>(frame_buffer_width_);
+  viewport_.Height = static_cast<FLOAT>(frame_buffer_height_);
+  viewport_.TopLeftX = 0;
+  viewport_.TopLeftY = 0;
+  viewport_.MaxDepth = 1.0f;
+  viewport_.MinDepth = 0.0f;
+
+  scissor_rect_.top = 0;
+  scissor_rect_.left = 0;
+  scissor_rect_.right = frame_buffer_width_;
+  scissor_rect_.bottom = frame_buffer_height_;
+
+  if (!InitializeRenderPasses()) {
+    MessageBoxW(nullptr, L"Graphic: Failed to initialize render passes", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }
 
-  // Create pipeline state using PipelineStateBuilder
-  if (!CreatePipelineState()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create pipeline state", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
-
-  // Load textures
-  command_allocator_->Reset();
-  command_list_->Reset(command_allocator_.Get(), nullptr);
-
-  if (!InitializeTestTexture()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to initialize test texture", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
-
-  command_list_->Close();
-  std::array<ID3D12CommandList*, 1> cmdlists = {command_list_.Get()};
-  command_queue_->ExecuteCommandLists(1, cmdlists.data());
-  fence_manager_.WaitForGpu(command_queue_.Get());
-
-  // Create test material
-  if (!CreateTestMaterial()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create test material", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
-
-  std::cout << "[Graphic] Initialization complete - Forward Rendering with Abstracted Pipeline" << '\n';
+  std::cout << "[Graphic] Initialization complete - Render Pass Architecture" << '\n';
   return true;
 }
 
-void Graphic::BeginRender() {
+bool Graphic::InitializeRenderPasses() {
+  auto forward_pass = std::make_unique<ForwardPass>();
+  forward_pass->Initialize(device_.Get());
+
+  // Use swap chain back buffer as render target
+  // The back buffer will be set dynamically in BeginFrame
+  forward_pass->SetDepthBuffer(&depth_buffer_);
+
+  render_pass_manager_.RegisterPass("Forward", std::move(forward_pass));
+
+  // Create UI Pass
+  auto ui_pass = std::make_unique<UIPass>();
+  ui_pass->Initialize(device_.Get());
+
+  render_pass_manager_.RegisterPass("UI", std::move(ui_pass));
+
+  std::cout << "[Graphic] Registered " << render_pass_manager_.GetPassCount() << " render passes" << '\n';
+  return true;
+}
+
+void Graphic::ExecuteImmediate(const std::function<void(ID3D12GraphicsCommandList*)>& recordFunc) {
+  if (!recordFunc) return;
+  if (!upload_context_.IsInitialized()) return;
+
+  upload_context_.Begin();
+  ID3D12GraphicsCommandList* cmd = upload_context_.GetCommandList();
+
+  // Bind descriptor heaps if code recording requires shader-visible heaps
+  descriptor_heap_manager_.SetDescriptorHeaps(cmd);
+
+  // Let caller record commands
+  recordFunc(cmd);
+
+  // Close/execute and wait
+  upload_context_.SubmitAndWait();
+}
+
+void Graphic::BeginFrame() {
   // Reset command allocator and list
   command_allocator_->Reset();
   command_list_->Reset(command_allocator_.Get(), nullptr);
@@ -163,11 +164,34 @@ void Graphic::BeginRender() {
   command_list_->ClearRenderTargetView(rtv, clear_color.data(), 0, nullptr);
   depth_buffer_.Clear(command_list_.Get(), 1.0f, 0);
 
-  // Bind render targets
+  // Bind render targets for forward pass
   command_list_->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+
+  // Update render passes with current back buffer (wrapped in RenderTarget)
+  // Note: For simplicity, we directly use back buffer.
+  // In production, you might want to wrap it in RenderTarget for consistency.
+  ForwardPass* forward_pass = static_cast<ForwardPass*>(render_pass_manager_.GetPass("Forward"));
+  if (forward_pass) {
+    forward_pass->SetDepthBuffer(&depth_buffer_);
+    // forward_pass->SetRenderTarget() is bind in BeginFrame
+  }
+
+  UIPass* ui_pass = static_cast<UIPass*>(render_pass_manager_.GetPass("UI"));
+  if (ui_pass) {
+    // ui_pass->SetRenderTarget() is bind in BeginFrame
+  }
 }
 
-void Graphic::EndRender() {
+void Graphic::RenderFrame() {
+  // Execute all render passes through the pass manager
+  // The pass manager will handle filtering and executing each pass
+  render_pass_manager_.RenderFrame(command_list_.Get(), texture_manager_);
+
+  // Clear render queue for next frame
+  render_pass_manager_.Clear();
+}
+
+void Graphic::EndFrame() {
   // Transition swap chain back buffer to present state
   swap_chain_manager_.TransitionToPresent(command_list_.Get());
 
@@ -191,7 +215,7 @@ void Graphic::Shutdown() {
   // Print statistics before cleanup
   texture_manager_.PrintStats();
   material_manager_.PrintStats();
-  scene_renderer_.PrintStats();
+  render_pass_manager_.PrintStats();
 
   // Clean up managers
   shader_manager_.Clear();
@@ -199,11 +223,6 @@ void Graphic::Shutdown() {
   material_manager_.Clear();
 
   std::cout << "[Graphic] Shutdown complete" << '\n';
-}
-
-void Graphic::FlushRenderQueue() {
-  // Execute render queue (sort and draw)
-  scene_renderer_.Flush(command_list_.Get(), texture_manager_);
 }
 
 bool Graphic::EnableDebugLayer() {
@@ -309,196 +328,4 @@ bool Graphic::CreateCommandList() {
 
   command_list_->Close();
   return true;
-}
-
-bool Graphic::InitializeTestGeometry() {
-  // Define vertices
-  // Vertex vertices[] = {
-  //   {{-0.4f, -0.7f, 0.0f}, {0.0f, 1.0f}},  // bottom-left
-  //   {{-0.4f, 0.7f, 0.0f}, {0.0f, 0.0f}},   // top-left
-  //   {{0.4f, -0.7f, 0.0f}, {1.0f, 1.0f}},   // bottom-right
-  //   {{0.4f, 0.7f, 0.0f}, {1.0f, 0.0f}},    // top-right
-  // };
-
-  Vertex vertices[] = {
-    {{0, 100, 0.0f}, {0.0f, 1.0f}},    // bottom-left
-    {{0, 0, 0.0f}, {0.0f, 0.0f}},      // top-left
-    {{100, 100, 0.0f}, {1.0f, 1.0f}},  // bottom-right
-    {{100, 0, 0.0f}, {1.0f, 0.0f}},    // top-right
-  };
-
-  // Create vertex buffer
-  if (!vertex_buffer_.Create(device_.Get(), sizeof(vertices), Buffer::Type::Vertex)) {
-    std::cerr << "[Graphic] Failed to create vertex buffer." << '\n';
-    return false;
-  }
-  vertex_buffer_.Upload(vertices, sizeof(vertices));
-  vertex_buffer_.SetDebugName("TestQuad_VertexBuffer");
-
-  // Define indices
-  uint16_t indices[] = {0, 1, 2, 2, 1, 3};
-
-  // Create index buffer
-  if (!index_buffer_.Create(device_.Get(), sizeof(indices), Buffer::Type::Index)) {
-    std::cerr << "[Graphic] Failed to create index buffer." << '\n';
-    return false;
-  }
-  index_buffer_.Upload(indices, sizeof(indices));
-  index_buffer_.SetDebugName("TestQuad_IndexBuffer");
-
-  // Initialize mesh
-  test_mesh_.Initialize(&vertex_buffer_, &index_buffer_, sizeof(Vertex), 6, DXGI_FORMAT_R16_UINT);
-  test_mesh_.SetDebugName("TestQuad");
-
-  return true;
-}
-
-bool Graphic::InitializeTestTexture() {
-  // Define texture loading parameters
-  TextureLoadParams params;
-  params.file_path = L"Content/textures/metal_plate_nor_dx_1k.png";
-  params.force_srgb = false;
-
-  // Load texture through TextureManager
-  test_texture_handle_ = texture_manager_.LoadTexture(command_list_.Get(), params);
-
-  if (!test_texture_handle_.IsValid()) {
-    std::cerr << "[Graphic] Failed to load test texture." << '\n';
-    return false;
-  }
-
-  // Get texture for info logging
-  const Texture* texture = texture_manager_.GetTexture(test_texture_handle_);
-  if (texture) {
-    std::cout << "[Graphic] Loaded test texture: " << texture->GetWidth() << "x" << texture->GetHeight() << '\n';
-  }
-
-  return true;
-}
-
-bool Graphic::LoadShaders() {
-  // Load vertex shader
-  if (!shader_manager_.LoadShader(L"Content/shaders/basic.vs.cso", ShaderType::Vertex, "BasicVS")) {
-    std::cerr << "[Graphic] Failed to load vertex shader" << '\n';
-    return false;
-  }
-
-  // Load pixel shader
-  if (!shader_manager_.LoadShader(L"Content/shaders/basic.ps.cso", ShaderType::Pixel, "BasicPS")) {
-    std::cerr << "[Graphic] Failed to load pixel shader" << '\n';
-    return false;
-  }
-
-  std::cout << "[Graphic] Shaders loaded: " << shader_manager_.GetShaderCount() << " shaders" << '\n';
-  return true;
-}
-
-bool Graphic::CreateRootSignature() {
-  // Use RootSignatureBuilder to create root signature
-  RootSignatureBuilder builder;
-
-  // TODO: Extract param index to unified structure, defined as engine convention of fixed root signature buffer
-  builder
-    .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)  // b0
-    .AddRootCBV(1, D3D12_SHADER_VISIBILITY_ALL)              // b1, Frame CB (camera, lighting)
-    // .AddRootCBV(2, D3D12_SHADER_VISIBILITY_ALL) // b2, Material CB (per-material buffer)
-    .AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL)                              // t0 - texture
-    .AddStaticSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_SHADER_VISIBILITY_PIXEL)  // s0
-    .AllowInputLayout();
-
-  if (!builder.Build(device_.Get(), root_signature_)) {
-    std::cerr << "[Graphic] Failed to build root signature" << '\n';
-    return false;
-  }
-
-  std::cout << "[Graphic] Root signature created using RootSignatureBuilder" << '\n';
-  return true;
-}
-
-bool Graphic::CreatePipelineState() {
-  // Get shaders from shader manager
-  const ShaderBlob* vs = shader_manager_.GetShader("BasicVS");
-  const ShaderBlob* ps = shader_manager_.GetShader("BasicPS");
-
-  if (!vs || !ps) {
-    std::cerr << "[Graphic] Shaders not loaded" << '\n';
-    return false;
-  }
-
-  // Use PipelineStateBuilder to create PSO
-  PipelineStateBuilder builder;
-
-  builder.SetRootSignature(root_signature_.Get())
-    .SetVertexShader(vs)
-    .SetPixelShader(ps)
-    .AddInputElement("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0)
-    .AddInputElement("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0)
-    .UseForwardRenderingDefaults();  // Apply forward rendering defaults
-
-  if (!builder.Build(device_.Get(), pipeline_state_)) {
-    std::cerr << "[Graphic] Failed to build pipeline state" << '\n';
-    return false;
-  }
-
-  // Setup viewport
-  viewport_.Width = static_cast<FLOAT>(frame_buffer_width_);
-  viewport_.Height = static_cast<FLOAT>(frame_buffer_height_);
-  viewport_.TopLeftX = 0;
-  viewport_.TopLeftY = 0;
-  viewport_.MaxDepth = 1.0f;
-  viewport_.MinDepth = 0.0f;
-
-  scissor_rect_.top = 0;
-  scissor_rect_.left = 0;
-  scissor_rect_.right = frame_buffer_width_;
-  scissor_rect_.bottom = frame_buffer_height_;
-
-  std::cout << "[Graphic] Pipeline state created using PipelineStateBuilder" << '\n';
-  return true;
-}
-
-bool Graphic::CreateTestMaterial() {
-  // Define texture slots for this material
-  std::vector<TextureSlotDefinition> texture_slots;
-  texture_slots.push_back({"albedo", 2, D3D12_SHADER_VISIBILITY_PIXEL});  // Root parameter 0
-
-  // Create material template
-  test_material_template_ = material_manager_.CreateTemplate("BasicMaterial", pipeline_state_.Get(), root_signature_.Get(), texture_slots);
-
-  if (test_material_template_ == nullptr) {
-    std::cerr << "[Graphic] Failed to create material template" << '\n';
-    return false;
-  }
-
-  // Create material instance
-  test_material_instance_ = std::make_unique<MaterialInstance>();
-  if (!test_material_instance_->Initialize(test_material_template_)) {
-    std::cerr << "[Graphic] Failed to initialize material instance" << '\n';
-    return false;
-  }
-
-  // Assign texture to material
-  test_material_instance_->SetTexture("albedo", test_texture_handle_);
-
-  test_material_template_->PrintInfo();
-  test_material_instance_->PrintInfo();
-
-  return true;
-}
-
-void Graphic::DrawTestQuad() {
-  // Clear previous frame packets
-  scene_renderer_.Clear();
-  scene_renderer_.ResetStats();
-
-  // Submit render packet
-  RenderPacket packet;
-  packet.mesh = &test_mesh_;
-  packet.material = test_material_instance_.get();
-  packet.transform = XMMatrixIdentity();
-
-  scene_renderer_.Submit(packet);
-
-  // Flush render queue (sorts and executes)
-  scene_renderer_.Flush(command_list_.Get(), texture_manager_);
 }

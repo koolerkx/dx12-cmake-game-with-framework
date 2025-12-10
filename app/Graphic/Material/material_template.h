@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "types.h"
+
 // Defines a texture slot in the material
 struct TextureSlotDefinition {
   std::string name;                    // e.g., "albedo", "normal", "roughness"
@@ -35,11 +37,11 @@ class MaterialTemplate {
     const std::vector<ConstantBufferDefinition>& constant_buffers = {});
 
   ID3D12PipelineState* GetPSO() const {
-    return pso_;
+    return pso_.Get();
   }
 
   ID3D12RootSignature* GetRootSignature() const {
-    return root_signature_;
+    return root_signature_.Get();
   }
 
   const std::string& GetName() const {
@@ -61,14 +63,14 @@ class MaterialTemplate {
   const ConstantBufferDefinition* GetConstantBufferByIndex(int index) const;
 
   bool IsValid() const {
-    return pso_ != nullptr && root_signature_ != nullptr;
+    return pso_.Get() != nullptr && root_signature_.Get() != nullptr;
   }
 
   void PrintInfo() const;
 
  private:
-  ID3D12PipelineState* pso_ = nullptr;
-  ID3D12RootSignature* root_signature_ = nullptr;
+  ComPtr<ID3D12PipelineState> pso_ = nullptr;
+  ComPtr<ID3D12RootSignature> root_signature_ = nullptr;
   std::string name_;
 
   std::vector<TextureSlotDefinition> texture_slots_;

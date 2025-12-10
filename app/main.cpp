@@ -9,9 +9,6 @@
 #include "Graphic/graphic.h"
 #include "utils.h"
 
-template <typename T>
-using ComPtr = Microsoft::WRL::ComPtr<T>;
-
 constexpr int WINDOW_WIDTH = 1920;
 constexpr int WINDOW_HEIGHT = 1080;
 
@@ -24,13 +21,13 @@ int WINAPI wWinMain([[maybe_unused]] HINSTANCE hInstance,
   // Initialize application and graphics
   Application app(hInstance, WINDOW_WIDTH, WINDOW_HEIGHT);
   Graphic graphic;
-  graphic.Initalize(app.GetHwnd(), WINDOW_WIDTH, WINDOW_HEIGHT);
+  graphic.Initialize(app.GetHwnd(), WINDOW_WIDTH, WINDOW_HEIGHT);
 
   // Initialize game
   Game game;
   game.Initialize(graphic);
 
-  // Step 5: Pull-Based Game Loop
+  // Game loop callbacks
   std::function<void(float dt)> OnUpdate = [&](float dt) {
     game.OnUpdate(dt);
     game.OnRender(dt);

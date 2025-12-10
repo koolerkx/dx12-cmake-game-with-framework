@@ -4,7 +4,7 @@ cbuffer PerObjectConstants : register(b0) { float4x4 world_pos; };
 
 BasicType main(VSIN input) {
   BasicType output;
-  float4 posW = input.pos;
+  float4 posW = mul(world_pos, input.pos);
   posW = mul(posW, view);
   output.svpos = mul(posW, proj);
 

@@ -27,9 +27,8 @@ void ForwardPass::Begin(ID3D12GraphicsCommandList* command_list) {
 
     command_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 
-    // Clear render target (optional - can be done outside)
-    // render_target_->Clear(command_list);
-    // depth_buffer_->Clear(command_list, 1.0f, 0);
+    render_target_->Clear(command_list);
+    depth_buffer_->Clear(command_list, 1.0f, 0);
   }
 }
 

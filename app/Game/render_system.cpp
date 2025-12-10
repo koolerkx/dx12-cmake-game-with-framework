@@ -5,50 +5,62 @@
 #include "Component/camera_component.h"
 #include "Component/renderer_component.h"
 #include "Component/transform_component.h"
+#include "RenderPass/render_pass_manager.h"
 #include "RenderPass/scene_renderer.h"
 #include "graphic.h"
 
 void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   assert(graphic_ != nullptr);
 
-  graphic_->BeginRender();
+  // Begin frame - clears render targets, sets up command list
+  graphic_->BeginFrame();
 
-  SceneRenderer& scene_renderer = graphic_->GetSceneRenderer();
+  // Get render pass manager
+  RenderPassManager& render_pass_manager = graphic_->GetRenderPassManager();
+  SceneRenderer& scene_renderer = render_pass_manager.GetSceneRenderer();
 
+  // Set camera data if available
   if (active_camera) {
     CameraComponent* camera_component = active_camera->GetComponent<CameraComponent>();
     TransformComponent* camera_transform = active_camera->GetComponent<TransformComponent>();
 
-    SceneData sceneData;
+    if (camera_component && camera_transform) {
+      SceneData scene_data;
 
-    DirectX::XMMATRIX view = camera_component->GetViewMatrix();
-    DirectX::XMMATRIX proj = camera_component->GetProjectionMatrix();
-    DirectX::XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+      DirectX::XMMATRIX view = camera_component->GetViewMatrix();
+      DirectX::XMMATRIX proj = camera_component->GetProjectionMatrix();
+      DirectX::XMMATRIX view_proj = DirectX::XMMatrixMultiply(view, proj);
 
-    DirectX::XMStoreFloat4x4(&sceneData.viewMatrix, XMMatrixTranspose(view));
-    DirectX::XMStoreFloat4x4(&sceneData.projMatrix, XMMatrixTranspose(proj));
-    DirectX::XMStoreFloat4x4(&sceneData.viewProjMatrix, XMMatrixTranspose(viewProj));
+      DirectX::XMStoreFloat4x4(&scene_data.viewMatrix, DirectX::XMMatrixTranspose(view));
+      DirectX::XMStoreFloat4x4(&scene_data.projMatrix, DirectX::XMMatrixTranspose(proj));
+      DirectX::XMStoreFloat4x4(&scene_data.viewProjMatrix, DirectX::XMMatrixTranspose(view_proj));
 
-    DirectX::XMVECTOR det;
-    DirectX::XMMATRIX invViewProj = XMMatrixInverse(&det, viewProj);
-    DirectX::XMStoreFloat4x4(&sceneData.invViewProjMatrix, XMMatrixTranspose(invViewProj));
+      DirectX::XMVECTOR det;
+      DirectX::XMMATRIX inv_view_proj = DirectX::XMMatrixInverse(&det, view_proj);
+      DirectX::XMStoreFloat4x4(&scene_data.invViewProjMatrix, DirectX::XMMatrixTranspose(inv_view_proj));
 
-    sceneData.cameraPosition = camera_transform->GetPosition();
+      scene_data.cameraPosition = camera_transform->GetPosition();
 
-    // Set Buffer
-    scene_renderer.SetSceneData(sceneData);
+      // Set scene data in scene renderer
+      scene_renderer.SetSceneData(scene_data);
+    }
   }
 
+  // Clear previous frame data
   scene_renderer.Clear();
   scene_renderer.ResetStats();
 
-  Submit(scene);
-  graphic_->FlushRenderQueue();
+  // Submit all renderables from the scene to the unified render queue
+  Submit(scene, render_pass_manager);
 
-  graphic_->EndRender();
+  // Execute all render passes (Forward, UI, etc.)
+  graphic_->RenderFrame();
+
+  // End frame - present
+  graphic_->EndFrame();
 }
 
-void RenderSystem::Submit(Scene& scene) {
+void RenderSystem::Submit(Scene& scene, RenderPassManager& render_pass_manager) {
   const auto& game_objects = scene.GetGameObjects();
 
   for (const auto& game_object : game_objects) {
@@ -61,6 +73,27 @@ void RenderSystem::Submit(Scene& scene) {
       continue;
     }
 
-    renderer->OnRender(graphic_->GetSceneRenderer());
+    // Build a RenderPacket from the renderer component and submit to the
+    // RenderPassManager unified queue. This ensures render_queue_ is
+    // populated for the frame (previous code relied on direct
+    // SceneRenderer submissions which left render_queue_ empty).
+    RenderPacket packet;
+    packet.mesh = renderer->GetMesh();
+    packet.material = renderer->GetMaterial();
+    packet.layer = renderer->GetLayer();
+    packet.tag = renderer->GetTag();
+
+    // Get transform from the owning GameObject
+    auto* transform = game_object->GetComponent<TransformComponent>();
+    if (transform) {
+      packet.transform = transform->GetWorldMatrix();
+    }
+
+    if (!packet.IsValid()) {
+      std::cerr << "[RenderSystem] Warning: Invalid render packet from GameObject: " << game_object->GetName() << '\n';
+      continue;
+    }
+
+    render_pass_manager.SubmitPacket(packet);
   }
 }

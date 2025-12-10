@@ -51,12 +51,8 @@ void RendererComponent::OnRender(SceneRenderer& scene_renderer) {
   packet.mesh = mesh_;
   packet.material = material_;
   packet.transform = transform->GetWorldMatrix();
-
-  // Get layer/tag from owner GameObject
-  if (owner_ != nullptr) {
-    packet.layer = owner_->GetRenderLayer();
-    packet.tag = owner_->GetRenderTag();
-  }
+  packet.layer = layer_;
+  packet.tag = tag_;
 
   scene_renderer.Submit(packet);
 }

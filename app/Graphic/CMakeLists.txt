@@ -20,6 +20,8 @@ add_library(graphic STATIC
     swapchain_manager.cpp
     depth_buffer.h
     depth_buffer.cpp
+    render_target.h
+    render_target.cpp
     fence_manager.h
     fence_manager.cpp
 
@@ -27,6 +29,8 @@ add_library(graphic STATIC
     texture.cpp
     buffer.h
     buffer.cpp
+    upload_context.h
+    upload_context.cpp
 
     pipeline_state_builder.h
     pipeline_state_builder.cpp

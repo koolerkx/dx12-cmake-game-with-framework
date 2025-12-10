@@ -12,6 +12,7 @@ bool MaterialTemplate::Initialize(ID3D12PipelineState* pso,
   assert(pso != nullptr);
   assert(root_signature != nullptr);
 
+  // Store COM pointers to keep lifetime ( caller may pass temporary ComPtr.Get() )
   pso_ = pso;
   root_signature_ = root_signature;
   name_ = name;

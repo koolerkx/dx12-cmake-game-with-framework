@@ -4,19 +4,19 @@
 #include <d3d12.h>
 #include <dxgi1_6.h>
 
-#include "RenderPass/scene_renderer.h"
-#include "buffer.h"
+#include <functional>
+
+#include "RenderPass/render_pass_manager.h"
 #include "depth_buffer.h"
 #include "descriptor_heap_manager.h"
 #include "fence_manager.h"
-#include "material_instance.h"
 #include "material_manager.h"
-#include "material_template.h"
-#include "mesh.h"
 #include "shader_manager.h"
 #include "swapchain_manager.h"
 #include "texture_manager.h"
 #include "types.h"
+#include "upload_context.h"
+
 
 class Scene;
 
@@ -25,25 +25,53 @@ class Graphic {
   Graphic() = default;
   ~Graphic() = default;
 
-  bool Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height);
-  void BeginRender();
-  void EndRender();
+  bool Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height);
+  void BeginFrame();
+  void RenderFrame();
+  void EndFrame();
   void Shutdown();
 
-  // Forward rendering
-  void DrawTestQuad();
+  // Execute a short-lived command list for one-shot work (uploads, copies)
+  void ExecuteImmediate(const std::function<void(ID3D12GraphicsCommandList*)>& recordFunc);
 
-  SceneRenderer& GetSceneRenderer() {
-    return scene_renderer_;
+  // Access upload context for one-shot uploads
+  UploadContext& GetUploadContext() {
+    return upload_context_;
   }
-  void FlushRenderQueue();
-
-  Mesh* GetTestMesh() {
-    return &test_mesh_;
+  const UploadContext& GetUploadContext() const {
+    return upload_context_;
   }
 
-  MaterialInstance* GetTestMaterial() {
-    return test_material_instance_.get();
+  RenderPassManager& GetRenderPassManager() {
+    return render_pass_manager_;
+  }
+
+  TextureManager& GetTextureManager() {
+    return texture_manager_;
+  }
+
+  MaterialManager& GetMaterialManager() {
+    return material_manager_;
+  }
+
+  ShaderManager& GetShaderManager() {
+    return shader_manager_;
+  }
+
+  ID3D12Device* GetDevice() const {
+    return device_.Get();
+  }
+
+  ID3D12GraphicsCommandList* GetCommandList() const {
+    return command_list_.Get();
+  }
+
+  UINT GetFrameBufferWidth() const {
+    return frame_buffer_width_;
+  }
+
+  UINT GetFrameBufferHeight() const {
+    return frame_buffer_height_;
   }
 
   static constexpr int FRAME_BUFFER_COUNT = 2;
@@ -64,29 +92,19 @@ class Graphic {
   FenceManager fence_manager_;
   TextureManager texture_manager_;
   MaterialManager material_manager_;
+  ShaderManager shader_manager_;
+
+  // Upload context for one-shot resource uploads
+  UploadContext upload_context_;
+
+  RenderPassManager render_pass_manager_;
 
   UINT frame_buffer_width_ = 0;
   UINT frame_buffer_height_ = 0;
 
-  // Rendering system
-  ShaderManager shader_manager_;
-  ComPtr<ID3D12RootSignature> root_signature_ = nullptr;
-  ComPtr<ID3D12PipelineState> pipeline_state_ = nullptr;
-  SceneRenderer scene_renderer_;
-
   // Viewport and scissor
   D3D12_VIEWPORT viewport_ = {};
   D3D12_RECT scissor_rect_ = {};
-
-  // Test material
-  MaterialTemplate* test_material_template_ = nullptr;
-  std::unique_ptr<MaterialInstance> test_material_instance_ = nullptr;
-
-  // Test resources
-  Buffer vertex_buffer_;
-  Buffer index_buffer_;
-  Mesh test_mesh_;
-  TextureHandle test_texture_handle_ = INVALID_TEXTURE_HANDLE;  // Temporary, assigned to material
 
   // Initialization helpers
   bool EnableDebugLayer();
@@ -95,12 +113,5 @@ class Graphic {
   bool CreateCommandQueue();
   bool CreateCommandList();
   bool CreateCommandAllocator();
-
-  bool InitializeTestGeometry();
-  bool InitializeTestTexture();
-  bool CreateTestMaterial();
-
-  bool LoadShaders();
-  bool CreateRootSignature();
-  bool CreatePipelineState();
+  bool InitializeRenderPasses();
 };
