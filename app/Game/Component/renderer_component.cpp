@@ -50,9 +50,11 @@ void RendererComponent::OnRender(SceneRenderer& scene_renderer) {
   RenderPacket packet;
   packet.mesh = mesh_;
   packet.material = material_;
-  packet.transform = transform->GetWorldMatrix();
+  DirectX::XMStoreFloat4x4(&packet.world, transform->GetWorldMatrix());
   packet.layer = layer_;
   packet.tag = tag_;
+  packet.color = color_;
+  packet.uv_transform = uv_transform_;
 
   scene_renderer.Submit(packet);
 }

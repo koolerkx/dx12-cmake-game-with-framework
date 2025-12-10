@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "utils.h"
+#include "RenderPass/render_constants.h"
 
 bool SceneRenderer::Initialize(ID3D12Device* device) {
   bool result = frame_cb_.Create(device, sizeof(SceneData), Buffer::Type::Constant, D3D12_HEAP_TYPE_UPLOAD);
@@ -72,9 +73,8 @@ void SceneRenderer::Flush(ID3D12GraphicsCommandList* command_list, TextureManage
       command_list->SetPipelineState(current_template->GetPSO());
       command_list->SetGraphicsRootSignature(current_template->GetRootSignature());
 
-      if (frame_cb_.IsValid()) {
-        command_list->SetGraphicsRootConstantBufferView(1, frame_cb_.GetGPUAddress());
-      }
+      // Bind frame constant buffer (b1)
+      RenderHelpers::SetFrameConstants(command_list, frame_cb_);
       ++pso_switches;
     }
 
@@ -84,12 +84,8 @@ void SceneRenderer::Flush(ID3D12GraphicsCommandList* command_list, TextureManage
     // Bind mesh (vertex/index buffers, topology)
     packet.mesh->Bind(command_list);
 
-    struct ObjectConstants {
-      XMMATRIX world_transform;
-    };
-    ObjectConstants obj_constants;
-    obj_constants.world_transform = packet.transform;
-    command_list->SetGraphicsRoot32BitConstants(0, 16, &obj_constants, 0);
+    // Set per-object constants (b0), color (b2), and UV transform (b3)
+    RenderHelpers::SetPerObjectConstants(command_list, packet.world, packet.color, packet.uv_transform);
 
     // Draw
     packet.mesh->Draw(command_list);
@@ -126,23 +122,39 @@ bool SceneRenderer::SetSceneData(const SceneData& scene_data) {
 
 uint64_t SceneRenderer::GenerateSortKey(const RenderPacket& packet) const {
   // Sort key layout (64 bits):
-  // [32 bits: PSO pointer hash] [24 bits: Material pointer hash] [8 bits: depth bucket]
+  // [8 bits: Layer] [24 bits: Template/PSO ptr low bits] [24 bits: Texture index] [8 bits: Material ptr low bits]
 
   uint64_t key = 0;
 
-  // PSO/Template (high priority - minimize PSO switches)
+  // Layer (highest priority to keep passes grouped; each pass typically filters by layer)
+  uint64_t layer_bits = static_cast<uint64_t>(static_cast<uint8_t>(packet.layer)) & 0xFF;
+  key |= (layer_bits << 56);
+
+  // PSO/Template (next priority - minimize PSO switches)
   MaterialTemplate* template_ptr = packet.material->GetTemplate();
   uint64_t template_hash = reinterpret_cast<uint64_t>(template_ptr);
-  key |= (template_hash & 0xFFFFFFFF) << 32;
+  key |= ((template_hash & 0xFFFFFF) << 32);
 
-  // Material (medium priority - batch same materials)
+  // Texture index (next priority - batch identical textures together)
+  uint32_t texture_index = 0xFFFFFF;  // invalid default
+  if (template_ptr != nullptr) {
+    // Prefer an "albedo" slot if present, otherwise use the first slot
+    const TextureSlotDefinition* slot_def = template_ptr->GetTextureSlot("albedo");
+    if (slot_def == nullptr) {
+      slot_def = template_ptr->GetTextureSlotByIndex(0);
+    }
+    if (slot_def != nullptr) {
+      TextureHandle handle = packet.material->GetTexture(slot_def->name);
+      if (handle.IsValid()) {
+        texture_index = handle.index & 0xFFFFFF;
+      }
+    }
+  }
+  key |= (static_cast<uint64_t>(texture_index & 0xFFFFFF) << 8);
+
+  // Material pointer (final priority)
   uint64_t material_hash = reinterpret_cast<uint64_t>(packet.material);
-  key |= (material_hash & 0xFFFFFF) << 8;
-
-  // Depth bucket (low priority - optional front-to-back/back-to-front)
-  // For now, just use 0 since we don't have camera depth calculation
-  uint8_t depth_bucket = 0;
-  key |= depth_bucket;
+  key |= (material_hash & 0xFF);
 
   return key;
 }

@@ -28,7 +28,9 @@ struct SceneData {
 struct RenderPacket {
   Mesh* mesh = nullptr;
   MaterialInstance* material = nullptr;
-  XMMATRIX transform = XMMatrixIdentity();
+  XMFLOAT4X4 world = {}; // Stored as row-major float[16]
+  XMFLOAT4 color = {1.0f, 1.0f, 1.0f, 1.0f};
+  XMFLOAT4 uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};
 
   // Sorting key helpers
   uint64_t sort_key = 0;

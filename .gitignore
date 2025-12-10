@@ -6,6 +6,9 @@
 # shader
 *.cso
 
+# doc
+docs/
+
 ####### Come from internet template #######
 
 # Covers JetBrains IDEs: IntelliJ, GoLand, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio, WebStorm and Rider

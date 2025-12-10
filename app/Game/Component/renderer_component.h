@@ -29,6 +29,22 @@ class RendererComponent : public Component {
     tag_ = tag;
   }
 
+  void SetColor(const DirectX::XMFLOAT4& color) {
+    color_ = color;
+  }
+
+  const DirectX::XMFLOAT4& GetColor() const {
+    return color_;
+  }
+
+  void SetUVTransform(const DirectX::XMFLOAT4& uv_transform) {
+    uv_transform_ = uv_transform;
+  }
+
+  const DirectX::XMFLOAT4& GetUVTransform() const {
+    return uv_transform_;
+  }
+
   Mesh* GetMesh() const {
     return mesh_;
   }
@@ -58,4 +74,6 @@ class RendererComponent : public Component {
   mutable bool missing_mesh_warned_ = false;
   mutable bool missing_material_warned_ = false;
   mutable bool missing_transform_warned_ = false;
+  DirectX::XMFLOAT4 color_ = {1.0f, 1.0f, 1.0f, 1.0f};
+  DirectX::XMFLOAT4 uv_transform_ = {0.0f, 0.0f, 1.0f, 1.0f};
 };

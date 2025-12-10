@@ -86,7 +86,7 @@ void RenderSystem::Submit(Scene& scene, RenderPassManager& render_pass_manager) 
     // Get transform from the owning GameObject
     auto* transform = game_object->GetComponent<TransformComponent>();
     if (transform) {
-      packet.transform = transform->GetWorldMatrix();
+      DirectX::XMStoreFloat4x4(&packet.world, transform->GetWorldMatrix());
     }
 
     if (!packet.IsValid()) {

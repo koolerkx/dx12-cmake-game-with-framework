@@ -55,40 +55,43 @@ bool Game::InitializeDemoResources() {
 
 bool Game::CreateDemoGeometry() {
   // Create vertex buffer
-  demo_vertex_buffer_ = std::make_unique<Buffer>();
-  demo_index_buffer_ = std::make_unique<Buffer>();
-  demo_mesh_ = std::make_unique<Mesh>();
+  sprite_vertex_buffer_ = std::make_unique<Buffer>();
+  sprite_index_buffer_ = std::make_unique<Buffer>();
+  sprite_mesh_ = std::make_unique<Mesh>();
 
-  // Define vertices for a simple quad
+  // Define vertices for a simple unit quad (model space: [-0.5, +0.5])
+  // The mesh is centered at origin and should be scaled using TransformComponent::scale
+  // to control pixel-based width/height in world space.
   Vertex vertices[] = {
-    {{0, 100, 0.0f}, {0.0f, 1.0f}},    // bottom-left
-    {{0, 0, 0.0f}, {0.0f, 0.0f}},      // top-left
-    {{100, 100, 0.0f}, {1.0f, 1.0f}},  // bottom-right
-    {{100, 0, 0.0f}, {1.0f, 0.0f}},    // top-right
+    {{-0.5f, 0.5f, 0.0f}, {0.0f, 1.0f}},   // bottom-left (local: -0.5, +0.5)
+    {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}},  // top-left (local: -0.5, -0.5)
+    {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}},    // bottom-right (local: +0.5, +0.5)
+    {{0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},   // top-right (local: +0.5, -0.5)
   };
 
-  if (!demo_vertex_buffer_->Create(graphic_->GetDevice(), sizeof(vertices), Buffer::Type::Vertex)) {
+  if (!sprite_vertex_buffer_->Create(graphic_->GetDevice(), sizeof(vertices), Buffer::Type::Vertex)) {
     std::cerr << "[Game] Failed to create vertex buffer" << '\n';
     return false;
   }
-  demo_vertex_buffer_->Upload(vertices, sizeof(vertices));
-  demo_vertex_buffer_->SetDebugName("DemoQuad_VertexBuffer");
+  sprite_vertex_buffer_->Upload(vertices, sizeof(vertices));
+  sprite_vertex_buffer_->SetDebugName("SpriteQuad_VertexBuffer");
 
   // Define indices
   uint16_t indices[] = {0, 1, 2, 2, 1, 3};
 
-  if (!demo_index_buffer_->Create(graphic_->GetDevice(), sizeof(indices), Buffer::Type::Index)) {
+  if (!sprite_index_buffer_->Create(graphic_->GetDevice(), sizeof(indices), Buffer::Type::Index)) {
     std::cerr << "[Game] Failed to create index buffer" << '\n';
     return false;
   }
-  demo_index_buffer_->Upload(indices, sizeof(indices));
-  demo_index_buffer_->SetDebugName("DemoQuad_IndexBuffer");
+  sprite_index_buffer_->Upload(indices, sizeof(indices));
+  sprite_index_buffer_->SetDebugName("SpriteQuad_IndexBuffer");
 
   // Initialize mesh
-  demo_mesh_->Initialize(demo_vertex_buffer_.get(), demo_index_buffer_.get(), sizeof(Vertex), 6, DXGI_FORMAT_R16_UINT);
-  demo_mesh_->SetDebugName("DemoQuad");
+  sprite_mesh_->Initialize(
+    sprite_vertex_buffer_.get(), sprite_index_buffer_.get(), sizeof(Vertex), 6, DXGI_FORMAT_R16_UINT, D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  sprite_mesh_->SetDebugName("SpriteQuad");
 
-  std::cout << "[Game] Created demo geometry" << '\n';
+  std::cout << "[Game] Created sprite geometry" << '\n';
   return true;
 }
 
@@ -112,9 +115,11 @@ bool Game::CreateDemoMaterial() {
   ComPtr<ID3D12RootSignature> root_signature;
   RootSignatureBuilder rs_builder;
   rs_builder
-    .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)                                    // b0 - Object constants
-    .AddRootCBV(1, D3D12_SHADER_VISIBILITY_ALL)                                                // b1 - Frame CB
-    .AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL)  // t0 - Texture
+    .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)  // b0 - Object constants
+    .AddRootConstant(4, 2, D3D12_SHADER_VISIBILITY_VERTEX)   // b2 - Per-object color tint
+    .AddRootConstant(4, 3, D3D12_SHADER_VISIBILITY_VERTEX)   // b3 - Per-object UV transform (offset.xy, scale.xy)
+    .AddRootCBV(1, D3D12_SHADER_VISIBILITY_ALL)              // b1 - Frame CB
+    .AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL)                              // t0 - Texture
     .AddStaticSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_SHADER_VISIBILITY_PIXEL)  // s0
     .AllowInputLayout();
 
@@ -147,33 +152,48 @@ bool Game::CreateDemoMaterial() {
   tex_params.force_srgb = false;
 
   graphic_->ExecuteImmediate([this, &texture_manager, tex_params](ID3D12GraphicsCommandList* cmd_list) {
-    demo_texture_handle_ = texture_manager.LoadTexture(cmd_list, tex_params);
+    sprite_texture_handle_ = texture_manager.LoadTexture(cmd_list, tex_params);
   });
-  if (!demo_texture_handle_.IsValid()) {
+  if (!sprite_texture_handle_.IsValid()) {
     std::cerr << "[Game] Failed to load demo texture" << '\n';
     return false;
   }
 
   // Create material template
   std::vector<TextureSlotDefinition> texture_slots;
-  texture_slots.push_back({"albedo", 2, D3D12_SHADER_VISIBILITY_PIXEL});
+  // Root parameter index 4: after added root constants (b0, b2, b3) and frame CB (b1)
+  texture_slots.push_back({"albedo", 4, D3D12_SHADER_VISIBILITY_PIXEL});
 
-  demo_material_template_ = material_manager.CreateTemplate("DemoMaterial", pso.Get(), root_signature.Get(), texture_slots);
-  if (demo_material_template_ == nullptr) {
+  sprite_material_template_ = material_manager.CreateTemplate("SpriteMaterial", pso.Get(), root_signature.Get(), texture_slots);
+  if (sprite_material_template_ == nullptr) {
     std::cerr << "[Game] Failed to create material template" << '\n';
     return false;
   }
 
   // Create material instance
-  demo_material_instance_ = std::make_unique<MaterialInstance>();
-  if (!demo_material_instance_->Initialize(demo_material_template_)) {
+  sprite_material_instance_ = std::make_unique<MaterialInstance>();
+  if (!sprite_material_instance_->Initialize(sprite_material_template_)) {
     std::cerr << "[Game] Failed to initialize material instance" << '\n';
     return false;
   }
 
-  demo_material_instance_->SetTexture("albedo", demo_texture_handle_);
+  sprite_material_instance_->SetTexture("albedo", sprite_texture_handle_);
 
-  std::cout << "[Game] Created demo material" << '\n';
+  // Create a second simple texture (empty) to test texture switching
+  sprite_texture_handle_2_ = texture_manager.CreateEmptyTexture(128, 128, DXGI_FORMAT_R8G8B8A8_UNORM);
+  if (sprite_texture_handle_2_.IsValid()) {
+    sprite_material_instance_2_ = std::make_unique<MaterialInstance>();
+    if (sprite_material_instance_2_->Initialize(sprite_material_template_)) {
+      sprite_material_instance_2_->SetTexture("albedo", sprite_texture_handle_2_);
+    } else {
+      sprite_material_instance_2_.reset();
+      std::cerr << "[Game] Warning: Failed to initialize second sprite material instance" << '\n';
+    }
+  } else {
+    std::cerr << "[Game] Warning: Failed to create second sprite texture" << '\n';
+  }
+
+  std::cout << "[Game] Created sprite material" << '\n';
   return true;
 }
 
@@ -190,35 +210,56 @@ void Game::CreateDemoScene() {
 
   active_camera_ = camera_3d;
 
-  // Create demo quad object (3D scene - Opaque layer, background)
-  GameObject* demo_quad_3d = scene_.CreateGameObject("DemoQuad3D");
+  // Create sprite quad object (Background - Opaque layer) using helper API
+  SpriteParams bg_params;
+  bg_params.position = DirectX::XMFLOAT2(960.0f, 540.0f);
+  bg_params.size = DirectX::XMFLOAT2(1920.0f, 1080.0f);
+  bg_params.texture = sprite_texture_handle_;
+  bg_params.layer = RenderLayer::Opaque;
+  bg_params.tag = RenderTag::Static | RenderTag::Lit;
+  CreateSprite("SpriteQuad3D", bg_params);
 
-  auto* transform_3d = new TransformComponent();
-  transform_3d->SetPosition(960.0f, 540.0f, 0.0f);  // Center of screen
-  transform_3d->SetScale(19.2f, 10.8f, 1.0f);       // Scale to cover full screen (1920x1080)
-  demo_quad_3d->AddComponent(transform_3d);
+  // Create UI sprite quad object (UI layer, corner) using helper API
+  SpriteParams ui_params;
+  ui_params.position = DirectX::XMFLOAT2(192.0f, 256.0f);
+  ui_params.size = DirectX::XMFLOAT2(128.0f, 128.0f);
+  ui_params.texture = sprite_texture_handle_;
+  ui_params.layer = RenderLayer::UI;
+  ui_params.tag = RenderTag::Static | RenderTag::Unlit;
+  ui_params.color = DirectX::XMFLOAT4(1.0f, 0.5f, 0.5f, 1.0f);
+  CreateSprite("SpriteQuadUI", ui_params);
 
-  auto* renderer_3d = new RendererComponent();
-  renderer_3d->SetMesh(demo_mesh_.get());
-  renderer_3d->SetMaterial(demo_material_instance_.get());
-  renderer_3d->SetLayer(RenderLayer::Opaque);  // Mark as opaque for forward pass
-  renderer_3d->SetTag(RenderTag::Static | RenderTag::Lit);
-  demo_quad_3d->AddComponent(renderer_3d);
+  // Test: create several world sprites with different sizes, positions and tags
+  for (int i = -2; i <= 2; ++i) {
+    SpriteParams world_p;
+    world_p.position = DirectX::XMFLOAT2(960.0f + i * 200.0f, 540.0f);
+    world_p.size = DirectX::XMFLOAT2(150.0f + (i + 2) * 40.0f, 150.0f + (i + 2) * 40.0f);
+    world_p.texture = sprite_texture_handle_;
+    world_p.layer = RenderLayer::Opaque;
+    // Alternate Lit/Unlit tags
+    world_p.tag = (i % 2 == 0) ? RenderTag::Lit : RenderTag::Unlit;
+    world_p.color = DirectX::XMFLOAT4(1.0f, 1.0f - (0.2f * (i + 2)), 1.0f - (0.1f * (i + 2)), 1.0f);
+    CreateSprite("WorldSprite_" + std::to_string(i + 3), world_p);
+  }
 
-  // Create UI quad object (UI layer, corner)
-  GameObject* demo_quad_ui = scene_.CreateGameObject("DemoQuadUI");
-
-  auto* transform_ui = new TransformComponent();
-  transform_ui->SetPosition(100.0f, 100.0f, 0.0f);  // Top-left corner
-  transform_ui->SetScale(1.0f);
-  demo_quad_ui->AddComponent(transform_ui);
-
-  auto* renderer_ui = new RendererComponent();
-  renderer_ui->SetMesh(demo_mesh_.get());
-  renderer_ui->SetMaterial(demo_material_instance_.get());
-  renderer_ui->SetLayer(RenderLayer::UI);  // Mark as UI for UI pass
-  renderer_ui->SetTag(RenderTag::Static | RenderTag::Unlit);
-  demo_quad_ui->AddComponent(renderer_ui);
+  // Test: create multiple UI sprites in a row to verify ordering and batching
+  for (int i = 0; i < 10; ++i) {
+    SpriteParams p;
+    p.position = DirectX::XMFLOAT2(50.0f + i * 90.0f, 60.0f);
+    p.size = DirectX::XMFLOAT2(64.0f, 64.0f);
+    // Alternate materials for texture switching test
+    p.material = (i % 3 == 0 && sprite_material_instance_2_) ? sprite_material_instance_2_.get() : sprite_material_instance_.get();
+    p.material = sprite_material_instance_2_.get();
+    p.layer = RenderLayer::UI;
+    p.tag = RenderTag::Static | RenderTag::Unlit;
+    // Every third sprite uses a UV offset to show atlas-like effect
+    if (i % 3 == 0) {
+      p.uv_transform = DirectX::XMFLOAT4(0.0f, 0.0f, 0.5f, 0.5f);  // Top-left quarter
+    }
+    // Give a distinct tint for testing
+    p.color = DirectX::XMFLOAT4(1.0f - 0.08f * i, 0.7f, 0.7f + 0.02f * i, 1.0f);
+    CreateSprite("UISprite_" + std::to_string(i), p);
+  }
 
   std::cout << "[Game] Created demo scene with " << scene_.GetGameObjectCount() << " objects" << '\n';
 }
@@ -233,4 +274,65 @@ void Game::OnFixedUpdate(float dt) {
 
 void Game::OnRender(float) {
   render_system_.RenderFrame(scene_, active_camera_);
+}
+
+GameObject* Game::CreateSprite(const std::string& name, const SpriteParams& params) {
+  // Sanity: ensure mesh exists
+  if (sprite_mesh_ == nullptr) {
+    std::cerr << "[Game] Error: sprite_mesh_ not initialized when creating sprite: " << name << '\n';
+    return nullptr;
+  }
+
+  // Create GameObject
+  GameObject* obj = scene_.CreateGameObject(name);
+
+  // Transform
+  auto* transform = new TransformComponent();
+  transform->SetPosition(params.position.x, params.position.y, 0.0f);
+  transform->SetScale(params.size.x, params.size.y, 1.0f);
+  obj->AddComponent(transform);
+
+  // Renderer
+  auto* renderer = new RendererComponent();
+  renderer->SetMesh(sprite_mesh_.get());
+
+  // Material selection/creation
+  MaterialInstance* material_to_use = nullptr;
+  if (params.material != nullptr) {
+    material_to_use = params.material;
+  } else if (params.texture != INVALID_TEXTURE_HANDLE) {
+    // Create a new MaterialInstance from the sprite_material_template_
+    if (sprite_material_template_ == nullptr) {
+      std::cerr << "[Game] Error: sprite_material_template_ not initialized. Using default." << '\n';
+      material_to_use = sprite_material_instance_.get();
+    } else {
+      auto mat_inst = std::make_unique<MaterialInstance>();
+      if (mat_inst->Initialize(sprite_material_template_)) {
+        mat_inst->SetTexture("albedo", params.texture);
+        material_to_use = mat_inst.get();
+        // Keep ownership in Game so the instance stays alive
+        sprite_material_instances_.push_back(std::move(mat_inst));
+      } else {
+        std::cerr << "[Game] Error: Failed to initialize material instance for sprite: " << name << '\n';
+        material_to_use = sprite_material_instance_.get();
+      }
+    }
+  } else {
+    // Default to the shared sprite material instance
+    material_to_use = sprite_material_instance_.get();
+  }
+
+  renderer->SetMaterial(material_to_use);
+
+  // Set color tint
+  renderer->SetColor(params.color);
+  renderer->SetUVTransform(params.uv_transform);
+
+  // Layer & Tag
+  renderer->SetLayer(params.layer);
+  renderer->SetTag(params.tag);
+
+  obj->AddComponent(renderer);
+
+  return obj;
 }
