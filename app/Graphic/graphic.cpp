@@ -345,7 +345,6 @@ bool Graphic::InitializeTestTexture() {
   // Define texture loading parameters
   TextureLoadParams params;
   params.file_path = L"Content/textures/metal_plate_nor_dx_1k.png";
-  params.generate_mips = false;
   params.force_srgb = false;
 
   // Load texture through TextureManager

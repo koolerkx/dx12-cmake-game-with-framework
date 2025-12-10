@@ -28,7 +28,8 @@ bool Texture::Create(ID3D12Device* device,
   array_size_ = array_size;
 
   // Create texture resource
-  CD3DX12_RESOURCE_DESC texture_desc = CD3DX12_RESOURCE_DESC::Tex2D(format, width, height, array_size, mip_levels, 1, 0, flags);
+  CD3DX12_RESOURCE_DESC texture_desc =
+    CD3DX12_RESOURCE_DESC::Tex2D(format, width, height, static_cast<UINT16>(array_size), static_cast<UINT16>(mip_levels), 1, 0, flags);
 
   CD3DX12_HEAP_PROPERTIES heap_props(D3D12_HEAP_TYPE_DEFAULT);
 
@@ -51,11 +52,8 @@ bool Texture::Create(ID3D12Device* device,
   return true;
 }
 
-bool Texture::LoadFromFile(ID3D12Device* device,
-  ID3D12GraphicsCommandList* command_list,
-  const std::wstring& file_path,
-  DescriptorHeapAllocator& srv_allocator,
-  bool generate_mips) {
+bool Texture::LoadFromFile(
+  ID3D12Device* device, ID3D12GraphicsCommandList* command_list, const std::wstring& file_path, DescriptorHeapAllocator& srv_allocator) {
   assert(device != nullptr);
   assert(command_list != nullptr);
 

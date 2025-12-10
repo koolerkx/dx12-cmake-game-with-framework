@@ -22,11 +22,8 @@ class Texture : public GpuResource {
     UINT mip_levels = 1,
     UINT array_size = 1);
 
-  bool LoadFromFile(ID3D12Device* device,
-    ID3D12GraphicsCommandList* command_list,
-    const std::wstring& filepath,
-    DescriptorHeapAllocator& src_allocator,
-    bool generate_mips = false);
+  bool LoadFromFile(
+    ID3D12Device* device, ID3D12GraphicsCommandList* command_list, const std::wstring& filepath, DescriptorHeapAllocator& src_allocator);
 
   bool LoadFromMemory(ID3D12Device* device,
     ID3D12GraphicsCommandList* command_list,

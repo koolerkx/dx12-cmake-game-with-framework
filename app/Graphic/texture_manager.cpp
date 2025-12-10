@@ -59,7 +59,7 @@ TextureHandle TextureManager::LoadTexture(ID3D12GraphicsCommandList* command_lis
   slot.texture = std::make_unique<Texture>();
 
   // Load texture from file
-  bool success = slot.texture->LoadFromFile(device_, command_list, params.file_path, *srv_allocator_, params.generate_mips);
+  bool success = slot.texture->LoadFromFile(device_, command_list, params.file_path, *srv_allocator_);
 
   if (!success) {
     std::wcerr << L"[TextureManager] Failed to load texture: " << params.file_path << '\n';

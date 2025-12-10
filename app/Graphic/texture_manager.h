@@ -38,11 +38,10 @@ inline constexpr TextureHandle INVALID_TEXTURE_HANDLE = {TextureHandle::INVALID_
 // Texture loading parameters for cache key
 struct TextureLoadParams {
   std::wstring file_path;
-  bool generate_mips = false;
   bool force_srgb = false;
 
   bool operator==(const TextureLoadParams& other) const {
-    return file_path == other.file_path && generate_mips == other.generate_mips && force_srgb == other.force_srgb;
+    return file_path == other.file_path && force_srgb == other.force_srgb;
   }
 };
 
@@ -52,9 +51,8 @@ template <>
 struct hash<TextureLoadParams> {
   size_t operator()(const TextureLoadParams& params) const {
     size_t h1 = hash<wstring>()(params.file_path);
-    size_t h2 = hash<bool>()(params.generate_mips);
-    size_t h3 = hash<bool>()(params.force_srgb);
-    return h1 ^ (h2 << 1) ^ (h3 << 2);
+    size_t h2 = hash<bool>()(params.force_srgb);
+    return h1 ^ (h2 << 1);
   }
 };
 }  // namespace std
