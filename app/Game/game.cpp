@@ -48,7 +48,7 @@ bool Game::InitializeDemoResources() {
 }
 
 bool Game::CreateDemoGeometry() {
-  sprite_mesh_ = graphic_->GetPrimitiveGeometry2D().CreateSpriteQuad();
+  sprite_mesh_ = graphic_->GetPrimitiveGeometry2D().CreateRect();
 
   std::cout << "[Game] Created sprite geometry" << '\n';
   return true;

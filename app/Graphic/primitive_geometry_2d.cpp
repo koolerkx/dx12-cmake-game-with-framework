@@ -8,9 +8,10 @@
 PrimitiveGeometry2D::PrimitiveGeometry2D(ID3D12Device* device) : device_(device) {
 }
 
-std::shared_ptr<Mesh> PrimitiveGeometry2D::CreateSpriteQuad() {
+std::shared_ptr<Mesh> PrimitiveGeometry2D::CreateRect() {
   using V = VertexPositionTexture2D;
 
+  // Rectangle centered at origin with extents [-0.5, 0.5]
   std::array<V, 4> vertices = {
     V{{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f}},
     V{{0.5f, 0.5f, 0.0f}, {1.0f, 0.0f}},
@@ -25,18 +26,18 @@ std::shared_ptr<Mesh> PrimitiveGeometry2D::CreateSpriteQuad() {
     return nullptr;
   }
   vertex_buffer->Upload(vertices.data(), sizeof(vertices));
-  vertex_buffer->SetDebugName("SpriteQuad_VertexBuffer");
+  vertex_buffer->SetDebugName("Rect2D_VertexBuffer");
 
   auto index_buffer = std::make_shared<Buffer>();
   if (!index_buffer->Create(device_, sizeof(indices), Buffer::Type::Index)) {
     return nullptr;
   }
   index_buffer->Upload(indices.data(), sizeof(indices));
-  index_buffer->SetDebugName("SpriteQuad_IndexBuffer");
+  index_buffer->SetDebugName("Rect2D_IndexBuffer");
 
   auto mesh = std::make_shared<Mesh>();
   mesh->Initialize(vertex_buffer, index_buffer, sizeof(V), 6, DXGI_FORMAT_R16_UINT, D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-  mesh->SetDebugName("SpriteQuad");
+  mesh->SetDebugName("Rect2D");
 
   return mesh;
 }

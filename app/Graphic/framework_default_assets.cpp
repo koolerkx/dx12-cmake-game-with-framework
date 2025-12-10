@@ -7,13 +7,12 @@
 #include "primitive_geometry_2d.h"
 #include "texture_manager.h"
 
-
 void FrameworkDefaultAssets::Initialize(Graphic& graphic) {
   graphic_ = &graphic;
 
   // Create a simple rect mesh using the primitive geometry helper.
   try {
-    rect2d_mesh_ = graphic.GetPrimitiveGeometry2D().CreateSpriteQuad();
+    rect2d_mesh_ = graphic.GetPrimitiveGeometry2D().CreateRect();
   } catch (...) {
     rect2d_mesh_ = nullptr;
   }
