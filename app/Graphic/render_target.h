@@ -8,7 +8,6 @@
 #include "descriptor_heap_allocator.h"
 #include "gpu_resource.h"
 
-
 class RenderTarget : public GpuResource {
  public:
   RenderTarget() = default;
@@ -16,6 +15,9 @@ class RenderTarget : public GpuResource {
 
   RenderTarget(const RenderTarget&) = delete;
   RenderTarget& operator=(const RenderTarget&) = delete;
+
+  RenderTarget(RenderTarget&&) = default;
+  RenderTarget& operator=(RenderTarget&&) = default;
 
   bool Create(ID3D12Device* device,
     UINT width,

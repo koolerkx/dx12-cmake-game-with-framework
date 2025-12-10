@@ -6,8 +6,8 @@
 
 #include <vector>
 
-#include "descriptor_heap_allocator.h"
 #include "descriptor_heap_manager.h"
+#include "render_target.h"
 #include "types.h"
 
 class SwapChainManager {
@@ -32,13 +32,21 @@ class SwapChainManager {
   }
 
   D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentRTV() const {
+    return GetCurrentRenderTarget()->GetRTV();
+  }
+
+  RenderTarget* GetCurrentRenderTarget() {
     UINT index = GetCurrentBackBufferIndex();
-    return back_buffer_rtvs_[index].cpu;
+    return &backbuffer_targets_[index];
+  }
+
+  const RenderTarget* GetCurrentRenderTarget() const {
+    UINT index = GetCurrentBackBufferIndex();
+    return &backbuffer_targets_[index];
   }
 
   ID3D12Resource* GetCurrentBackBuffer() const {
-    UINT index = GetCurrentBackBufferIndex();
-    return back_buffers_[index].Get();
+    return GetCurrentRenderTarget()->GetResource();
   }
 
   void TransitionToRenderTarget(ID3D12GraphicsCommandList* command_list);
@@ -55,8 +63,7 @@ class SwapChainManager {
 
  private:
   ComPtr<IDXGISwapChain4> swap_chain_ = nullptr;
-  std::vector<ComPtr<ID3D12Resource>> back_buffers_{BUFFER_COUNT};
-  std::vector<DescriptorHeapAllocator::Allocation> back_buffer_rtvs_{BUFFER_COUNT};
+  std::vector<RenderTarget> backbuffer_targets_;
 
   UINT width_ = 0;
   UINT height_ = 0;

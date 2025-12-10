@@ -13,6 +13,9 @@ class GpuResource {
   GpuResource(const GpuResource&) = delete;
   GpuResource& operator=(const GpuResource&) = delete;
 
+  GpuResource(GpuResource&&) = default;
+  GpuResource& operator=(GpuResource&&) = default;
+
   void TransitionTo(
     ID3D12GraphicsCommandList* command_list, D3D12_RESOURCE_STATES new_state, UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
 

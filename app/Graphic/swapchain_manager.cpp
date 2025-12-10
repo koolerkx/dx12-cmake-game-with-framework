@@ -63,23 +63,26 @@ bool SwapChainManager::Initialize(ID3D12Device* device,
 }
 
 bool SwapChainManager::CreateBackBufferViews(DescriptorHeapManager& descriptor_manager) {
+  auto& rtvAlloc = descriptor_manager.GetRtvAllocator();
+  backbuffer_targets_.clear();
+
   for (UINT i = 0; i < BUFFER_COUNT; ++i) {
-    HRESULT hr = swap_chain_->GetBuffer(i, IID_PPV_ARGS(back_buffers_[i].GetAddressOf()));
+    backbuffer_targets_.push_back(RenderTarget{});
+
+    ComPtr<ID3D12Resource> buffer;
+    HRESULT hr = swap_chain_->GetBuffer(i, IID_PPV_ARGS(buffer.GetAddressOf()));
     if (FAILED(hr)) {
       std::cerr << "Failed to get back buffer " << i << '\n';
       return false;
     }
 
-    back_buffer_rtvs_[i] = descriptor_manager.GetRtvAllocator().Allocate(1);
-    if (!back_buffer_rtvs_[i].IsValid()) {
-      std::cerr << "Failed to allocate RTV for back buffer " << i << '\n';
+    if (!backbuffer_targets_[i].CreateFromResource(device_, buffer.Get(), rtvAlloc, DXGI_FORMAT_R8G8B8A8_UNORM)) {
+      std::cerr << "Failed to create RenderTarget for back buffer " << i << '\n';
       return false;
     }
 
-    device_->CreateRenderTargetView(back_buffers_[i].Get(), nullptr, back_buffer_rtvs_[i].cpu);
-
     std::wstring name = L"BackBuffer_" + std::to_wstring(i);
-    back_buffers_[i]->SetName(name.c_str());
+    backbuffer_targets_[i].SetDebugName(name);
   }
 
   return true;
@@ -91,7 +94,7 @@ void SwapChainManager::TransitionToRenderTarget(ID3D12GraphicsCommandList* comma
   D3D12_RESOURCE_BARRIER barrier = {};
   barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-  barrier.Transition.pResource = back_buffers_[index].Get();
+  barrier.Transition.pResource = backbuffer_targets_[index].GetResource();
   barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
   barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
   barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -105,7 +108,7 @@ void SwapChainManager::TransitionToPresent(ID3D12GraphicsCommandList* command_li
   D3D12_RESOURCE_BARRIER barrier = {};
   barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-  barrier.Transition.pResource = back_buffers_[index].Get();
+  barrier.Transition.pResource = backbuffer_targets_[index].GetResource();
   barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
   barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
   barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
@@ -120,9 +123,7 @@ void SwapChainManager::Present(UINT syncInterval, UINT flags) {
 }
 
 void SwapChainManager::ReleaseBackBuffers() {
-  for (auto& buffer : back_buffers_) {
-    buffer.Reset();
-  }
+  backbuffer_targets_.clear();
 }
 
 bool SwapChainManager::Resize(UINT width, UINT height, DescriptorHeapManager& descriptor_manager) {

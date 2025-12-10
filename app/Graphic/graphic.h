@@ -6,7 +6,9 @@
 
 #include <functional>
 
+#include "RenderPass/forward_pass.h"
 #include "RenderPass/render_pass_manager.h"
+#include "RenderPass/ui_pass.h"
 #include "depth_buffer.h"
 #include "descriptor_heap_manager.h"
 #include "fence_manager.h"
@@ -98,6 +100,10 @@ class Graphic {
   UploadContext upload_context_;
 
   RenderPassManager render_pass_manager_;
+
+  // Cached pass pointers for efficient access
+  ForwardPass* forward_pass_ = nullptr;
+  UIPass* ui_pass_ = nullptr;
 
   UINT frame_buffer_width_ = 0;
   UINT frame_buffer_height_ = 0;

@@ -118,6 +118,10 @@ bool Graphic::InitializeRenderPasses() {
 
   render_pass_manager_.RegisterPass("UI", std::move(ui_pass));
 
+  // Cache pass pointers for efficient access
+  forward_pass_ = static_cast<ForwardPass*>(render_pass_manager_.GetPass("Forward"));
+  ui_pass_ = static_cast<UIPass*>(render_pass_manager_.GetPass("UI"));
+
   std::cout << "[Graphic] Registered " << render_pass_manager_.GetPassCount() << " render passes" << '\n';
   return true;
 }
@@ -152,8 +156,7 @@ void Graphic::BeginFrame() {
   swap_chain_manager_.TransitionToRenderTarget(command_list_.Get());
 
   // Get current render targets
-  D3D12_CPU_DESCRIPTOR_HANDLE rtv = swap_chain_manager_.GetCurrentRTV();
-  D3D12_CPU_DESCRIPTOR_HANDLE dsv = depth_buffer_.GetDSV();
+  auto* backbufferRT = swap_chain_manager_.GetCurrentRenderTarget();
 
   // Set viewport and scissor rect
   command_list_->RSSetViewports(1, &viewport_);
@@ -161,24 +164,18 @@ void Graphic::BeginFrame() {
 
   // Clear render target and depth buffer
   std::array<float, 4> clear_color = {0.2f, 0.3f, 0.4f, 1.0f};
-  command_list_->ClearRenderTargetView(rtv, clear_color.data(), 0, nullptr);
+  backbufferRT->Clear(command_list_.Get(), clear_color.data());
   depth_buffer_.Clear(command_list_.Get(), 1.0f, 0);
 
-  // Bind render targets for forward pass
-  command_list_->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+  // Note: OMSetRenderTargets is now handled by each RenderPass::Begin() to bind their specific RT/DSV
 
   // Update render passes with current back buffer (wrapped in RenderTarget)
-  // Note: For simplicity, we directly use back buffer.
-  // In production, you might want to wrap it in RenderTarget for consistency.
-  ForwardPass* forward_pass = static_cast<ForwardPass*>(render_pass_manager_.GetPass("Forward"));
-  if (forward_pass) {
-    forward_pass->SetDepthBuffer(&depth_buffer_);
-    // forward_pass->SetRenderTarget() is bind in BeginFrame
+  if (forward_pass_) {
+    forward_pass_->SetRenderTarget(backbufferRT);
+    forward_pass_->SetDepthBuffer(&depth_buffer_);
   }
-
-  UIPass* ui_pass = static_cast<UIPass*>(render_pass_manager_.GetPass("UI"));
-  if (ui_pass) {
-    // ui_pass->SetRenderTarget() is bind in BeginFrame
+  if (ui_pass_) {
+    ui_pass_->SetRenderTarget(backbufferRT);
   }
 }
 

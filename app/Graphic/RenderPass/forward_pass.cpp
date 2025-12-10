@@ -26,9 +26,6 @@ void ForwardPass::Begin(ID3D12GraphicsCommandList* command_list) {
     D3D12_CPU_DESCRIPTOR_HANDLE dsv = depth_buffer_->GetDSV();
 
     command_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
-
-    render_target_->Clear(command_list);
-    depth_buffer_->Clear(command_list, 1.0f, 0);
   }
 }
 

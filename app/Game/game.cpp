@@ -190,12 +190,12 @@ void Game::CreateDemoScene() {
 
   active_camera_ = camera_3d;
 
-  // Create demo quad object (3D scene - Opaque layer)
+  // Create demo quad object (3D scene - Opaque layer, background)
   GameObject* demo_quad_3d = scene_.CreateGameObject("DemoQuad3D");
 
   auto* transform_3d = new TransformComponent();
-  transform_3d->SetPosition(50.0f, 50.0f, 0.0f);
-  transform_3d->SetScale(1.0f);
+  transform_3d->SetPosition(960.0f, 540.0f, 0.0f);  // Center of screen
+  transform_3d->SetScale(19.2f, 10.8f, 1.0f);       // Scale to cover full screen (1920x1080)
   demo_quad_3d->AddComponent(transform_3d);
 
   auto* renderer_3d = new RendererComponent();
@@ -205,12 +205,12 @@ void Game::CreateDemoScene() {
   renderer_3d->SetTag(RenderTag::Static | RenderTag::Lit);
   demo_quad_3d->AddComponent(renderer_3d);
 
-  // Create UI quad object (UI layer)
+  // Create UI quad object (UI layer, corner)
   GameObject* demo_quad_ui = scene_.CreateGameObject("DemoQuadUI");
 
   auto* transform_ui = new TransformComponent();
-  transform_ui->SetPosition(200.0f, 200.0f, 0.0f);
-  transform_ui->SetScale(0.5f);
+  transform_ui->SetPosition(100.0f, 100.0f, 0.0f);  // Top-left corner
+  transform_ui->SetScale(1.0f);
   demo_quad_ui->AddComponent(transform_ui);
 
   auto* renderer_ui = new RendererComponent();
