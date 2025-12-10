@@ -6,11 +6,22 @@
 #include <cstdint>
 #include <vector>
 
+#include "buffer.h"
 #include "material_instance.h"
 #include "mesh.h"
 #include "texture_manager.h"
 
 using namespace DirectX;
+
+struct SceneData {
+  DirectX::XMFLOAT4X4 viewMatrix;
+  DirectX::XMFLOAT4X4 projMatrix;
+  DirectX::XMFLOAT4X4 viewProjMatrix;
+  DirectX::XMFLOAT4X4 invViewProjMatrix;
+
+  DirectX::XMFLOAT3 cameraPosition;
+  float padding;
+};
 
 // Lightweight render packet submitted to the scene renderer
 struct RenderPacket {
@@ -35,6 +46,8 @@ class SceneRenderer {
   SceneRenderer(const SceneRenderer&) = delete;
   SceneRenderer& operator=(const SceneRenderer&) = delete;
 
+  bool Initialize(ID3D12Device* device);
+
   // Submit a render packet
   void Submit(const RenderPacket& packet);
 
@@ -43,6 +56,9 @@ class SceneRenderer {
 
   // Clear all packets (call after flush or at frame start)
   void Clear();
+
+  // Set FrameCB, Scene Data
+  bool SetSceneData(const SceneData& scene_data);
 
   // Statistics
   size_t GetPacketCount() const {
@@ -74,4 +90,6 @@ class SceneRenderer {
   // Sorting
   void SortPackets();
   uint64_t GenerateSortKey(const RenderPacket& packet) const;
+
+  Buffer frame_cb_;
 };

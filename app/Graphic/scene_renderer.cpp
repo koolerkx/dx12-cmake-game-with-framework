@@ -6,6 +6,17 @@
 
 #include "utils.h"
 
+bool SceneRenderer::Initialize(ID3D12Device* device) {
+  bool result = frame_cb_.Create(device, sizeof(SceneData), Buffer::Type::Constant, D3D12_HEAP_TYPE_UPLOAD);
+
+  if (!result) {
+    std::cerr << "[SceneRenderer] Failed to create frame constant buffer." << '\n';
+    return false;
+  }
+  frame_cb_.SetDebugName("Scene_FrameCB");
+  return true;
+}
+
 void SceneRenderer::Submit(const RenderPacket& packet) {
   if (!packet.IsValid()) {
     std::cerr << "[SceneRenderer] Warning: Invalid render packet submitted" << '\n';
@@ -41,6 +52,9 @@ void SceneRenderer::Flush(ID3D12GraphicsCommandList* command_list, TextureManage
       command_list->SetPipelineState(current_template->GetPSO());
       command_list->SetGraphicsRootSignature(current_template->GetRootSignature());
 
+      if (frame_cb_.IsValid()) {
+        command_list->SetGraphicsRootConstantBufferView(1, frame_cb_.GetGPUAddress());
+      }
       ++pso_switches;
     }
 
@@ -79,6 +93,15 @@ void SceneRenderer::SortPackets() {
 
   // Sort by key (PSO first, then material, then depth)
   std::sort(packets_.begin(), packets_.end(), [](const RenderPacket& a, const RenderPacket& b) { return a.sort_key < b.sort_key; });
+}
+
+bool SceneRenderer::SetSceneData(const SceneData& scene_data) {
+  if (!frame_cb_.IsValid()) {
+    return false;
+  }
+  frame_cb_.Upload(&scene_data, sizeof(SceneData));
+
+  return true;
 }
 
 uint64_t SceneRenderer::GenerateSortKey(const RenderPacket& packet) const {

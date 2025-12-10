@@ -15,6 +15,8 @@ add_library(game STATIC
 
     render_system.h
     render_system.cpp
+    Component/camera_component.h
+    Component/camera_component.cpp
 )
 
 set_msvc_runtime(game)

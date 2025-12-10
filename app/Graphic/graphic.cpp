@@ -41,6 +41,10 @@ bool Graphic::Initalize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_he
     return false;
   }
 
+  if (!scene_renderer_.Initialize(device_.Get())) {
+    MessageBoxW(nullptr, L"Graphic: Failed to initialize scene renderer", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
+    return false;
+  }
   if (!texture_manager_.Initialize(device_.Get(), &descriptor_heap_manager_.GetSrvAllocator(), 1024)) {
     MessageBoxW(nullptr, L"Graphic: Failed to initialize texture manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
@@ -308,11 +312,18 @@ bool Graphic::CreateCommandList() {
 
 bool Graphic::InitializeTestGeometry() {
   // Define vertices
+  // Vertex vertices[] = {
+  //   {{-0.4f, -0.7f, 0.0f}, {0.0f, 1.0f}},  // bottom-left
+  //   {{-0.4f, 0.7f, 0.0f}, {0.0f, 0.0f}},   // top-left
+  //   {{0.4f, -0.7f, 0.0f}, {1.0f, 1.0f}},   // bottom-right
+  //   {{0.4f, 0.7f, 0.0f}, {1.0f, 0.0f}},    // top-right
+  // };
+
   Vertex vertices[] = {
-    {{-0.4f, -0.7f, 0.0f}, {0.0f, 1.0f}},  // bottom-left
-    {{-0.4f, 0.7f, 0.0f}, {0.0f, 0.0f}},   // top-left
-    {{0.4f, -0.7f, 0.0f}, {1.0f, 1.0f}},   // bottom-right
-    {{0.4f, 0.7f, 0.0f}, {1.0f, 0.0f}},    // top-right
+    {{0, 100, 0.0f}, {0.0f, 1.0f}},  // bottom-left
+    {{0, 0, 0.0f}, {0.0f, 0.0f}},   // top-left
+    {{100, 100, 0.0f}, {1.0f, 1.0f}},   // bottom-right
+    {{100, 0, 0.0f}, {1.0f, 0.0f}},    // top-right
   };
 
   // Create vertex buffer
@@ -388,7 +399,7 @@ bool Graphic::CreateRootSignature() {
   // TODO: Extract param index to unified structure, defined as engine convention of fixed root signature buffer
   builder
     .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)  // b0
-    // .AddRootCBV(1, D3D12_SHADER_VISIBILITY_ALL) // b1, Frame CB (camera, lighting)
+    .AddRootCBV(1, D3D12_SHADER_VISIBILITY_ALL)              // b1, Frame CB (camera, lighting)
     // .AddRootCBV(2, D3D12_SHADER_VISIBILITY_ALL) // b2, Material CB (per-material buffer)
     .AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL)                              // t0 - texture
     .AddStaticSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_SHADER_VISIBILITY_PIXEL)  // s0
@@ -448,7 +459,7 @@ bool Graphic::CreatePipelineState() {
 bool Graphic::CreateTestMaterial() {
   // Define texture slots for this material
   std::vector<TextureSlotDefinition> texture_slots;
-  texture_slots.push_back({"albedo", 1, D3D12_SHADER_VISIBILITY_PIXEL});  // Root parameter 0
+  texture_slots.push_back({"albedo", 2, D3D12_SHADER_VISIBILITY_PIXEL});  // Root parameter 0
 
   // Create material template
   test_material_template_ = material_manager_.CreateTemplate("BasicMaterial", pipeline_state_.Get(), root_signature_.Get(), texture_slots);

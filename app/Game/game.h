@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Scene/scene.h"
+#include "game_object.h"
 #include "render_system.h"
 
 class Graphic;
@@ -23,4 +24,6 @@ class Game {
   Scene scene_;
   RenderSystem render_system_;
   Graphic* graphic_ = nullptr;
+
+  GameObject* active_camera_ = nullptr;
 };
