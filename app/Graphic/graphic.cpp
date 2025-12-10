@@ -102,6 +102,10 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
     return false;
   }
 
+  // Initialize framework default assets (textures, meshes, debug materials)
+  default_assets_ = std::make_unique<FrameworkDefaultAssets>();
+  default_assets_->Initialize(*this);
+
   std::cout << "[Graphic] Initialization complete - Render Pass Architecture" << '\n';
   return true;
 }
@@ -217,6 +221,13 @@ void Graphic::Shutdown() {
   texture_manager_.PrintStats();
   material_manager_.PrintStats();
   render_pass_manager_.PrintStats();
+
+  // Shutdown framework default assets before clearing managers so they can
+  // release references into managers during shutdown if needed.
+  if (default_assets_) {
+    default_assets_->Shutdown();
+    default_assets_.reset();
+  }
 
   // Clean up managers
   shader_manager_.Clear();

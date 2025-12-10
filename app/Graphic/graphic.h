@@ -13,6 +13,7 @@
 #include "depth_buffer.h"
 #include "descriptor_heap_manager.h"
 #include "fence_manager.h"
+#include "framework_default_assets.h"
 #include "material_manager.h"
 #include "primitive_geometry_2d.h"
 #include "shader_manager.h"
@@ -73,6 +74,10 @@ class Graphic {
     return command_list_.Get();
   }
 
+  const FrameworkDefaultAssets& GetDefaultAssets() const {
+    return *default_assets_;
+  }
+
   UINT GetFrameBufferWidth() const {
     return frame_buffer_width_;
   }
@@ -126,4 +131,7 @@ class Graphic {
   bool CreateCommandList();
   bool CreateCommandAllocator();
   bool InitializeRenderPasses();
+
+  // Default framework assets (textures, basic meshes, debug materials)
+  std::unique_ptr<FrameworkDefaultAssets> default_assets_;
 };
