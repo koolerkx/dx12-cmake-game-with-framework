@@ -76,6 +76,12 @@ class TextureManager {
   TextureHandle CreateTexture(
     ID3D12GraphicsCommandList* command_list, const void* pixel_data, UINT width, UINT height, DXGI_FORMAT format, UINT row_pitch = 0);
 
+  // Create a texture from CPU memory. Records copy and transition to
+  // PIXEL_SHADER_RESOURCE on the provided command list but does NOT
+  // execute/submit the command list.
+  TextureHandle CreateTextureFromMemory(
+    ID3D12GraphicsCommandList* command_list, const void* data, UINT width, UINT height, DXGI_FORMAT format, const std::string& name);
+
   // Create empty texture with specified parameters (non-cached)
   TextureHandle CreateEmptyTexture(UINT width, UINT height, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
 

@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <iostream>
+#include "utils.h"
 
 bool TextureManager::Initialize(ID3D12Device* device, DescriptorHeapAllocator* srv_allocator, uint32_t max_textures) {
   assert(device != nullptr);
@@ -110,6 +111,51 @@ TextureHandle TextureManager::CreateTexture(
   slot.texture->SetDebugName(slot.debug_name);
 
   std::cout << "[TextureManager] Created procedural texture [" << handle.index << ":" << handle.generation << "]" << '\n';
+
+  return handle;
+}
+
+TextureHandle TextureManager::CreateTextureFromMemory(
+    ID3D12GraphicsCommandList* command_list,
+    const void* data,
+    UINT width,
+    UINT height,
+    DXGI_FORMAT format,
+    const std::string& name) {
+  assert(command_list != nullptr);
+  assert(data != nullptr);
+
+  // Enforce required format
+  if (format != DXGI_FORMAT_R8G8B8A8_UNORM) {
+    std::cerr << "[TextureManager] CreateTextureFromMemory: unsupported format, only R8G8B8A8_UNORM supported" << '\n';
+    return INVALID_TEXTURE_HANDLE;
+  }
+
+  // Allocate new slot
+  TextureHandle handle = AllocateSlot();
+  if (!handle.IsValid()) {
+    std::cerr << "[TextureManager] Failed to allocate slot for memory texture" << '\n';
+    return INVALID_TEXTURE_HANDLE;
+  }
+
+  // Create texture object
+  TextureSlot& slot = slots_[handle.index];
+  slot.texture = std::make_unique<Texture>();
+
+  // provided command list. It will not execute/submit the command list.
+  bool success = slot.texture->LoadFromMemory(device_, command_list, data, width, height, format, *srv_allocator_);
+
+  if (!success) {
+    std::cerr << "[TextureManager] Failed to create texture from memory" << '\n';
+    FreeSlot(handle.index);
+    return INVALID_TEXTURE_HANDLE;
+  }
+
+  // Set debug name
+  slot.debug_name = utils::Utf8ToWstring(name);
+  slot.texture->SetDebugName(slot.debug_name);
+
+  std::cout << "[TextureManager] Created memory texture [" << handle.index << ":" << handle.generation << "] " << name << '\n';
 
   return handle;
 }
