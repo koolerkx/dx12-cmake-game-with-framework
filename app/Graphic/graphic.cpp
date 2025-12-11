@@ -237,6 +237,22 @@ void Graphic::Shutdown() {
   std::cout << "[Graphic] Shutdown complete" << '\n';
 }
 
+D3D12_CPU_DESCRIPTOR_HANDLE Graphic::GetMainRTV() const {
+  return swap_chain_manager_.GetCurrentRTV();
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE Graphic::GetMainDSV() const {
+  return depth_buffer_.GetDSV();
+}
+
+D3D12_VIEWPORT Graphic::GetScreenViewport() const {
+  return viewport_;
+}
+
+D3D12_RECT Graphic::GetScissorRect() const {
+  return scissor_rect_;
+}
+
 bool Graphic::EnableDebugLayer() {
   ID3D12Debug* debugLayer = nullptr;
 

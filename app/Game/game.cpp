@@ -68,8 +68,13 @@ bool Game::VerifyDefaultAssets() {
     return false;
   }
 
-  if (!defaults.GetDebugLineMaterial()) {
-    std::cerr << "[Game] DefaultAssets: Debug line material is null!" << '\n';
+  if (!defaults.GetDebugLineMaterialOverlay()) {
+    std::cerr << "[Game] DefaultAssets: Debug line overlay material is null!" << '\n';
+    return false;
+  }
+
+  if (!defaults.GetDebugLineMaterialDepth()) {
+    std::cerr << "[Game] DefaultAssets: Debug line depth material is null!" << '\n';
     return false;
   }
 

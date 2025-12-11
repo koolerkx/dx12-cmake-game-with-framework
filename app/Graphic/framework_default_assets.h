@@ -31,8 +31,17 @@ class FrameworkDefaultAssets {
 
   // Default materials used by sprite rendering and debug lines
   MaterialInstance* GetSprite2DDefaultMaterial() const;
-  MaterialInstance* GetDebugLineMaterial() const;
-  MaterialInstance* GetDebugLineDepthMaterial() const;  // Debug lines with depth testing
+  MaterialTemplate* GetDebugLineTemplateOverlay() const;
+  MaterialTemplate* GetDebugLineTemplateDepth() const;
+  MaterialInstance* GetDebugLineMaterialOverlay() const;
+  MaterialInstance* GetDebugLineMaterialDepth() const;  // Debug lines with depth testing
+  // Backward-compatible helpers
+  MaterialInstance* GetDebugLineMaterial() const {
+    return GetDebugLineMaterialOverlay();
+  }
+  MaterialInstance* GetDebugLineDepthMaterial() const {
+    return GetDebugLineMaterialDepth();
+  }
 
  private:
   // Non-owning back-pointer to Graphic for creating assets
@@ -50,20 +59,19 @@ class FrameworkDefaultAssets {
   MaterialTemplate* sprite2d_template_ = nullptr;
   std::unique_ptr<MaterialInstance> sprite2d_default_;
 
-  MaterialTemplate* debug_line_template_ = nullptr;
-  std::unique_ptr<MaterialInstance> debug_line_default_;
+  MaterialTemplate* debug_line_template_overlay_ = nullptr;
+  std::unique_ptr<MaterialInstance> debug_line_overlay_default_;
 
-  MaterialTemplate* debug_line_depth_template_ = nullptr;
+  MaterialTemplate* debug_line_template_depth_ = nullptr;
   std::unique_ptr<MaterialInstance> debug_line_depth_default_;
 
   // Material instances are owned/managed by MaterialManager; we store raw pointers
   MaterialInstance* sprite_material_ = nullptr;
-  MaterialInstance* debug_line_material_ = nullptr;
-  MaterialInstance* debug_line_depth_material_ = nullptr;
+  MaterialInstance* debug_line_material_overlay_ = nullptr;
+  MaterialInstance* debug_line_material_depth_ = nullptr;
 
   // Internal helper methods
   void CreateDefaultMaterials(Graphic& gfx);
   void CreateSprite2DMaterial(Graphic& gfx);
-  void CreateDebugLineMaterial(Graphic& gfx);
-  void CreateDebugLineDepthMaterial(Graphic& gfx);
+  void CreateDebugLineMaterials(Graphic& gfx);
 };

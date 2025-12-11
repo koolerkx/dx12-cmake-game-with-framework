@@ -23,6 +23,7 @@ struct SceneGlobalData {
   float padding1;
   DirectX::XMFLOAT3 camera_forward;
   float padding2;
+  D3D12_GPU_VIRTUAL_ADDRESS scene_cb_gpu_address = 0;  // GPU address of frame/scene constant buffer
   // Add other scene constants as needed
 };
 
@@ -43,7 +44,21 @@ class DebugVisualRenderer {
   // Call this at the beginning of each frame
   void BeginFrame(uint32_t frameIndex);
 
-  // Render all debug commands accumulated in the command buffer
+  // Render depth-tested debug lines
+  void RenderDepthTested(const DebugVisualCommandBuffer& cmds,
+    ID3D12GraphicsCommandList* cmd_list,
+    const SceneGlobalData& sceneData,
+    const Buffer& frame_cb,
+    const DebugVisualSettings& settings);
+
+  // Render overlay (ignore depth) debug lines
+  void RenderOverlay(const DebugVisualCommandBuffer& cmds,
+    ID3D12GraphicsCommandList* cmd_list,
+    const SceneGlobalData& sceneData,
+    const Buffer& frame_cb,
+    const DebugVisualSettings& settings);
+
+  // Helper to render both depth-tested then overlay (for compatibility)
   void Render(const DebugVisualCommandBuffer& cmds,
     ID3D12GraphicsCommandList* cmd_list,
     const SceneGlobalData& sceneData,
@@ -85,15 +100,15 @@ class DebugVisualRenderer {
   std::array<FrameData, FRAME_BUFFER_COUNT> frames_;
 
   // Material system references (non-owning)
-  MaterialTemplate* debug_line_template_ = nullptr;
-  MaterialInstance* debug_line_material_ = nullptr;
-  MaterialTemplate* debug_line_depth_template_ = nullptr;
-  MaterialInstance* debug_line_depth_material_ = nullptr;
+  MaterialTemplate* debug_line_template_overlay_ = nullptr;
+  MaterialInstance* debug_line_material_overlay_ = nullptr;
+  MaterialTemplate* debug_line_template_depth_ = nullptr;
+  MaterialInstance* debug_line_material_depth_ = nullptr;
 
   // Internal helpers
   bool CreateFrameBuffers();
   void ReleaseFrameBuffers();
-  UINT ConvertCommandsToVertices(const DebugVisualCommandBuffer& cmds,
+  UINT FillVertexData(const DebugVisualCommandBuffer& cmds,
     DebugVertex* vertex_buffer,
     UINT max_vertices,
     DebugDepthMode depthMode,

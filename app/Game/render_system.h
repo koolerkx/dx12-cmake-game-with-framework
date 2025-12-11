@@ -55,5 +55,5 @@ class RenderSystem {
 
   void Submit(Scene& scene, RenderPassManager& render_pass_manager);
   void RenderDebugVisuals(SceneRenderer& scene_renderer);
-  void RenderDebugVisuals2D();
+  void RenderDebugVisuals2D(uint32_t frame_index);
 };

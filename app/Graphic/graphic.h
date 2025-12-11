@@ -90,6 +90,12 @@ class Graphic {
     return swap_chain_manager_.GetCurrentFrameIndex();
   }
 
+  // Access to main render targets and viewport state
+  D3D12_CPU_DESCRIPTOR_HANDLE GetMainRTV() const;
+  D3D12_CPU_DESCRIPTOR_HANDLE GetMainDSV() const;
+  D3D12_VIEWPORT GetScreenViewport() const;
+  D3D12_RECT GetScissorRect() const;
+
   static constexpr int FRAME_BUFFER_COUNT = 2;
 
  private:

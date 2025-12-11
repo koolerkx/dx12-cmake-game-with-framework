@@ -16,16 +16,24 @@ void DebugVisualRenderer::Initialize(Graphic& gfx) {
 
   // Get debug line materials from default assets
   const auto& defaults = gfx.GetDefaultAssets();
-  debug_line_material_ = defaults.GetDebugLineMaterial();
-  debug_line_depth_material_ = defaults.GetDebugLineDepthMaterial();
+  debug_line_material_overlay_ = defaults.GetDebugLineMaterialOverlay();
+  debug_line_material_depth_ = defaults.GetDebugLineMaterialDepth();
 
-  if (!debug_line_material_ || !debug_line_depth_material_) {
-    std::cerr << "[DebugVisualRenderer] Failed to get debug line materials from DefaultAssets" << '\n';
+  if (!debug_line_material_overlay_ || !debug_line_material_depth_) {
+    std::cerr << "[DebugVisualRenderer] Failed to get debug line materials (overlay/depth) from DefaultAssets" << '\n';
     return;
   }
 
-  debug_line_template_ = debug_line_material_->GetTemplate();
-  debug_line_depth_template_ = debug_line_depth_material_->GetTemplate();
+  debug_line_template_overlay_ = defaults.GetDebugLineTemplateOverlay();
+  debug_line_template_depth_ = defaults.GetDebugLineTemplateDepth();
+
+  // Fallback: derive templates from materials if template getters are unavailable
+  if (!debug_line_template_overlay_ && debug_line_material_overlay_) {
+    debug_line_template_overlay_ = debug_line_material_overlay_->GetTemplate();
+  }
+  if (!debug_line_template_depth_ && debug_line_material_depth_) {
+    debug_line_template_depth_ = debug_line_material_depth_->GetTemplate();
+  }
 
   // Create per-frame upload buffers
   if (!CreateFrameBuffers()) {
@@ -44,10 +52,10 @@ void DebugVisualRenderer::Shutdown() {
 
   ReleaseFrameBuffers();
 
-  debug_line_template_ = nullptr;
-  debug_line_material_ = nullptr;
-  debug_line_depth_template_ = nullptr;
-  debug_line_depth_material_ = nullptr;
+  debug_line_template_overlay_ = nullptr;
+  debug_line_material_overlay_ = nullptr;
+  debug_line_template_depth_ = nullptr;
+  debug_line_material_depth_ = nullptr;
   graphic_ = nullptr;
   is_initialized_ = false;
 
@@ -63,74 +71,99 @@ void DebugVisualRenderer::BeginFrame(uint32_t frameIndex) {
   frames_[current_frame_index_].Reset();
 }
 
-void DebugVisualRenderer::Render(const DebugVisualCommandBuffer& cmds,
+void DebugVisualRenderer::RenderDepthTested(const DebugVisualCommandBuffer& cmds,
   ID3D12GraphicsCommandList* cmd_list,
-  const SceneGlobalData& /* sceneData */,
+  const SceneGlobalData& sceneData,
   const Buffer& frame_cb,
   const DebugVisualSettings& settings) {
-  if (!is_initialized_ || !cmd_list || !debug_line_material_ || !debug_line_depth_material_) {
+  if (!is_initialized_ || !cmd_list || !debug_line_material_depth_ || !debug_line_template_depth_) {
     return;
   }
 
-  auto& current_frame = frames_[current_frame_index_];
+  auto& frame = frames_[current_frame_index_];
 
-  // Identity world matrix for debug primitives (currently using world-space coordinates)
-  // Note: No transpose needed - shader expects row-major, we store row-major
+  // Fill depth-tested vertices first
+  frame.vertex_count = FillVertexData(cmds, frame.mapped_ptr, MAX_DEBUG_VERTICES, DebugDepthMode::TestDepth, settings);
+  last_frame_vertex_count_ = frame.vertex_count;
+
+  if (frame.vertex_count == 0) {
+    return;
+  }
+
+  const D3D12_GPU_VIRTUAL_ADDRESS cb_address =
+    sceneData.scene_cb_gpu_address ? sceneData.scene_cb_gpu_address : frame_cb.GetGPUAddress();
+
   DirectX::XMFLOAT4X4 identity_world;
   DirectX::XMStoreFloat4x4(&identity_world, DirectX::XMMatrixIdentity());
 
-  // Set vertex buffer (shared by both passes)
-  D3D12_VERTEX_BUFFER_VIEW vbv = current_frame.vertex_buffer.GetVBV(sizeof(DebugVertex));
+  D3D12_VERTEX_BUFFER_VIEW vbv = frame.vertex_buffer.GetVBV(sizeof(DebugVertex));
 
-  // ========================================
-  // Pass 1: Render IgnoreDepth lines (overlay - no depth test)
-  // ========================================
-  DebugVertex* vertex_ptr = current_frame.mapped_ptr;
-  UINT overlay_vertex_count = ConvertCommandsToVertices(cmds, vertex_ptr, MAX_DEBUG_VERTICES, DebugDepthMode::IgnoreDepth, settings);
+  cmd_list->SetPipelineState(debug_line_template_depth_->GetPSO());
+  cmd_list->SetGraphicsRootSignature(debug_line_template_depth_->GetRootSignature());
+  cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+  cmd_list->IASetVertexBuffers(0, 1, &vbv);
 
-  if (overlay_vertex_count > 0) {
-    ID3D12PipelineState* pso = debug_line_template_->GetPSO();
-    ID3D12RootSignature* root_signature = debug_line_template_->GetRootSignature();
+  cmd_list->SetGraphicsRoot32BitConstants(0, 16, &identity_world, 0);  // b0 - world matrix
+  cmd_list->SetGraphicsRootConstantBufferView(1, cb_address);          // b1 - FrameCB
 
-    cmd_list->SetPipelineState(pso);
-    cmd_list->SetGraphicsRootSignature(root_signature);
-    cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
-    cmd_list->IASetVertexBuffers(0, 1, &vbv);
+  cmd_list->DrawInstanced(frame.vertex_count, 1, 0, 0);
+}
 
-    // Bind root constants and constant buffer
-    cmd_list->SetGraphicsRoot32BitConstants(0, 16, &identity_world, 0);        // b0 - world matrix
-    cmd_list->SetGraphicsRootConstantBufferView(1, frame_cb.GetGPUAddress());  // b1 - FrameCB
-
-    cmd_list->DrawInstanced(overlay_vertex_count, 1, 0, 0);
+void DebugVisualRenderer::RenderOverlay(const DebugVisualCommandBuffer& cmds,
+  ID3D12GraphicsCommandList* cmd_list,
+  const SceneGlobalData& sceneData,
+  const Buffer& frame_cb,
+  const DebugVisualSettings& settings) {
+  if (!is_initialized_ || !cmd_list || !debug_line_material_overlay_ || !debug_line_template_overlay_) {
+    return;
   }
 
-  // ========================================
-  // Pass 2: Render TestDepth lines (depth-tested)
-  // ========================================
-  vertex_ptr += overlay_vertex_count;
-  UINT depth_vertex_count =
-    ConvertCommandsToVertices(cmds, vertex_ptr, MAX_DEBUG_VERTICES - overlay_vertex_count, DebugDepthMode::TestDepth, settings);
+  auto& frame = frames_[current_frame_index_];
 
-  if (depth_vertex_count > 0) {
-    ID3D12PipelineState* pso = debug_line_depth_template_->GetPSO();
-    ID3D12RootSignature* root_signature = debug_line_depth_template_->GetRootSignature();
-
-    cmd_list->SetPipelineState(pso);
-    cmd_list->SetGraphicsRootSignature(root_signature);
-    cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
-    cmd_list->IASetVertexBuffers(0, 1, &vbv);
-
-    // Bind root constants and constant buffer
-    cmd_list->SetGraphicsRoot32BitConstants(0, 16, &identity_world, 0);        // b0 - world matrix
-    cmd_list->SetGraphicsRootConstantBufferView(1, frame_cb.GetGPUAddress());  // b1 - FrameCB
-
-    cmd_list->DrawInstanced(depth_vertex_count, 1, overlay_vertex_count, 0);
+  const UINT start_offset = frame.vertex_count;  // Depth-tested vertices already written (if any)
+  if (start_offset >= MAX_DEBUG_VERTICES) {
+    return;
   }
 
-  // Track stats
-  UINT total_vertices = overlay_vertex_count + depth_vertex_count;
-  current_frame.vertex_count = total_vertices;
-  last_frame_vertex_count_ = total_vertices;
+  const UINT remaining = MAX_DEBUG_VERTICES - start_offset;
+  DebugVertex* dst = frame.mapped_ptr + start_offset;
+
+  const UINT overlay_vertex_count = FillVertexData(cmds, dst, remaining, DebugDepthMode::IgnoreDepth, settings);
+  if (overlay_vertex_count == 0) {
+    last_frame_vertex_count_ = frame.vertex_count;
+    return;
+  }
+
+  frame.vertex_count += overlay_vertex_count;
+  last_frame_vertex_count_ = frame.vertex_count;
+
+  const D3D12_GPU_VIRTUAL_ADDRESS cb_address =
+    sceneData.scene_cb_gpu_address ? sceneData.scene_cb_gpu_address : frame_cb.GetGPUAddress();
+
+  DirectX::XMFLOAT4X4 identity_world;
+  DirectX::XMStoreFloat4x4(&identity_world, DirectX::XMMatrixIdentity());
+
+  D3D12_VERTEX_BUFFER_VIEW vbv = frame.vertex_buffer.GetVBV(sizeof(DebugVertex));
+
+  cmd_list->SetPipelineState(debug_line_template_overlay_->GetPSO());
+  cmd_list->SetGraphicsRootSignature(debug_line_template_overlay_->GetRootSignature());
+  cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+  cmd_list->IASetVertexBuffers(0, 1, &vbv);
+
+  cmd_list->SetGraphicsRoot32BitConstants(0, 16, &identity_world, 0);  // b0 - world matrix
+  cmd_list->SetGraphicsRootConstantBufferView(1, cb_address);          // b1 - FrameCB
+
+  // Note: firstVertexLocation = start_offset to append after depth-tested vertices
+  cmd_list->DrawInstanced(overlay_vertex_count, 1, start_offset, 0);
+}
+
+void DebugVisualRenderer::Render(const DebugVisualCommandBuffer& cmds,
+  ID3D12GraphicsCommandList* cmd_list,
+  const SceneGlobalData& sceneData,
+  const Buffer& frame_cb,
+  const DebugVisualSettings& settings) {
+  RenderDepthTested(cmds, cmd_list, sceneData, frame_cb, settings);
+  RenderOverlay(cmds, cmd_list, sceneData, frame_cb, settings);
 }
 
 bool DebugVisualRenderer::CreateFrameBuffers() {
@@ -179,7 +212,7 @@ void DebugVisualRenderer::ReleaseFrameBuffers() {
   }
 }
 
-UINT DebugVisualRenderer::ConvertCommandsToVertices(const DebugVisualCommandBuffer& cmds,
+UINT DebugVisualRenderer::FillVertexData(const DebugVisualCommandBuffer& cmds,
   DebugVertex* vertex_buffer,
   UINT max_vertices,
   DebugDepthMode depthMode,

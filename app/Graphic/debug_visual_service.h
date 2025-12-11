@@ -57,11 +57,16 @@ struct DebugColor {
 // Depth testing mode for debug visuals
 enum class DebugDepthMode {
   IgnoreDepth,  // Always visible (no depth test)
-  TestDepth     // Respect depth buffer
+  TestDepth     // Respect depth buffer (read-only depth testing)
 };
 
-// Category for organizing debug visuals
-enum class DebugCategory { General, Gizmo, Physics, Selection, UI, Custom };
+// Category for organizing debug visuals (3D)
+enum class DebugCategory {
+  General,
+  Gizmo,
+  Physics,
+  Selection,
+};
 
 // Category for 2D UI debug visuals
 enum class DebugCategory2D { General, Layout, Guides, Selection, All };
@@ -90,8 +95,7 @@ struct DebugRect2DCommand {
 };
 
 // Command buffer that stores all debug draw commands for the current frame
-class DebugVisualCommandBuffer {
- public:
+struct DebugVisualCommandBuffer {
   void Clear() {
     lines3D.clear();
   }
@@ -100,13 +104,12 @@ class DebugVisualCommandBuffer {
     return lines3D.size();
   }
 
-  // Command storage
+  // Command storage (future shapes will expand into lines3D)
   std::vector<DebugLine3DCommand> lines3D;
 };
 
 // 2D Command buffer for UI-space debug visuals
-class DebugVisualCommandBuffer2D {
- public:
+struct DebugVisualCommandBuffer2D {
   void Clear() {
     lines2D.clear();
     rects2D.clear();
@@ -128,8 +131,6 @@ struct DebugVisualSettings {
   bool enable_3d_gizmo = true;
   bool enable_3d_physics = true;
   bool enable_3d_selection = true;
-  bool enable_3d_ui = true;
-  bool enable_3d_custom = true;
 
   // 2D category filters
   bool enable_2d_general = true;
@@ -153,10 +154,6 @@ struct DebugVisualSettings {
         return enable_3d_physics;
       case DebugCategory::Selection:
         return enable_3d_selection;
-      case DebugCategory::UI:
-        return enable_3d_ui;
-      case DebugCategory::Custom:
-        return enable_3d_custom;
       default:
         return true;
     }
@@ -199,7 +196,7 @@ class DebugVisualService {
   void DrawLine3D(const DirectX::XMFLOAT3& p0,
     const DirectX::XMFLOAT3& p1,
     const DebugColor& color = DebugColor::White(),
-    DebugDepthMode mode = DebugDepthMode::IgnoreDepth,
+    DebugDepthMode mode = DebugDepthMode::TestDepth,
     DebugCategory category = DebugCategory::General);
 
   // 2D Line drawing (screen-space pixels)
@@ -215,18 +212,18 @@ class DebugVisualService {
     DebugCategory2D category = DebugCategory2D::General);
 
   // Convenience overloads for common line types
-  void DrawAxisGizmo(const DirectX::XMFLOAT3& origin, float length = 1.0f, DebugDepthMode depthMode = DebugDepthMode::IgnoreDepth);
+  void DrawAxisGizmo(const DirectX::XMFLOAT3& origin, float length = 1.0f, DebugDepthMode depthMode = DebugDepthMode::TestDepth);
   void DrawWireBox(const DirectX::XMFLOAT3& min_point,
     const DirectX::XMFLOAT3& max_point,
     const DebugColor& color = DebugColor::White(),
-    DebugDepthMode mode = DebugDepthMode::IgnoreDepth);
+    DebugDepthMode mode = DebugDepthMode::TestDepth);
 
   // Get accumulated commands for rendering
-  const DebugVisualCommandBuffer& GetCommands() const {
+  const DebugVisualCommandBuffer& GetCommands3D() const {
     return cmds_;
   }
 
-  const DebugVisualCommandBuffer2D& Get2DCommands() const {
+  const DebugVisualCommandBuffer2D& GetCommands2D() const {
     return cmds2D_;
   }
 

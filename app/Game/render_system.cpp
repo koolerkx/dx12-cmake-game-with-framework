@@ -67,11 +67,8 @@ void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   // Execute all render passes (Forward, UI, etc.)
   graphic_->RenderFrame();
 
-  // Render debug visuals after main rendering
+  // Render debug visuals after main rendering (3D depth/overlay + 2D)
   RenderDebugVisuals(scene_renderer);
-
-  // Render 2D debug visuals (UI overlay)
-  RenderDebugVisuals2D();
 
   // End frame - present
   graphic_->EndFrame();
@@ -137,60 +134,91 @@ void RenderSystem::Shutdown() {
 }
 
 void RenderSystem::RenderDebugVisuals(SceneRenderer& scene_renderer) {
-  if (!graphic_ || debug_service_.GetCommandCount() == 0) {
+  if (!graphic_) {
+    return;
+  }
+
+  const auto& cmds3D = debug_service_.GetCommands3D();
+  const auto& cmds2D = debug_service_.GetCommands2D();
+
+  if (cmds3D.lines3D.empty() && cmds2D.GetTotalCommandCount() == 0) {
     return;  // Nothing to render
   }
 
-  SceneGlobalData debug_scene_data;
+  ID3D12GraphicsCommandList* cmd_list = graphic_->GetCommandList();
 
+  // Rebind primary render targets and viewport before debug passes
+  auto rtv = graphic_->GetMainRTV();
+  auto dsv = graphic_->GetMainDSV();
+  cmd_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+
+  auto viewport = graphic_->GetScreenViewport();
+  auto scissor = graphic_->GetScissorRect();
+  cmd_list->RSSetViewports(1, &viewport);
+  cmd_list->RSSetScissorRects(1, &scissor);
+
+  SceneGlobalData debug_scene_data{};
   if (cached_camera_data_.is_valid) {
-    // Use cached camera data
     debug_scene_data.view_matrix = cached_camera_data_.view_matrix;
     debug_scene_data.projection_matrix = cached_camera_data_.projection_matrix;
     debug_scene_data.view_projection_matrix = cached_camera_data_.view_projection_matrix;
     debug_scene_data.camera_position = cached_camera_data_.camera_position;
   } else {
-    // Fallback to identity matrices
     debug_scene_data.view_matrix = DirectX::XMMatrixIdentity();
     debug_scene_data.projection_matrix = DirectX::XMMatrixIdentity();
     debug_scene_data.view_projection_matrix = DirectX::XMMatrixIdentity();
     debug_scene_data.camera_position = {0.0f, 0.0f, 0.0f};
   }
+  debug_scene_data.scene_cb_gpu_address = scene_renderer.GetFrameConstantBuffer().GetGPUAddress();
 
-  // Get current frame index from swapchain
-  UINT frame_index = graphic_->GetCurrentFrameIndex();
+  const uint32_t frame_index = graphic_->GetCurrentFrameIndex();
   debug_renderer_.BeginFrame(frame_index);
 
-  // Render debug commands with current settings, passing scene_renderer's frame_cb_
-  debug_renderer_.Render(
-    debug_service_.GetCommands(), graphic_->GetCommandList(), debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
+  // Depth-tested pass then overlay pass share the same vertex buffer
+  debug_renderer_.RenderDepthTested(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
+  debug_renderer_.RenderOverlay(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
+
+  // 2D debug overlay (UI space)
+  if (cmds2D.GetTotalCommandCount() > 0) {
+    RenderDebugVisuals2D(frame_index);
+  }
 }
 
-void RenderSystem::RenderDebugVisuals2D() {
-  if (!graphic_ || debug_service_.Get2DCommandCount() == 0) {
+void RenderSystem::RenderDebugVisuals2D(uint32_t frame_index) {
+  if (!graphic_) {
+    return;
+  }
+
+  const auto& cmds2D = debug_service_.GetCommands2D();
+  if (cmds2D.GetTotalCommandCount() == 0) {
     return;  // Nothing to render
   }
+
+  ID3D12GraphicsCommandList* cmd_list = graphic_->GetCommandList();
+
+  // 2D renderer expects no DSV bound (PSO DepthStencilFormat = UNKNOWN)
+  auto rtv = graphic_->GetMainRTV();
+  cmd_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+
+  auto viewport = graphic_->GetScreenViewport();
+  auto scissor = graphic_->GetScissorRect();
+  cmd_list->RSSetViewports(1, &viewport);
+  cmd_list->RSSetScissorRects(1, &scissor);
 
   // Create orthographic projection for UI (screen-space to NDC)
   UINT width = graphic_->GetFrameBufferWidth();
   UINT height = graphic_->GetFrameBufferHeight();
 
-  // Top-left origin orthographic projection
   DirectX::XMMATRIX ortho_proj = DirectX::XMMatrixOrthographicOffCenterLH(0.0f,
-    static_cast<float>(width),  // left, right
-    static_cast<float>(height),
-    0.0f,  // top, bottom (flipped for top-left origin)
+    static_cast<float>(width),   // left, right
+    static_cast<float>(height),  // bottom (flipped), top
     0.0f,
-    1.0f  // near, far
-  );
+    0.0f,
+    1.0f);
 
   UISceneData ui_scene_data;
   ui_scene_data.view_projection_matrix = ortho_proj;
 
-  // Get current frame index
-  UINT frame_index = graphic_->GetCurrentFrameIndex();
   debug_renderer_2d_.BeginFrame(frame_index);
-
-  // Render 2D debug commands
-  debug_renderer_2d_.Render(debug_service_.Get2DCommands(), graphic_->GetCommandList(), ui_scene_data, debug_settings_);
+  debug_renderer_2d_.Render(cmds2D, cmd_list, ui_scene_data, debug_settings_);
 }
