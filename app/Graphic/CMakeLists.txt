@@ -73,6 +73,16 @@ add_library(graphic STATIC
     RenderPass/depth_prepass.cpp
     RenderPass/postprocess_pass.h
     RenderPass/postprocess_pass.cpp
+
+    # Framework default assets
+    framework_default_assets.h
+    framework_default_assets.cpp
+    
+    # Debug visual system
+    debug_visual_service.h
+    debug_visual_service.cpp
+    debug_visual_renderer.h
+    debug_visual_renderer.cpp
 )
 
 target_include_directories(graphic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
@@ -85,6 +95,8 @@ set_msvc_runtime(graphic)
 target_add_hlsl_auto(graphic "6.5"
     "${CMAKE_SOURCE_DIR}/shaders/basic.vs.hlsl"
     "${CMAKE_SOURCE_DIR}/shaders/basic.ps.hlsl"
+    "${CMAKE_SOURCE_DIR}/shaders/debug_line.vs.hlsl"
+    "${CMAKE_SOURCE_DIR}/shaders/debug_line.ps.hlsl"
 )
 
 # manually add shaders files

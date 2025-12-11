@@ -1,11 +1,20 @@
 #include "framework_default_assets.h"
 
 #include <cstdint>
+#include <iostream>
 #include <vector>
 
 #include "graphic.h"
+#include "material_instance.h"
+#include "material_manager.h"
+#include "material_template.h"
+#include "pipeline_state_builder.h"
 #include "primitive_geometry_2d.h"
+#include "root_signature_builder.h"
+#include "shader_manager.h"
 #include "texture_manager.h"
+#include "vertex_types.h"
+
 
 void FrameworkDefaultAssets::Initialize(Graphic& graphic) {
   graphic_ = &graphic;
@@ -58,9 +67,16 @@ void FrameworkDefaultAssets::Initialize(Graphic& graphic) {
     error_texture_ =
       tex_mgr.CreateTextureFromMemory(cmd, checker_data.data(), checker_w, checker_h, DXGI_FORMAT_R8G8B8A8_UNORM, "Default_ErrorChecker");
   });
+
+  // Create default materials after textures are available
+  CreateDefaultMaterials(graphic);
 }
 
 void FrameworkDefaultAssets::Shutdown() {
+  // Release material instances first
+  sprite2d_default_.reset();
+  debug_line_default_.reset();
+
   // Release textures from managers (Graphic still owns managers at this point)
   if (graphic_) {
     auto& tex_mgr = graphic_->GetTextureManager();
@@ -70,7 +86,7 @@ void FrameworkDefaultAssets::Shutdown() {
     if (tex_mgr.IsValid(error_texture_)) tex_mgr.ReleaseTexture(error_texture_);
   }
 
-  // Nothing else owned directly here; reset non-owning references.
+  // Reset all handles and pointers
   white_texture_ = INVALID_TEXTURE_HANDLE;
   black_texture_ = INVALID_TEXTURE_HANDLE;
   flat_normal_texture_ = INVALID_TEXTURE_HANDLE;
@@ -78,6 +94,8 @@ void FrameworkDefaultAssets::Shutdown() {
 
   graphic_ = nullptr;
   rect2d_mesh_.reset();
+  sprite2d_template_ = nullptr;
+  debug_line_template_ = nullptr;
   sprite_material_ = nullptr;
   debug_line_material_ = nullptr;
 }
@@ -108,4 +126,157 @@ MaterialInstance* FrameworkDefaultAssets::GetSprite2DDefaultMaterial() const {
 
 MaterialInstance* FrameworkDefaultAssets::GetDebugLineMaterial() const {
   return debug_line_material_;
+}
+
+void FrameworkDefaultAssets::CreateDefaultMaterials(Graphic& gfx) {
+  auto& shader_mgr = gfx.GetShaderManager();
+
+  // Ensure shaders are loaded
+  if (!shader_mgr.HasShader("BasicVS")) {
+    if (!shader_mgr.LoadShader(L"Content/shaders/basic.vs.cso", ShaderType::Vertex, "BasicVS")) {
+      // Fallback to loaded shader or log error
+      std::cerr << "[FrameworkDefaultAssets] Failed to load BasicVS shader" << '\n';
+      return;
+    }
+  }
+
+  if (!shader_mgr.HasShader("BasicPS")) {
+    if (!shader_mgr.LoadShader(L"Content/shaders/basic.ps.cso", ShaderType::Pixel, "BasicPS")) {
+      std::cerr << "[FrameworkDefaultAssets] Failed to load BasicPS shader" << '\n';
+      return;
+    }
+  }
+
+  if (!shader_mgr.HasShader("DebugLineVS")) {
+    if (!shader_mgr.LoadShader(L"Content/shaders/debug_line.vs.cso", ShaderType::Vertex, "DebugLineVS")) {
+      std::cerr << "[FrameworkDefaultAssets] Failed to load DebugLineVS shader" << '\n';
+      return;
+    }
+  }
+
+  if (!shader_mgr.HasShader("DebugLinePS")) {
+    if (!shader_mgr.LoadShader(L"Content/shaders/debug_line.ps.cso", ShaderType::Pixel, "DebugLinePS")) {
+      std::cerr << "[FrameworkDefaultAssets] Failed to load DebugLinePS shader" << '\n';
+      return;
+    }
+  }
+
+  // Create Sprite2D material
+  CreateSprite2DMaterial(gfx);
+
+  // Create DebugLine material
+  CreateDebugLineMaterial(gfx);
+}
+
+void FrameworkDefaultAssets::CreateSprite2DMaterial(Graphic& gfx) {
+  auto& shader_mgr = gfx.GetShaderManager();
+  auto& material_mgr = gfx.GetMaterialManager();
+
+  // Create root signature for Sprite2D
+  ComPtr<ID3D12RootSignature> sprite_root_signature;
+  RootSignatureBuilder rs_builder;
+  rs_builder
+    .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)                                    // b0 - Object constants
+    .AddRootConstant(4, 2, D3D12_SHADER_VISIBILITY_VERTEX)                                     // b2 - Per-object color tint
+    .AddRootConstant(4, 3, D3D12_SHADER_VISIBILITY_VERTEX)                                     // b3 - Per-object UV transform
+    .AddRootCBV(1, D3D12_SHADER_VISIBILITY_ALL)                                                // b1 - Frame CB
+    .AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL)  // t0 - Texture
+    .AddStaticSampler(0, D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_SHADER_VISIBILITY_PIXEL)
+    .AllowInputLayout();
+
+  if (!rs_builder.Build(gfx.GetDevice(), sprite_root_signature)) {
+    std::cerr << "[FrameworkDefaultAssets] Failed to create Sprite2D root signature" << '\n';
+    return;
+  }
+
+  // Create pipeline state for Sprite2D
+  ComPtr<ID3D12PipelineState> sprite_pso;
+  PipelineStateBuilder pso_builder;
+  const ShaderBlob* vs = shader_mgr.GetShader("BasicVS");
+  const ShaderBlob* ps = shader_mgr.GetShader("BasicPS");
+
+  auto input_layout = GetInputLayout_VertexPositionTexture2D();
+
+  pso_builder.SetVertexShader(vs)
+    .SetPixelShader(ps)
+    .SetInputLayout(input_layout.data(), static_cast<UINT>(input_layout.size()))
+    .SetRootSignature(sprite_root_signature.Get())
+    .SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE)
+    .SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM)  // Standard back buffer format
+    .SetDepthStencilFormat(DXGI_FORMAT_D32_FLOAT)
+    .UseForwardTransparentDefaults();  // This should enable alpha blending
+
+  if (!pso_builder.Build(gfx.GetDevice(), sprite_pso)) {
+    std::cerr << "[FrameworkDefaultAssets] Failed to create Sprite2D PSO" << '\n';
+    return;
+  }
+
+  // Create material template
+  std::vector<TextureSlotDefinition> sprite_texture_slots = {
+    {"BaseColor", 4, D3D12_SHADER_VISIBILITY_PIXEL}  // t0, parameter index 4 (descriptor table)
+  };
+
+  sprite2d_template_ = material_mgr.CreateTemplate("DefaultSprite2D", sprite_pso.Get(), sprite_root_signature.Get(), sprite_texture_slots);
+
+  if (sprite2d_template_) {
+    // Create default instance and bind white texture
+    sprite2d_default_ = std::make_unique<MaterialInstance>();
+    if (sprite2d_default_->Initialize(sprite2d_template_)) {
+      sprite2d_default_->SetTexture("BaseColor", white_texture_);
+      sprite_material_ = sprite2d_default_.get();
+      std::cout << "[FrameworkDefaultAssets] Created Sprite2D default material" << '\n';
+    }
+  }
+}
+
+void FrameworkDefaultAssets::CreateDebugLineMaterial(Graphic& gfx) {
+  auto& shader_mgr = gfx.GetShaderManager();
+  auto& material_mgr = gfx.GetMaterialManager();
+
+  // Create root signature for DebugLine (simpler - no textures)
+  ComPtr<ID3D12RootSignature> debug_root_signature;
+  RootSignatureBuilder rs_builder;
+  rs_builder
+    .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)  // b0 - Scene constants (4x4 matrix = 16 floats)
+    .AllowInputLayout();
+
+  if (!rs_builder.Build(gfx.GetDevice(), debug_root_signature)) {
+    std::cerr << "[FrameworkDefaultAssets] Failed to create DebugLine root signature" << '\n';
+    return;
+  }
+
+  // Create pipeline state for DebugLine
+  ComPtr<ID3D12PipelineState> debug_pso;
+  PipelineStateBuilder pso_builder;
+  const ShaderBlob* vs = shader_mgr.GetShader("DebugLineVS");
+  const ShaderBlob* ps = shader_mgr.GetShader("DebugLinePS");
+
+  auto input_layout = GetInputLayout_DebugVertex();
+
+  pso_builder.SetVertexShader(vs)
+    .SetPixelShader(ps)
+    .SetInputLayout(input_layout.data(), static_cast<UINT>(input_layout.size()))
+    .SetRootSignature(debug_root_signature.Get())
+    .SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE)
+    .SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM)
+    .SetDepthStencilFormat(DXGI_FORMAT_UNKNOWN)       // No depth testing for debug lines
+    .SetDepthEnable(false)                            // Disable depth testing
+    .SetDepthWriteMask(D3D12_DEPTH_WRITE_MASK_ZERO);  // No depth writing
+
+  if (!pso_builder.Build(gfx.GetDevice(), debug_pso)) {
+    std::cerr << "[FrameworkDefaultAssets] Failed to create DebugLine PSO" << '\n';
+    return;
+  }
+
+  // Create material template (no texture slots for debug lines)
+  debug_line_template_ = material_mgr.CreateTemplate("DefaultDebugLine", debug_pso.Get(), debug_root_signature.Get());
+
+  if (debug_line_template_) {
+    // Create default instance
+    debug_line_default_ = std::make_unique<MaterialInstance>();
+    if (debug_line_default_->Initialize(debug_line_template_)) {
+      debug_line_material_ = debug_line_default_.get();
+      std::cout << "[FrameworkDefaultAssets] Created DebugLine default material" << '\n';
+    }
+  }
 }

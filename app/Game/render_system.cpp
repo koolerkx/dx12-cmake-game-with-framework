@@ -1,6 +1,7 @@
 #include "render_system.h"
 
 #include <cassert>
+#include <iostream>
 
 #include "Component/camera_component.h"
 #include "Component/renderer_component.h"
@@ -11,6 +12,9 @@
 
 void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   assert(graphic_ != nullptr);
+
+  // Begin debug frame
+  debug_service_.BeginFrame();
 
   // Begin frame - clears render targets, sets up command list
   graphic_->BeginFrame();
@@ -43,7 +47,16 @@ void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
 
       // Set scene data in scene renderer
       scene_renderer.SetSceneData(scene_data);
+      
+      // Cache camera data for debug rendering
+      cached_camera_data_.view_matrix = view;
+      cached_camera_data_.projection_matrix = proj;
+      cached_camera_data_.view_projection_matrix = view_proj;
+      cached_camera_data_.camera_position = camera_transform->GetPosition();
+      cached_camera_data_.is_valid = true;
     }
+  } else {
+    cached_camera_data_.is_valid = false;
   }
 
   // Clear previous frame data
@@ -55,6 +68,9 @@ void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
 
   // Execute all render passes (Forward, UI, etc.)
   graphic_->RenderFrame();
+
+  // Render debug visuals after main rendering
+  RenderDebugVisuals(scene_renderer);
 
   // End frame - present
   graphic_->EndFrame();
@@ -99,4 +115,51 @@ void RenderSystem::Submit(Scene& scene, RenderPassManager& render_pass_manager) 
 
     render_pass_manager.SubmitPacket(packet);
   }
+}
+
+void RenderSystem::Initialize(Graphic& graphic) {
+  graphic_ = &graphic;
+  
+  // Initialize debug renderer
+  debug_renderer_.Initialize(graphic);
+  
+  std::cout << "[RenderSystem] Initialized with debug visual support" << '\n';
+}
+
+void RenderSystem::Shutdown() {
+  debug_renderer_.Shutdown();
+  graphic_ = nullptr;
+  
+  std::cout << "[RenderSystem] Shutdown complete" << '\n';
+}
+
+void RenderSystem::RenderDebugVisuals(SceneRenderer& /* scene_renderer */) {
+  if (!graphic_ || debug_service_.GetCommandCount() == 0) {
+    return;  // Nothing to render
+  }
+
+  SceneGlobalData debug_scene_data;
+  
+  if (cached_camera_data_.is_valid) {
+    // Use cached camera data
+    debug_scene_data.view_matrix = cached_camera_data_.view_matrix;
+    debug_scene_data.projection_matrix = cached_camera_data_.projection_matrix;
+    debug_scene_data.view_projection_matrix = cached_camera_data_.view_projection_matrix;
+    debug_scene_data.camera_position = cached_camera_data_.camera_position;
+  } else {
+    // Fallback to identity matrices
+    debug_scene_data.view_matrix = DirectX::XMMatrixIdentity();
+    debug_scene_data.projection_matrix = DirectX::XMMatrixIdentity();
+    debug_scene_data.view_projection_matrix = DirectX::XMMatrixIdentity();
+    debug_scene_data.camera_position = {0.0f, 0.0f, 0.0f};
+  }
+  
+  // Use frame index 0 for now - this could be improved by adding
+  // frame tracking to Graphic class
+  debug_renderer_.BeginFrame(0);
+  
+  // Render debug commands
+  debug_renderer_.Render(debug_service_.GetCommands(),
+                        graphic_->GetCommandList(),
+                        debug_scene_data);
 }

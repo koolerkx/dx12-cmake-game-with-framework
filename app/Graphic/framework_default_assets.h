@@ -8,6 +8,7 @@
 class Graphic;
 class Mesh;
 class MaterialInstance;
+class MaterialTemplate;
 
 class FrameworkDefaultAssets {
  public:
@@ -44,7 +45,19 @@ class FrameworkDefaultAssets {
 
   std::shared_ptr<Mesh> rect2d_mesh_ = nullptr;
 
+  // Material templates and instances for default materials
+  MaterialTemplate* sprite2d_template_ = nullptr;
+  std::unique_ptr<MaterialInstance> sprite2d_default_;
+
+  MaterialTemplate* debug_line_template_ = nullptr;
+  std::unique_ptr<MaterialInstance> debug_line_default_;
+
   // Material instances are owned/managed by MaterialManager; we store raw pointers
   MaterialInstance* sprite_material_ = nullptr;
   MaterialInstance* debug_line_material_ = nullptr;
+
+  // Internal helper methods
+  void CreateDefaultMaterials(Graphic& gfx);
+  void CreateSprite2DMaterial(Graphic& gfx);
+  void CreateDebugLineMaterial(Graphic& gfx);
 };

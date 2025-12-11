@@ -1,5 +1,5 @@
 struct VSIN {
-  float4 pos : POSITION;
+  float3 pos : POSITION;  // Changed from float4 to float3 to match vertex buffer
   float2 uv : TEXCOORD;
 };
 
