@@ -69,6 +69,9 @@ void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   // Render debug visuals after main rendering
   RenderDebugVisuals(scene_renderer);
 
+  // Render 2D debug visuals (UI overlay)
+  RenderDebugVisuals2D();
+
   // End frame - present
   graphic_->EndFrame();
 }
@@ -117,14 +120,16 @@ void RenderSystem::Submit(Scene& scene, RenderPassManager& render_pass_manager) 
 void RenderSystem::Initialize(Graphic& graphic) {
   graphic_ = &graphic;
   
-  // Initialize debug renderer
+  // Initialize debug renderers
   debug_renderer_.Initialize(graphic);
+  debug_renderer_2d_.Initialize(graphic);
   
   std::cout << "[RenderSystem] Initialized with debug visual support" << '\n';
 }
 
 void RenderSystem::Shutdown() {
   debug_renderer_.Shutdown();
+  debug_renderer_2d_.Shutdown();
   graphic_ = nullptr;
   
   std::cout << "[RenderSystem] Shutdown complete" << '\n';
@@ -159,4 +164,33 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& /* scene_renderer */) {
   debug_renderer_.Render(debug_service_.GetCommands(),
                         graphic_->GetCommandList(),
                         debug_scene_data);
+}
+
+void RenderSystem::RenderDebugVisuals2D() {
+  if (!graphic_ || debug_service_.Get2DCommandCount() == 0) {
+    return;  // Nothing to render
+  }
+
+  // Create orthographic projection for UI (screen-space to NDC)
+  UINT width = graphic_->GetFrameBufferWidth();
+  UINT height = graphic_->GetFrameBufferHeight();
+  
+  // Top-left origin orthographic projection
+  DirectX::XMMATRIX ortho_proj = DirectX::XMMatrixOrthographicOffCenterLH(
+    0.0f, static_cast<float>(width),   // left, right
+    static_cast<float>(height), 0.0f,  // top, bottom (flipped for top-left origin)
+    0.0f, 1.0f                          // near, far
+  );
+
+  UISceneData ui_scene_data;
+  ui_scene_data.view_projection_matrix = ortho_proj;
+
+  // Get current frame index
+  UINT frame_index = graphic_->GetCurrentFrameIndex();
+  debug_renderer_2d_.BeginFrame(frame_index);
+
+  // Render 2D debug commands
+  debug_renderer_2d_.Render(debug_service_.Get2DCommands(),
+                            graphic_->GetCommandList(),
+                            ui_scene_data);
 }

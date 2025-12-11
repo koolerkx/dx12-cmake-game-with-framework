@@ -19,3 +19,11 @@ struct DebugVertex {
 };
 
 std::span<const D3D12_INPUT_ELEMENT_DESC> GetInputLayout_DebugVertex();
+
+// Debug vertex structure for 2D UI debug visuals (screen-space)
+struct DebugVertex2D {
+  DirectX::XMFLOAT2 position;
+  uint32_t          color; // RGBA8
+};
+
+std::span<const D3D12_INPUT_ELEMENT_DESC> GetInputLayout_DebugVertex2D();

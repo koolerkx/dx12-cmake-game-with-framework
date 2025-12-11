@@ -83,6 +83,8 @@ add_library(graphic STATIC
     debug_visual_service.cpp
     debug_visual_renderer.h
     debug_visual_renderer.cpp
+    debug_visual_renderer_2d.h
+    debug_visual_renderer_2d.cpp
 )
 
 target_include_directories(graphic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
@@ -97,6 +99,8 @@ target_add_hlsl_auto(graphic "6.5"
     "${CMAKE_SOURCE_DIR}/shaders/basic.ps.hlsl"
     "${CMAKE_SOURCE_DIR}/shaders/debug_line.vs.hlsl"
     "${CMAKE_SOURCE_DIR}/shaders/debug_line.ps.hlsl"
+    "${CMAKE_SOURCE_DIR}/shaders/debug_ui.vs.hlsl"
+    "${CMAKE_SOURCE_DIR}/shaders/debug_ui.ps.hlsl"
 )
 
 # manually add shaders files

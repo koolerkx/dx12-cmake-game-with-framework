@@ -58,3 +58,25 @@ void DebugVisualService::DrawWireBox(
   DrawLine3D(vertices[2], vertices[6], color, mode, DebugCategory::General);
   DrawLine3D(vertices[3], vertices[7], color, mode, DebugCategory::General);
 }
+
+void DebugVisualService::DrawLine2D(
+  const DirectX::XMFLOAT2& p0, const DirectX::XMFLOAT2& p1, const DebugColor& color, DebugCategory2D category) {
+  DebugLine2DCommand cmd;
+  cmd.p0 = p0;
+  cmd.p1 = p1;
+  cmd.color = color;
+  cmd.category = category;
+
+  cmds2D_.lines2D.push_back(cmd);
+}
+
+void DebugVisualService::DrawRect2D(
+  const DirectX::XMFLOAT2& top_left, const DirectX::XMFLOAT2& size, const DebugColor& color, DebugCategory2D category) {
+  DebugRect2DCommand cmd;
+  cmd.top_left = top_left;
+  cmd.size = size;
+  cmd.color = color;
+  cmd.category = category;
+
+  cmds2D_.rects2D.push_back(cmd);
+}

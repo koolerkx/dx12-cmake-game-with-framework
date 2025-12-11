@@ -86,6 +86,7 @@ void Game::OnUpdate(float dt) {
   // Step 11: Demo debug visual API usage
   auto& debug = render_system_.GetDebugVisualService();
 
+  // 3D Debug visuals
   // Draw axis gizmo at origin
   debug.DrawAxisGizmo({0.0f, 0.0f, 0.0f}, 1.0f);
 
@@ -95,6 +96,13 @@ void Game::OnUpdate(float dt) {
   // Draw some reference lines
   debug.DrawLine3D({-3.0f, 0.0f, 0.0f}, {3.0f, 0.0f, 0.0f}, DebugColor::Cyan());
   debug.DrawLine3D({0.0f, -3.0f, 0.0f}, {0.0f, 3.0f, 0.0f}, DebugColor::Magenta());
+
+  // 2D Debug visuals (UI overlay)
+  // Draw a green line at the top of the screen
+  debug.DrawLine2D({10.0f, 10.0f}, {310.0f, 10.0f}, DebugColor::Green());
+
+  // Draw a red rectangle
+  debug.DrawRect2D({10.0f, 20.0f}, {300.0f, 100.0f}, DebugColor::Red());
 }
 
 void Game::OnFixedUpdate(float dt) {
