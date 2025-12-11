@@ -1,5 +1,12 @@
-// Debug UI Pixel Shader (2D screen-space)
-// Simple pass-through pixel shader
+//==============================================================================
+// debug_ui.ps.hlsl
+// 
+// Purpose: Pixel shader for 2D UI debug rendering (screen-space)
+// Used by: DebugVisualRenderer2D
+// 
+// Features:
+// - Pass-through vertex color (no textures)
+//==============================================================================
 
 struct PSInput {
   float4 position : SV_POSITION;

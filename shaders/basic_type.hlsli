@@ -1,6 +1,21 @@
+//==============================================================================
+// basic_type.hlsli
+// 
+// Purpose: Shared types and resources for basic sprite rendering
+// Used by: DefaultSprite2D material template
+// 
+// Root Signature Layout:
+//   param[0] = b0: float4x4 world_pos      (16 x 32-bit constants)
+//   param[1] = b2: float4 color_tint       (4 x 32-bit constants)
+//   param[2] = b3: float4 uv_transform     (4 x 32-bit constants, format: offset.xy, scale.xy)
+//   param[3] = b1: FrameCB                 (constant buffer view)
+//   param[4] = t0: Texture2D               (descriptor table SRV)
+//   sampler s0: Static sampler (POINT, WRAP)
+//==============================================================================
+
 struct VSIN {
-  float3 pos : POSITION;  // Changed from float4 to float3 to match vertex buffer
-  float2 uv : TEXCOORD;
+  float3 pos : POSITION;  // Vertex position (local space)
+  float2 uv : TEXCOORD;   // Texture coordinates
 };
 
 struct BasicType {

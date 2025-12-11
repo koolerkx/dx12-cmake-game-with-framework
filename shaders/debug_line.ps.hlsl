@@ -1,3 +1,13 @@
+//==============================================================================
+// debug_line.ps.hlsl
+// 
+// Purpose: Pixel shader for 3D debug line rendering
+// Material: DefaultDebugLine
+// 
+// Features:
+// - Pass-through vertex color (no textures)
+//==============================================================================
+
 // Debug line pixel shader input (from vertex shader)
 struct DebugVertexOutput
 {
@@ -5,9 +15,8 @@ struct DebugVertexOutput
     float4 color    : COLOR;
 };
 
-// Debug line pixel shader output
 float4 main(DebugVertexOutput input) : SV_TARGET
 {
-    // Simply output the interpolated vertex color
+    // Output the interpolated vertex color
     return input.color;
 }

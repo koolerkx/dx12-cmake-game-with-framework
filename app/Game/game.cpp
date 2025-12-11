@@ -175,18 +175,49 @@ void Game::CreateNewDemoScene() {
   // Create camera using existing method temporarily
   CreateCamera();
 
-  // Create a simple sprite using the new API
-  SpriteCreateParams sprite_params;
-  sprite_params.position = {0.0f, 0.0f, 0.0f};
-  sprite_params.size = {2.0f, 2.0f, 1.0f};
-  sprite_params.layer = RenderLayer::Opaque;
-  sprite_params.color = {1.0f, 0.8f, 0.8f, 1.0f};  // Light red tint
+  // Create sprite #1: Red tint, normal UV
+  SpriteCreateParams sprite1_params;
+  sprite1_params.position = {-2.0f, 0.0f, 0.0f};
+  sprite1_params.size = {1.5f, 1.5f, 1.0f};
+  sprite1_params.layer = RenderLayer::Opaque;
+  sprite1_params.color = {1.0f, 0.2f, 0.2f, 1.0f};  // Red tint
+  sprite1_params.uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};  // Normal UV
 
-  GameObject* demo_sprite = CreateSprite(sprite_params);
-  if (demo_sprite) {
-    demo_sprite->SetName("DemoSprite_NewSystem");
-    std::cout << "[Game] Created demo sprite using new DefaultAssets system" << '\n';
+  GameObject* sprite1 = CreateSprite(sprite1_params);
+  if (sprite1) {
+    sprite1->SetName("RedSprite");
+    std::cout << "[Game] Created red tinted sprite" << '\n';
   }
+
+  // Create sprite #2: Green tint, scaled UV
+  SpriteCreateParams sprite2_params;
+  sprite2_params.position = {0.0f, 0.0f, 0.0f};
+  sprite2_params.size = {1.5f, 1.5f, 1.0f};
+  sprite2_params.layer = RenderLayer::Opaque;
+  sprite2_params.color = {0.2f, 1.0f, 0.2f, 1.0f};  // Green tint
+  sprite2_params.uv_transform = {0.0f, 0.0f, 0.5f, 0.5f};  // UV scaled to 0.5 (shows only part of texture)
+
+  GameObject* sprite2 = CreateSprite(sprite2_params);
+  if (sprite2) {
+    sprite2->SetName("GreenSprite_ScaledUV");
+    std::cout << "[Game] Created green tinted sprite with scaled UV" << '\n';
+  }
+
+  // Create sprite #3: Blue tint, offset UV
+  SpriteCreateParams sprite3_params;
+  sprite3_params.position = {2.0f, 0.0f, 0.0f};
+  sprite3_params.size = {1.5f, 1.5f, 1.0f};
+  sprite3_params.layer = RenderLayer::Opaque;
+  sprite3_params.color = {0.2f, 0.2f, 1.0f, 1.0f};  // Blue tint
+  sprite3_params.uv_transform = {0.25f, 0.25f, 1.0f, 1.0f};  // UV offset by 0.25
+
+  GameObject* sprite3 = CreateSprite(sprite3_params);
+  if (sprite3) {
+    sprite3->SetName("BlueSprite_OffsetUV");
+    std::cout << "[Game] Created blue tinted sprite with offset UV" << '\n';
+  }
+
+  demo_sprite_ = sprite1;  // Keep reference to first sprite
 }
 
 void Game::CreateCamera() {

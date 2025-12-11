@@ -1,6 +1,17 @@
-// Debug UI Vertex Shader (2D screen-space)
-// Input: screen-space pixel coordinates
-// Output: NDC coordinates for rasterization
+//==============================================================================
+// debug_ui.vs.hlsl
+// 
+// Purpose: Vertex shader for 2D UI debug rendering (screen-space)
+// Used by: DebugVisualRenderer2D
+// 
+// Root Signature Layout:
+//   param[0] = b0: float4x4 viewProjMatrix (16 x 32-bit constants)
+// 
+// Features:
+// - Transform from screen-space pixel coordinates to NDC
+// - Per-vertex color support
+// - Top-left origin coordinate system (0,0 = top-left corner)
+//==============================================================================
 
 struct VSInput {
   float2 position : POSITION;
@@ -12,8 +23,7 @@ struct VSOutput {
   float4 color : COLOR;
 };
 
-// Root constants: ortho projection (screen-space to NDC)
-// b0: float4x4 viewProjMatrix (orthographic projection)
+// Orthographic projection matrix for UI (screen-space to NDC)
 cbuffer UIConstants : register(b0) {
   float4x4 viewProjMatrix;
 };

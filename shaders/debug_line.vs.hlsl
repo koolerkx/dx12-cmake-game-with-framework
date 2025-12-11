@@ -1,3 +1,17 @@
+//==============================================================================
+// debug_line.vs.hlsl
+// 
+// Purpose: Vertex shader for 3D debug line rendering
+// Material: DefaultDebugLine
+// 
+// Root Signature Layout:
+//   param[0] = b0: float4x4 ViewProjectionMatrix (16 x 32-bit constants)
+// 
+// Features:
+// - Direct transform from world space to clip space
+// - Per-vertex color support
+//==============================================================================
+
 #include "basic_type.hlsli"
 
 // Debug line vertex shader input
@@ -14,7 +28,7 @@ struct DebugVertexOutput
     float4 color    : COLOR;
 };
 
-// Scene constants - using root constants instead of CBV for better performance
+// Scene constants - using root constants for better performance
 cbuffer SceneConstants : register(b0)
 {
     float4x4 ViewProjectionMatrix;
