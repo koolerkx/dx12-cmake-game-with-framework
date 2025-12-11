@@ -12,18 +12,23 @@ void DebugVisualService::DrawLine3D(
   cmds_.lines3D.push_back(cmd);
 }
 
-void DebugVisualService::DrawAxisGizmo(const DirectX::XMFLOAT3& origin, float length) {
+void DebugVisualService::DrawAxisGizmo(const DirectX::XMFLOAT3& origin, float length, DebugDepthMode depthMode) {
+  const float half = length * 0.5f;
+
   // X-axis (Red)
-  DirectX::XMFLOAT3 x_end = {origin.x + length, origin.y, origin.z};
-  DrawLine3D(origin, x_end, DebugColor::Red(), DebugDepthMode::IgnoreDepth, DebugCategory::Gizmo);
+  DirectX::XMFLOAT3 x0 = {origin.x - half, origin.y, origin.z};
+  DirectX::XMFLOAT3 x1 = {origin.x + half, origin.y, origin.z};
+  DrawLine3D(x0, x1, DebugColor::Red(), depthMode, DebugCategory::Gizmo);
 
   // Y-axis (Green)
-  DirectX::XMFLOAT3 y_end = {origin.x, origin.y + length, origin.z};
-  DrawLine3D(origin, y_end, DebugColor::Green(), DebugDepthMode::IgnoreDepth, DebugCategory::Gizmo);
+  DirectX::XMFLOAT3 y0 = {origin.x, origin.y - half, origin.z};
+  DirectX::XMFLOAT3 y1 = {origin.x, origin.y + half, origin.z};
+  DrawLine3D(y0, y1, DebugColor::Green(), depthMode, DebugCategory::Gizmo);
 
   // Z-axis (Blue)
-  DirectX::XMFLOAT3 z_end = {origin.x, origin.y, origin.z + length};
-  DrawLine3D(origin, z_end, DebugColor::Blue(), DebugDepthMode::IgnoreDepth, DebugCategory::Gizmo);
+  DirectX::XMFLOAT3 z0 = {origin.x, origin.y, origin.z - half};
+  DirectX::XMFLOAT3 z1 = {origin.x, origin.y, origin.z + half};
+  DrawLine3D(z0, z1, DebugColor::Blue(), depthMode, DebugCategory::Gizmo);
 }
 
 void DebugVisualService::DrawWireBox(

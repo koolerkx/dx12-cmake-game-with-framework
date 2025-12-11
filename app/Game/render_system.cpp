@@ -32,19 +32,20 @@ void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
       DirectX::XMMATRIX proj = camera_component->GetProjectionMatrix();
       DirectX::XMMATRIX view_proj = DirectX::XMMatrixMultiply(view, proj);
 
-      DirectX::XMStoreFloat4x4(&scene_data.viewMatrix, DirectX::XMMatrixTranspose(view));
-      DirectX::XMStoreFloat4x4(&scene_data.projMatrix, DirectX::XMMatrixTranspose(proj));
-      DirectX::XMStoreFloat4x4(&scene_data.viewProjMatrix, DirectX::XMMatrixTranspose(view_proj));
+      // Store row-major matrices directly; HLSL declares them as row_major
+      DirectX::XMStoreFloat4x4(&scene_data.viewMatrix, view);
+      DirectX::XMStoreFloat4x4(&scene_data.projMatrix, proj);
+      DirectX::XMStoreFloat4x4(&scene_data.viewProjMatrix, view_proj);
 
       DirectX::XMVECTOR det;
       DirectX::XMMATRIX inv_view_proj = DirectX::XMMatrixInverse(&det, view_proj);
-      DirectX::XMStoreFloat4x4(&scene_data.invViewProjMatrix, DirectX::XMMatrixTranspose(inv_view_proj));
+      DirectX::XMStoreFloat4x4(&scene_data.invViewProjMatrix, inv_view_proj);
 
       scene_data.cameraPosition = camera_transform->GetPosition();
 
       // Set scene data in scene renderer
       scene_renderer.SetSceneData(scene_data);
-      
+
       // Cache camera data for debug rendering
       cached_camera_data_.view_matrix = view;
       cached_camera_data_.projection_matrix = proj;
@@ -119,11 +120,11 @@ void RenderSystem::Submit(Scene& scene, RenderPassManager& render_pass_manager) 
 
 void RenderSystem::Initialize(Graphic& graphic) {
   graphic_ = &graphic;
-  
+
   // Initialize debug renderers
   debug_renderer_.Initialize(graphic);
   debug_renderer_2d_.Initialize(graphic);
-  
+
   std::cout << "[RenderSystem] Initialized with debug visual support" << '\n';
 }
 
@@ -131,17 +132,17 @@ void RenderSystem::Shutdown() {
   debug_renderer_.Shutdown();
   debug_renderer_2d_.Shutdown();
   graphic_ = nullptr;
-  
+
   std::cout << "[RenderSystem] Shutdown complete" << '\n';
 }
 
-void RenderSystem::RenderDebugVisuals(SceneRenderer& /* scene_renderer */) {
+void RenderSystem::RenderDebugVisuals(SceneRenderer& scene_renderer) {
   if (!graphic_ || debug_service_.GetCommandCount() == 0) {
     return;  // Nothing to render
   }
 
   SceneGlobalData debug_scene_data;
-  
+
   if (cached_camera_data_.is_valid) {
     // Use cached camera data
     debug_scene_data.view_matrix = cached_camera_data_.view_matrix;
@@ -155,15 +156,14 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& /* scene_renderer */) {
     debug_scene_data.view_projection_matrix = DirectX::XMMatrixIdentity();
     debug_scene_data.camera_position = {0.0f, 0.0f, 0.0f};
   }
-  
+
   // Get current frame index from swapchain
   UINT frame_index = graphic_->GetCurrentFrameIndex();
   debug_renderer_.BeginFrame(frame_index);
-  
-  // Render debug commands
-  debug_renderer_.Render(debug_service_.GetCommands(),
-                        graphic_->GetCommandList(),
-                        debug_scene_data);
+
+  // Render debug commands with current settings, passing scene_renderer's frame_cb_
+  debug_renderer_.Render(
+    debug_service_.GetCommands(), graphic_->GetCommandList(), debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
 }
 
 void RenderSystem::RenderDebugVisuals2D() {
@@ -174,12 +174,14 @@ void RenderSystem::RenderDebugVisuals2D() {
   // Create orthographic projection for UI (screen-space to NDC)
   UINT width = graphic_->GetFrameBufferWidth();
   UINT height = graphic_->GetFrameBufferHeight();
-  
+
   // Top-left origin orthographic projection
-  DirectX::XMMATRIX ortho_proj = DirectX::XMMatrixOrthographicOffCenterLH(
-    0.0f, static_cast<float>(width),   // left, right
-    static_cast<float>(height), 0.0f,  // top, bottom (flipped for top-left origin)
-    0.0f, 1.0f                          // near, far
+  DirectX::XMMATRIX ortho_proj = DirectX::XMMatrixOrthographicOffCenterLH(0.0f,
+    static_cast<float>(width),  // left, right
+    static_cast<float>(height),
+    0.0f,  // top, bottom (flipped for top-left origin)
+    0.0f,
+    1.0f  // near, far
   );
 
   UISceneData ui_scene_data;
@@ -190,7 +192,5 @@ void RenderSystem::RenderDebugVisuals2D() {
   debug_renderer_2d_.BeginFrame(frame_index);
 
   // Render 2D debug commands
-  debug_renderer_2d_.Render(debug_service_.Get2DCommands(),
-                            graphic_->GetCommandList(),
-                            ui_scene_data);
+  debug_renderer_2d_.Render(debug_service_.Get2DCommands(), graphic_->GetCommandList(), ui_scene_data, debug_settings_);
 }

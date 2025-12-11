@@ -1,3 +1,8 @@
+// Debug Visual Service
+// Immediate-mode API for debug drawing.
+// - 3D: DrawLine3D, DrawWireBox, DrawAxisGizmo (supports depth test or overlay).
+// - 2D: DrawLine2D, DrawRect2D (screen-space overlay).
+// - Filter with DebugCategory and DebugCategory2D.
 #pragma once
 
 #include <DirectXMath.h>
@@ -116,6 +121,66 @@ class DebugVisualCommandBuffer2D {
   std::vector<DebugRect2DCommand> rects2D;
 };
 
+// Settings for debug visual rendering
+struct DebugVisualSettings {
+  // 3D category filters (bitwise flags)
+  bool enable_3d_general = true;
+  bool enable_3d_gizmo = true;
+  bool enable_3d_physics = true;
+  bool enable_3d_selection = true;
+  bool enable_3d_ui = true;
+  bool enable_3d_custom = true;
+
+  // 2D category filters
+  bool enable_2d_general = true;
+  bool enable_2d_layout = true;
+  bool enable_2d_guides = true;
+  bool enable_2d_selection = true;
+
+  // Global toggles
+  bool enable_3d_debug = true;
+  bool enable_2d_debug = true;
+
+  // Check if a 3D category is enabled
+  bool IsCategoryEnabled(DebugCategory category) const {
+    if (!enable_3d_debug) return false;
+    switch (category) {
+      case DebugCategory::General:
+        return enable_3d_general;
+      case DebugCategory::Gizmo:
+        return enable_3d_gizmo;
+      case DebugCategory::Physics:
+        return enable_3d_physics;
+      case DebugCategory::Selection:
+        return enable_3d_selection;
+      case DebugCategory::UI:
+        return enable_3d_ui;
+      case DebugCategory::Custom:
+        return enable_3d_custom;
+      default:
+        return true;
+    }
+  }
+
+  // Check if a 2D category is enabled
+  bool IsCategoryEnabled(DebugCategory2D category) const {
+    if (!enable_2d_debug) return false;
+    if (category == DebugCategory2D::All) return true;
+    switch (category) {
+      case DebugCategory2D::General:
+        return enable_2d_general;
+      case DebugCategory2D::Layout:
+        return enable_2d_layout;
+      case DebugCategory2D::Guides:
+        return enable_2d_guides;
+      case DebugCategory2D::Selection:
+        return enable_2d_selection;
+      default:
+        return true;
+    }
+  }
+};
+
 // High-level debug visual service
 // Provides immediate-mode style API for debug drawing
 // All commands are accumulated in a command buffer for rendering later
@@ -150,7 +215,7 @@ class DebugVisualService {
     DebugCategory2D category = DebugCategory2D::General);
 
   // Convenience overloads for common line types
-  void DrawAxisGizmo(const DirectX::XMFLOAT3& origin, float length = 1.0f);
+  void DrawAxisGizmo(const DirectX::XMFLOAT3& origin, float length = 1.0f, DebugDepthMode depthMode = DebugDepthMode::IgnoreDepth);
   void DrawWireBox(const DirectX::XMFLOAT3& min_point,
     const DirectX::XMFLOAT3& max_point,
     const DebugColor& color = DebugColor::White(),
@@ -174,7 +239,17 @@ class DebugVisualService {
     return cmds2D_.GetTotalCommandCount();
   }
 
+  // Settings access
+  DebugVisualSettings& GetSettings() {
+    return settings_;
+  }
+
+  const DebugVisualSettings& GetSettings() const {
+    return settings_;
+  }
+
  private:
   DebugVisualCommandBuffer cmds_;
   DebugVisualCommandBuffer2D cmds2D_;
+  DebugVisualSettings settings_;
 };

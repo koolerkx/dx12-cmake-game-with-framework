@@ -5,10 +5,11 @@
 // Material: DefaultDebugLine
 // 
 // Root Signature Layout:
-//   param[0] = b0: float4x4 ViewProjectionMatrix (16 x 32-bit constants)
+//   param[0] = b0: float4x4 world_matrix (16 x 32-bit constants)
+//   param[1] = b1: FrameCB (constant buffer view)
 // 
 // Features:
-// - Direct transform from world space to clip space
+// - Local-to-world-to-clip transformation
 // - Per-vertex color support
 //==============================================================================
 
@@ -28,18 +29,22 @@ struct DebugVertexOutput
     float4 color    : COLOR;
 };
 
-// Scene constants - using root constants for better performance
-cbuffer SceneConstants : register(b0)
+// Per-object world transform
+cbuffer PerObjectWorld : register(b0)
 {
-    float4x4 ViewProjectionMatrix;
+    float4x4 world_matrix;
 };
 
 DebugVertexOutput main(DebugVertexInput input)
 {
     DebugVertexOutput output;
     
-    // Transform vertex position to clip space
-    output.position = mul(float4(input.position, 1.0f), ViewProjectionMatrix);
+    // Transform position: Local -> World -> View -> Projection
+    // world_matrix is column-major (not transposed) -> mul(matrix, vector)
+    float4 posW = mul(world_matrix, float4(input.position, 1.0f));
+    // view/proj are row-major (stored as row_major in FrameCB) -> mul(vector, matrix)
+    posW = mul(posW, view);
+    output.position = mul(posW, proj);
     
     // Pass through vertex color
     output.color = input.color;

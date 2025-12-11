@@ -399,6 +399,23 @@ PipelineStateBuilder& PipelineStateBuilder::UseForwardTransparentDefaults() {
   return *this;
 }
 
+PipelineStateBuilder& PipelineStateBuilder::UseOverlayDefaults() {
+  // Overlay preset: always on top, no depth testing, alpha blending optional
+  SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM, 0);
+  SetDepthStencilFormat(DXGI_FORMAT_UNKNOWN);
+
+  SetDepthEnable(false);
+  SetDepthWriteMask(D3D12_DEPTH_WRITE_MASK_ZERO);
+
+  SetCullMode(D3D12_CULL_MODE_NONE);
+  SetFillMode(D3D12_FILL_MODE_SOLID);
+
+  // Note: Blend state is left to caller decision
+  // Call SetBlendEnable(true) if alpha blending is needed
+
+  return *this;
+}
+
 // ========== Build ==========
 
 bool PipelineStateBuilder::Build(ID3D12Device* device, ComPtr<ID3D12PipelineState>& out_pso) {

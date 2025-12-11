@@ -78,6 +78,7 @@ class PipelineStateBuilder {
   PipelineStateBuilder& UsePostProcessDefaults();
   PipelineStateBuilder& UseUIDefaults();
   PipelineStateBuilder& UseForwardTransparentDefaults();
+  PipelineStateBuilder& UseOverlayDefaults();  // For debug overlays and UI elements without depth
 
   // Build final PSO
   bool Build(ID3D12Device* device, ComPtr<ID3D12PipelineState>& out_pso);

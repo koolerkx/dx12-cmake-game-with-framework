@@ -38,6 +38,11 @@ class TransformComponent : public Component {
     dirty_ = true;
   }
 
+  void SetRotationDegrees(float x, float y, float z) {
+    rotation_ = XMFLOAT3(x * XM_PI / 180.0f, y * XM_PI / 180.0f, z * XM_PI / 180.0f);
+    dirty_ = true;
+  }
+
   const XMFLOAT3& GetRotation() const {
     return rotation_;
   }

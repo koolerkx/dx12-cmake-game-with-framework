@@ -67,8 +67,9 @@ void DebugVisualRenderer2D::BeginFrame(uint32_t frame_index) {
 }
 
 void DebugVisualRenderer2D::Render(const DebugVisualCommandBuffer2D& commands,
-                                    ID3D12GraphicsCommandList* command_list,
-                                    const UISceneData& scene_data) {
+  ID3D12GraphicsCommandList* command_list,
+  const UISceneData& scene_data,
+  const DebugVisualSettings& settings) {
   if (commands.GetTotalCommandCount() == 0) {
     return;
   }
@@ -78,19 +79,25 @@ void DebugVisualRenderer2D::Render(const DebugVisualCommandBuffer2D& commands,
   FrameResource& frame_res = frame_resources_[current_frame_index_];
   assert(frame_res.vertex_buffer != nullptr);
 
-  // Expand commands into vertices
+  // Expand commands into vertices (with category filtering)
   std::vector<DebugVertex2D> vertices;
   vertices.reserve(commands.lines2D.size() * 2 + commands.rects2D.size() * 8);
 
-  // Add line vertices
+  // Add line vertices (filter by category)
   for (const auto& line_cmd : commands.lines2D) {
+    if (!settings.IsCategoryEnabled(line_cmd.category)) {
+      continue;  // Skip disabled categories
+    }
     uint32_t color = line_cmd.color.ToRGBA8();
     vertices.push_back({line_cmd.p0, color});
     vertices.push_back({line_cmd.p1, color});
   }
 
-  // Add rectangle vertices (4 lines per rect)
+  // Add rectangle vertices (4 lines per rect, filter by category)
   for (const auto& rect_cmd : commands.rects2D) {
+    if (!settings.IsCategoryEnabled(rect_cmd.category)) {
+      continue;  // Skip disabled categories
+    }
     uint32_t color = rect_cmd.color.ToRGBA8();
     DirectX::XMFLOAT2 tl = rect_cmd.top_left;
     DirectX::XMFLOAT2 br = {tl.x + rect_cmd.size.x, tl.y + rect_cmd.size.y};
@@ -145,7 +152,8 @@ void DebugVisualRenderer2D::Render(const DebugVisualCommandBuffer2D& commands,
 
 bool DebugVisualRenderer2D::CreateRootSignature() {
   RootSignatureBuilder builder;
-  builder.AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)  // b0: 4x4 matrix (16 floats)
+  builder
+    .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)  // b0: 4x4 matrix (16 floats)
     .AllowInputLayout();
 
   return builder.Build(device_, root_signature_);
@@ -153,7 +161,7 @@ bool DebugVisualRenderer2D::CreateRootSignature() {
 
 bool DebugVisualRenderer2D::CreatePipelineState() {
   assert(graphic_ != nullptr);
-  
+
   auto& shader_mgr = graphic_->GetShaderManager();
   const ShaderBlob* vs = shader_mgr.GetShader("DebugUIVS");
   const ShaderBlob* ps = shader_mgr.GetShader("DebugUIPS");
@@ -187,10 +195,7 @@ bool DebugVisualRenderer2D::CreateFrameResources() {
     frame_res.vertex_buffer = std::make_unique<Buffer>();
     const size_t buffer_size = MAX_VERTICES_PER_FRAME * sizeof(DebugVertex2D);
 
-    if (!frame_res.vertex_buffer->Create(device_,
-                                         buffer_size,
-                                         Buffer::Type::Vertex,
-                                         D3D12_HEAP_TYPE_UPLOAD)) {
+    if (!frame_res.vertex_buffer->Create(device_, buffer_size, Buffer::Type::Vertex, D3D12_HEAP_TYPE_UPLOAD)) {
       std::cerr << "[DebugVisualRenderer2D] Failed to create vertex buffer for frame " << i << '\n';
       return false;
     }

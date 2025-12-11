@@ -52,8 +52,10 @@ class CameraComponent : public Component {
 
     DirectX::XMVECTOR eye = DirectX::XMLoadFloat3(&transform->GetPosition());
 
+    // Negate pitch (x) to make positive x rotation look up in left-handed coordinates
+    DirectX::XMFLOAT3 rot = transform->GetRotation();
     DirectX::XMVECTOR forward = DirectX::XMVector3Rotate(DirectX::XMVectorSet(0, 0, 1, 0),
-      DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3(&transform->GetRotation())));
+      DirectX::XMQuaternionRotationRollPitchYaw(-rot.x, rot.y, rot.z));
 
     DirectX::XMVECTOR up = DirectX::XMVectorSet(0, 1, 0, 0);
 

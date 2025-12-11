@@ -76,6 +76,7 @@ void FrameworkDefaultAssets::Shutdown() {
   // Release material instances first
   sprite2d_default_.reset();
   debug_line_default_.reset();
+  debug_line_depth_default_.reset();
 
   // Release textures from managers (Graphic still owns managers at this point)
   if (graphic_) {
@@ -96,8 +97,10 @@ void FrameworkDefaultAssets::Shutdown() {
   rect2d_mesh_.reset();
   sprite2d_template_ = nullptr;
   debug_line_template_ = nullptr;
+  debug_line_depth_template_ = nullptr;
   sprite_material_ = nullptr;
   debug_line_material_ = nullptr;
+  debug_line_depth_material_ = nullptr;
 }
 
 TextureHandle FrameworkDefaultAssets::GetWhiteTexture() const {
@@ -126,6 +129,10 @@ MaterialInstance* FrameworkDefaultAssets::GetSprite2DDefaultMaterial() const {
 
 MaterialInstance* FrameworkDefaultAssets::GetDebugLineMaterial() const {
   return debug_line_material_;
+}
+
+MaterialInstance* FrameworkDefaultAssets::GetDebugLineDepthMaterial() const {
+  return debug_line_depth_material_;
 }
 
 void FrameworkDefaultAssets::CreateDefaultMaterials(Graphic& gfx) {
@@ -164,8 +171,9 @@ void FrameworkDefaultAssets::CreateDefaultMaterials(Graphic& gfx) {
   // Create Sprite2D material
   CreateSprite2DMaterial(gfx);
 
-  // Create DebugLine material
+  // Create DebugLine materials (overlay and depth-tested)
   CreateDebugLineMaterial(gfx);
+  CreateDebugLineDepthMaterial(gfx);
 }
 
 void FrameworkDefaultAssets::CreateSprite2DMaterial(Graphic& gfx) {
@@ -233,11 +241,12 @@ void FrameworkDefaultAssets::CreateDebugLineMaterial(Graphic& gfx) {
   auto& shader_mgr = gfx.GetShaderManager();
   auto& material_mgr = gfx.GetMaterialManager();
 
-  // Create root signature for DebugLine (simpler - no textures)
+  // Create root signature for DebugLine (matches sprite shader layout)
   ComPtr<ID3D12RootSignature> debug_root_signature;
   RootSignatureBuilder rs_builder;
   rs_builder
-    .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)  // b0 - Scene constants (4x4 matrix = 16 floats)
+    .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)  // b0 - World matrix (16 floats)
+    .AddRootCBV(1, D3D12_SHADER_VISIBILITY_VERTEX)           // b1 - FrameCB (view, proj, etc.)
     .AllowInputLayout();
 
   if (!rs_builder.Build(gfx.GetDevice(), debug_root_signature)) {
@@ -258,10 +267,7 @@ void FrameworkDefaultAssets::CreateDebugLineMaterial(Graphic& gfx) {
     .SetInputLayout(input_layout.data(), static_cast<UINT>(input_layout.size()))
     .SetRootSignature(debug_root_signature.Get())
     .SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE)
-    .SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM)
-    .SetDepthStencilFormat(DXGI_FORMAT_UNKNOWN)       // No depth testing for debug lines
-    .SetDepthEnable(false)                            // Disable depth testing
-    .SetDepthWriteMask(D3D12_DEPTH_WRITE_MASK_ZERO);  // No depth writing
+    .UseOverlayDefaults();  // Use overlay preset for debug lines (no depth testing)
 
   if (!pso_builder.Build(gfx.GetDevice(), debug_pso)) {
     std::cerr << "[FrameworkDefaultAssets] Failed to create DebugLine PSO" << '\n';
@@ -277,6 +283,62 @@ void FrameworkDefaultAssets::CreateDebugLineMaterial(Graphic& gfx) {
     if (debug_line_default_->Initialize(debug_line_template_)) {
       debug_line_material_ = debug_line_default_.get();
       std::cout << "[FrameworkDefaultAssets] Created DebugLine default material" << '\n';
+    }
+  }
+}
+
+void FrameworkDefaultAssets::CreateDebugLineDepthMaterial(Graphic& gfx) {
+  auto& shader_mgr = gfx.GetShaderManager();
+  auto& material_mgr = gfx.GetMaterialManager();
+
+  // Use same root signature layout as overlay debug lines
+  ComPtr<ID3D12RootSignature> debug_root_signature;
+  RootSignatureBuilder rs_builder;
+  rs_builder
+    .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)  // b0 - World matrix (16 floats)
+    .AddRootCBV(1, D3D12_SHADER_VISIBILITY_VERTEX)           // b1 - FrameCB (view, proj, etc.)
+    .AllowInputLayout();
+
+  if (!rs_builder.Build(gfx.GetDevice(), debug_root_signature)) {
+    std::cerr << "[FrameworkDefaultAssets] Failed to create DebugLineDepth root signature" << '\n';
+    return;
+  }
+
+  // Create pipeline state with depth testing enabled
+  ComPtr<ID3D12PipelineState> debug_depth_pso;
+  PipelineStateBuilder pso_builder;
+  const ShaderBlob* vs = shader_mgr.GetShader("DebugLineVS");
+  const ShaderBlob* ps = shader_mgr.GetShader("DebugLinePS");
+
+  auto input_layout = GetInputLayout_DebugVertex();
+
+  pso_builder.SetVertexShader(vs)
+    .SetPixelShader(ps)
+    .SetInputLayout(input_layout.data(), static_cast<UINT>(input_layout.size()))
+    .SetRootSignature(debug_root_signature.Get())
+    .SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE)
+    .SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM)
+    .SetDepthStencilFormat(DXGI_FORMAT_D32_FLOAT)
+    .SetDepthEnable(true)
+    .SetDepthWriteMask(D3D12_DEPTH_WRITE_MASK_ZERO)  // Read only
+    .SetDepthFunc(D3D12_COMPARISON_FUNC_LESS_EQUAL)
+    .SetCullMode(D3D12_CULL_MODE_NONE)
+    .SetFillMode(D3D12_FILL_MODE_SOLID);
+
+  if (!pso_builder.Build(gfx.GetDevice(), debug_depth_pso)) {
+    std::cerr << "[FrameworkDefaultAssets] Failed to create DebugLineDepth PSO" << '\n';
+    return;
+  }
+
+  // Create material template
+  debug_line_depth_template_ = material_mgr.CreateTemplate("DefaultDebugLineDepth", debug_depth_pso.Get(), debug_root_signature.Get());
+
+  if (debug_line_depth_template_) {
+    // Create default instance
+    debug_line_depth_default_ = std::make_unique<MaterialInstance>();
+    if (debug_line_depth_default_->Initialize(debug_line_depth_template_)) {
+      debug_line_depth_material_ = debug_line_depth_default_.get();
+      std::cout << "[FrameworkDefaultAssets] Created DebugLineDepth default material" << '\n';
     }
   }
 }

@@ -32,6 +32,7 @@ class FrameworkDefaultAssets {
   // Default materials used by sprite rendering and debug lines
   MaterialInstance* GetSprite2DDefaultMaterial() const;
   MaterialInstance* GetDebugLineMaterial() const;
+  MaterialInstance* GetDebugLineDepthMaterial() const;  // Debug lines with depth testing
 
  private:
   // Non-owning back-pointer to Graphic for creating assets
@@ -52,12 +53,17 @@ class FrameworkDefaultAssets {
   MaterialTemplate* debug_line_template_ = nullptr;
   std::unique_ptr<MaterialInstance> debug_line_default_;
 
+  MaterialTemplate* debug_line_depth_template_ = nullptr;
+  std::unique_ptr<MaterialInstance> debug_line_depth_default_;
+
   // Material instances are owned/managed by MaterialManager; we store raw pointers
   MaterialInstance* sprite_material_ = nullptr;
   MaterialInstance* debug_line_material_ = nullptr;
+  MaterialInstance* debug_line_depth_material_ = nullptr;
 
   // Internal helper methods
   void CreateDefaultMaterials(Graphic& gfx);
   void CreateSprite2DMaterial(Graphic& gfx);
   void CreateDebugLineMaterial(Graphic& gfx);
+  void CreateDebugLineDepthMaterial(Graphic& gfx);
 };

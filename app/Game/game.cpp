@@ -8,6 +8,7 @@
 #include "Component/renderer_component.h"
 #include "Component/transform_component.h"
 #include "RenderPass/render_layer.h"
+#include "debug_visual_service.h"
 #include "graphic.h"
 
 using namespace DirectX;
@@ -87,8 +88,8 @@ void Game::OnUpdate(float dt) {
   auto& debug = render_system_.GetDebugVisualService();
 
   // 3D Debug visuals
-  // Draw axis gizmo at origin
-  debug.DrawAxisGizmo({0.0f, 0.0f, 0.0f}, 1.0f);
+  // Draw axis gizmo at origin - try both modes to see the difference
+  debug.DrawAxisGizmo({0.0f, 0.0f, 0.0f}, 100.0f, DebugDepthMode::TestDepth);  // Change to TestDepth to see depth testing
 
   // Draw a simple wire box around the sprite
   debug.DrawWireBox({-1.5f, -1.5f, -0.5f}, {1.5f, 1.5f, 0.5f}, DebugColor::Yellow(), DebugDepthMode::TestDepth);
@@ -99,7 +100,7 @@ void Game::OnUpdate(float dt) {
 
   // 2D Debug visuals (UI overlay)
   // Draw a green line at the top of the screen
-  debug.DrawLine2D({10.0f, 10.0f}, {310.0f, 10.0f}, DebugColor::Green());
+  debug.DrawLine2D({10.0f, 10.0f}, {1000.0f, 10.0f}, DebugColor::Green());
 
   // Draw a red rectangle
   debug.DrawRect2D({10.0f, 20.0f}, {300.0f, 100.0f}, DebugColor::Red());
@@ -177,10 +178,10 @@ void Game::CreateNewDemoScene() {
 
   // Create sprite #1: Red tint, normal UV
   SpriteCreateParams sprite1_params;
-  sprite1_params.position = {-2.0f, 0.0f, 0.0f};
+  sprite1_params.position = {-2.0f, 0.0f, 1.0f};  // z 改成 1.0f
   sprite1_params.size = {1.5f, 1.5f, 1.0f};
   sprite1_params.layer = RenderLayer::Opaque;
-  sprite1_params.color = {1.0f, 0.2f, 0.2f, 1.0f};  // Red tint
+  sprite1_params.color = {1.0f, 0.2f, 0.2f, 1.0f};         // Red tint
   sprite1_params.uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};  // Normal UV
 
   GameObject* sprite1 = CreateSprite(sprite1_params);
@@ -194,7 +195,7 @@ void Game::CreateNewDemoScene() {
   sprite2_params.position = {0.0f, 0.0f, 0.0f};
   sprite2_params.size = {1.5f, 1.5f, 1.0f};
   sprite2_params.layer = RenderLayer::Opaque;
-  sprite2_params.color = {0.2f, 1.0f, 0.2f, 1.0f};  // Green tint
+  sprite2_params.color = {0.2f, 1.0f, 0.2f, 1.0f};         // Green tint
   sprite2_params.uv_transform = {0.0f, 0.0f, 0.5f, 0.5f};  // UV scaled to 0.5 (shows only part of texture)
 
   GameObject* sprite2 = CreateSprite(sprite2_params);
@@ -205,10 +206,10 @@ void Game::CreateNewDemoScene() {
 
   // Create sprite #3: Blue tint, offset UV
   SpriteCreateParams sprite3_params;
-  sprite3_params.position = {2.0f, 0.0f, 0.0f};
+  sprite3_params.position = {2.0f, 0.0f, -1.0f};
   sprite3_params.size = {1.5f, 1.5f, 1.0f};
   sprite3_params.layer = RenderLayer::Opaque;
-  sprite3_params.color = {0.2f, 0.2f, 1.0f, 1.0f};  // Blue tint
+  sprite3_params.color = {0.2f, 0.2f, 1.0f, 1.0f};           // Blue tint
   sprite3_params.uv_transform = {0.25f, 0.25f, 1.0f, 1.0f};  // UV offset by 0.25
 
   GameObject* sprite3 = CreateSprite(sprite3_params);
@@ -224,7 +225,9 @@ void Game::CreateCamera() {
   // Create 3D camera
   GameObject* camera_3d = scene_.CreateGameObject("Camera3D");
   TransformComponent* cam_transform = new TransformComponent();
-  cam_transform->SetPosition(0.0f, 0.0f, -5.0f);  // Move back a bit to see the sprite
+  // Position camera so that sprites around the origin are in front of it
+  cam_transform->SetPosition(-3.0f, 3.0f, -5.0f);
+  cam_transform->SetRotation(DirectX::XMConvertToRadians(30.0f), DirectX::XMConvertToRadians(30.0f), 0.0f);
   camera_3d->AddComponent(cam_transform);
 
   CameraComponent* camera_component = new CameraComponent();

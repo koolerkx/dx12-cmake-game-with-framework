@@ -20,3 +20,4 @@ float4 main(DebugVertexOutput input) : SV_TARGET
     // Output the interpolated vertex color
     return input.color;
 }
+

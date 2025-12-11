@@ -97,6 +97,11 @@ class SceneRenderer {
   // Set FrameCB, Scene Data
   bool SetSceneData(const SceneData& scene_data);
 
+  // Get frame constant buffer for debug rendering
+  const Buffer& GetFrameConstantBuffer() const {
+    return frame_cb_;
+  }
+
   // Statistics
   size_t GetPacketCount() const {
     return packets_.size();

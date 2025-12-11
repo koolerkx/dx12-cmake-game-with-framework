@@ -27,11 +27,13 @@ struct BasicType {
 Texture2D<float4> tex : register(t0);
 SamplerState smp : register(s0);
 
+// FrameCB: Matrices are stored in row-major layout on CPU side
+// Declare them as row_major and use mul(vector, matrix) in shaders
 cbuffer FrameCB : register(b1) {
-  float4x4 view;
-  float4x4 proj;
-  float4x4 view_proj;
-  float4x4 inv_view_pos;
+  row_major float4x4 view;
+  row_major float4x4 proj;
+  row_major float4x4 view_proj;
+  row_major float4x4 inv_view_proj;
   float3 camera_pos;
   float pad;
 };

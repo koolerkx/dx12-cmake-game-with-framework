@@ -31,8 +31,9 @@ class DebugVisualRenderer2D {
 
   void BeginFrame(uint32_t frame_index);
   void Render(const DebugVisualCommandBuffer2D& commands,
-              ID3D12GraphicsCommandList* command_list,
-              const UISceneData& scene_data);
+    ID3D12GraphicsCommandList* command_list,
+    const UISceneData& scene_data,
+    const DebugVisualSettings& settings);
 
  private:
   struct FrameResource {

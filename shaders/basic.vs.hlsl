@@ -20,7 +20,9 @@ BasicType main(VSIN input) {
   BasicType output;
   
   // Transform position: Local -> World -> View -> Projection
+  // world_pos is column-major (not transposed) -> mul(matrix, vector)
   float4 posW = mul(world_pos, float4(input.pos, 1.0f));
+  // view/proj are row-major (stored as row_major in FrameCB) -> mul(vector, matrix)
   posW = mul(posW, view);
   output.svpos = mul(posW, proj);
 

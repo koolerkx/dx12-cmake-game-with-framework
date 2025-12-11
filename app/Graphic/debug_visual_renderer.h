@@ -44,7 +44,11 @@ class DebugVisualRenderer {
   void BeginFrame(uint32_t frameIndex);
 
   // Render all debug commands accumulated in the command buffer
-  void Render(const DebugVisualCommandBuffer& cmds, ID3D12GraphicsCommandList* cmd_list, const SceneGlobalData& sceneData);
+  void Render(const DebugVisualCommandBuffer& cmds,
+    ID3D12GraphicsCommandList* cmd_list,
+    const SceneGlobalData& sceneData,
+    const Buffer& frame_cb,
+    const DebugVisualSettings& settings);
 
   // Statistics
   uint32_t GetLastFrameVertexCount() const {
@@ -83,9 +87,15 @@ class DebugVisualRenderer {
   // Material system references (non-owning)
   MaterialTemplate* debug_line_template_ = nullptr;
   MaterialInstance* debug_line_material_ = nullptr;
+  MaterialTemplate* debug_line_depth_template_ = nullptr;
+  MaterialInstance* debug_line_depth_material_ = nullptr;
 
   // Internal helpers
   bool CreateFrameBuffers();
   void ReleaseFrameBuffers();
-  UINT ConvertCommandsToVertices(const DebugVisualCommandBuffer& cmds, DebugVertex* vertex_buffer, UINT max_vertices);
+  UINT ConvertCommandsToVertices(const DebugVisualCommandBuffer& cmds,
+    DebugVertex* vertex_buffer,
+    UINT max_vertices,
+    DebugDepthMode depthMode,
+    const DebugVisualSettings& settings);
 };

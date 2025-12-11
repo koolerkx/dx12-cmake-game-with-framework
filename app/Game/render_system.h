@@ -1,10 +1,11 @@
 #pragma once
 
 #include "Scene/scene.h"
-#include "game_object.h"
-#include "debug_visual_service.h"
 #include "debug_visual_renderer.h"
 #include "debug_visual_renderer_2d.h"
+#include "debug_visual_service.h"
+#include "game_object.h"
+
 
 class Graphic;
 class RenderPassManager;
@@ -21,15 +22,28 @@ class RenderSystem {
   void RenderFrame(Scene& scene, GameObject* active_camera);
 
   // Access to debug visual system
-  DebugVisualService& GetDebugVisualService() { return debug_service_; }
-  const DebugVisualService& GetDebugVisualService() const { return debug_service_; }
+  DebugVisualService& GetDebugVisualService() {
+    return debug_service_;
+  }
+  const DebugVisualService& GetDebugVisualService() const {
+    return debug_service_;
+  }
+
+  // Access to debug visual settings
+  DebugVisualSettings& GetDebugSettings() {
+    return debug_settings_;
+  }
+  const DebugVisualSettings& GetDebugSettings() const {
+    return debug_settings_;
+  }
 
  private:
   Graphic* graphic_ = nullptr;
-  DebugVisualService  debug_service_;
+  DebugVisualService debug_service_;
+  DebugVisualSettings debug_settings_;  // Debug visual filtering/toggle settings
   DebugVisualRenderer debug_renderer_;
   DebugVisualRenderer2D debug_renderer_2d_;
-  
+
   // Cached camera data for debug rendering
   struct CachedCameraData {
     DirectX::XMMATRIX view_matrix;
