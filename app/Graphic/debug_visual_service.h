@@ -143,6 +143,8 @@ struct DebugVisualSettings {
   bool enable_2d_debug = true;
   bool enable_3d_overlay = true;       // Draw overlay (no depth) lines
   bool enable_3d_depth_tested = true;  // Draw depth-tested lines
+  bool enable_3d_depth_lines = true;
+  bool enable_3d_overlay_lines = true;
 
   // Check if a 3D category is enabled
   bool IsCategoryEnabled(DebugCategory category) const {

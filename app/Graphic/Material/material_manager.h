@@ -3,7 +3,9 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
+#include "material_instance.h"
 #include "material_template.h"
 
 // MaterialManager: Manages MaterialTemplates
@@ -30,6 +32,12 @@ class MaterialManager {
   // Check if template exists
   bool HasTemplate(const std::string& name) const;
 
+  // Create a material instance owned by the manager
+  MaterialInstance* CreateInstance(MaterialTemplate* material_template, const std::string& debug_name = "");
+
+  // Remove a previously created instance (no-op if not found)
+  void RemoveInstance(MaterialInstance* instance);
+
   // Remove template
   void RemoveTemplate(const std::string& name);
 
@@ -45,4 +53,5 @@ class MaterialManager {
 
  private:
   std::unordered_map<std::string, std::unique_ptr<MaterialTemplate>> templates_;
+  std::vector<std::unique_ptr<MaterialInstance>> instances_;
 };

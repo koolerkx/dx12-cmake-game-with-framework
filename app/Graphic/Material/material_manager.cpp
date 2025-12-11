@@ -1,7 +1,10 @@
 #include "material_manager.h"
 
+#include <algorithm>
 #include <cassert>
 #include <iostream>
+
+#include "material_instance.h"
 
 MaterialTemplate* MaterialManager::CreateTemplate(const std::string& name,
   ID3D12PipelineState* pso,
@@ -52,6 +55,38 @@ bool MaterialManager::HasTemplate(const std::string& name) const {
   return templates_.find(name) != templates_.end();
 }
 
+MaterialInstance* MaterialManager::CreateInstance(MaterialTemplate* material_template, const std::string& debug_name) {
+  if (material_template == nullptr) {
+    std::cerr << "[MaterialManager] Cannot create instance with null template" << '\n';
+    return nullptr;
+  }
+
+  auto instance = std::make_unique<MaterialInstance>();
+  if (!instance->Initialize(material_template)) {
+    std::cerr << "[MaterialManager] Failed to initialize material instance for template '" << material_template->GetName() << "'" << '\n';
+    return nullptr;
+  }
+
+  if (!debug_name.empty()) {
+    std::cout << "[MaterialManager] Created instance: " << debug_name << " (template=" << material_template->GetName() << ")" << '\n';
+  }
+
+  instances_.push_back(std::move(instance));
+  return instances_.back().get();
+}
+
+void MaterialManager::RemoveInstance(MaterialInstance* instance) {
+  if (instance == nullptr) {
+    return;
+  }
+
+  auto it = std::find_if(instances_.begin(), instances_.end(), [instance](const auto& ptr) { return ptr.get() == instance; });
+  if (it != instances_.end()) {
+    instances_.erase(it);
+    std::cout << "[MaterialManager] Removed material instance" << '\n';
+  }
+}
+
 void MaterialManager::RemoveTemplate(const std::string& name) {
   auto it = templates_.find(name);
   if (it != templates_.end()) {
@@ -62,12 +97,14 @@ void MaterialManager::RemoveTemplate(const std::string& name) {
 
 void MaterialManager::Clear() {
   std::cout << "[MaterialManager] Clearing " << templates_.size() << " templates" << '\n';
+  instances_.clear();
   templates_.clear();
 }
 
 void MaterialManager::PrintStats() const {
   std::cout << "\n=== Material Manager Statistics ===" << '\n';
   std::cout << "Total Templates: " << templates_.size() << '\n';
+  std::cout << "Total Instances: " << instances_.size() << '\n';
 
   std::cout << "\nRegistered Templates:" << '\n';
   for (const auto& [name, template_ptr] : templates_) {

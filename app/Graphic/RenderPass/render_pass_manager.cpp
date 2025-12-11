@@ -3,6 +3,8 @@
 #include <cassert>
 #include <iostream>
 
+#include "RenderPass/render_pass.h"
+
 bool RenderPassManager::Initialize(ID3D12Device* device) {
   assert(device != nullptr);
 
@@ -27,7 +29,6 @@ void RenderPassManager::RegisterPass(const std::string& name, std::unique_ptr<Re
 
   RenderPass* pass_ptr = pass.get();
   passes_.push_back(std::move(pass));
-  pass_names_.push_back(name);
   pass_map_[name] = pass_ptr;
 
   std::cout << "[RenderPassManager] Registered pass: " << name << '\n';
@@ -50,37 +51,58 @@ void RenderPassManager::SubmitPacket(const RenderPacket& packet) {
   render_queue_.push_back(packet);
 }
 
-void RenderPassManager::SubmitPacketToPass(const std::string& pass_name, const RenderPacket& packet) {
+void RenderPassManager::SubmitToPass(const std::string& name, const RenderPacket& packet) {
   if (!packet.IsValid()) {
-    std::cerr << "[RenderPassManager] Warning: Invalid render packet submitted to pass: " << pass_name << '\n';
+    std::cerr << "[RenderPassManager] Warning: Invalid render packet submitted to pass '" << name << "'" << '\n';
     return;
   }
 
-  pass_queues_[pass_name].push_back(packet);
+  RenderPass* pass = GetPass(name);
+  if (!pass) {
+    std::cerr << "[RenderPassManager] Warning: Pass '" << name << "' not found; falling back to unified queue" << '\n';
+    render_queue_.push_back(packet);
+    return;
+  }
+
+  pass_queues_[pass].push_back(packet);
 }
 
 void RenderPassManager::RenderFrame(ID3D12GraphicsCommandList* command_list, TextureManager& texture_manager) {
   assert(command_list != nullptr);
 
+  if (render_queue_.empty()) {
+    // Even if unified queue is empty, per-pass queues may have items
+    bool any_direct_packets = false;
+    for (const auto& pair : pass_queues_) {
+      if (!pair.second.empty()) {
+        any_direct_packets = true;
+        break;
+      }
+    }
+    if (!any_direct_packets) {
+      return;
+    }
+  }
+
   // Execute each enabled pass in order
-  for (size_t i = 0; i < passes_.size(); ++i) {
-    const auto& pass = passes_[i];
+  for (const auto& pass : passes_) {
     if (!pass->IsEnabled()) {
       continue;
     }
 
-    // Submit only packets targeted for this pass (or fall back to shared queue)
+    // Clear scene renderer and feed packets from unified queue or pass-specific queue
     scene_renderer_.Clear();
-    const std::string& pass_name = pass_names_[i];
-    auto queue_it = pass_queues_.find(pass_name);
-    const auto& queue = (queue_it != pass_queues_.end()) ? queue_it->second : render_queue_;
-    for (const auto& packet : queue) {
+
+    // Unified queue flows through all passes
+    for (const auto& packet : render_queue_) {
       scene_renderer_.Submit(packet);
     }
-
-    // Skip empty queues
-    if (queue.empty()) {
-      continue;
+    // Pass-specific queue applies only to this pass
+    auto pass_queue_it = pass_queues_.find(pass.get());
+    if (pass_queue_it != pass_queues_.end()) {
+      for (const auto& packet : pass_queue_it->second) {
+        scene_renderer_.Submit(packet);
+      }
     }
 
     // Begin pass

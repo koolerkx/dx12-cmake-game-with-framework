@@ -91,6 +91,11 @@ void DebugVisualRenderer::RenderDepthTested(const DebugVisualCommandBuffer& cmds
     return;
   }
 
+  if (sceneData.scene_cb_gpu_address == 0) {
+    std::cerr << "[DebugVisualRenderer] Skipping depth-tested debug lines because Scene CB address is invalid" << '\n';
+    return;
+  }
+
   const D3D12_GPU_VIRTUAL_ADDRESS cb_address =
     sceneData.scene_cb_gpu_address ? sceneData.scene_cb_gpu_address : frame_cb.GetGPUAddress();
   if (cb_address == 0) {
@@ -133,6 +138,7 @@ void DebugVisualRenderer::RenderOverlay(const DebugVisualCommandBuffer& cmds,
   DebugVertex* dst = frame.mapped_ptr + start_offset;
 
   const UINT overlay_vertex_count = FillVertexData(cmds, dst, remaining, DebugDepthMode::IgnoreDepth, settings);
+  assert(start_offset + overlay_vertex_count <= MAX_DEBUG_VERTICES);
   if (overlay_vertex_count == 0) {
     last_frame_vertex_count_ = frame.vertex_count;
     return;
