@@ -61,12 +61,26 @@ bool Game::VerifyDefaultAssets() {
     return false;
   }
 
+  // Check default material instances
+  if (!defaults.GetSprite2DDefaultMaterial()) {
+    std::cerr << "[Game] DefaultAssets: Sprite2D default material is null!" << '\n';
+    return false;
+  }
+
+  if (!defaults.GetDebugLineMaterial()) {
+    std::cerr << "[Game] DefaultAssets: Debug line material is null!" << '\n';
+    return false;
+  }
+
   std::cout << "[Game] DefaultAssets verification passed." << '\n';
 
   return true;
 }
 
 void Game::OnUpdate(float dt) {
+  // Begin debug frame - clear previous frame's commands
+  render_system_.GetDebugVisualService().BeginFrame();
+
   scene_.Update(dt);
 
   // Step 11: Demo debug visual API usage

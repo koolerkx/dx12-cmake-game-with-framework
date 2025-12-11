@@ -86,6 +86,10 @@ class Graphic {
     return frame_buffer_height_;
   }
 
+  UINT GetCurrentFrameIndex() const {
+    return swap_chain_manager_.GetCurrentFrameIndex();
+  }
+
   static constexpr int FRAME_BUFFER_COUNT = 2;
 
  private:

@@ -13,9 +13,6 @@
 void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   assert(graphic_ != nullptr);
 
-  // Begin debug frame
-  debug_service_.BeginFrame();
-
   // Begin frame - clears render targets, sets up command list
   graphic_->BeginFrame();
 
@@ -154,9 +151,9 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& /* scene_renderer */) {
     debug_scene_data.camera_position = {0.0f, 0.0f, 0.0f};
   }
   
-  // Use frame index 0 for now - this could be improved by adding
-  // frame tracking to Graphic class
-  debug_renderer_.BeginFrame(0);
+  // Get current frame index from swapchain
+  UINT frame_index = graphic_->GetCurrentFrameIndex();
+  debug_renderer_.BeginFrame(frame_index);
   
   // Render debug commands
   debug_renderer_.Render(debug_service_.GetCommands(),

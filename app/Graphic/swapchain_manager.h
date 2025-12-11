@@ -31,6 +31,11 @@ class SwapChainManager {
     return swap_chain_ ? swap_chain_->GetCurrentBackBufferIndex() : 0;
   }
 
+  // Alias for frame index usage
+  UINT GetCurrentFrameIndex() const {
+    return GetCurrentBackBufferIndex();
+  }
+
   D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentRTV() const {
     return GetCurrentRenderTarget()->GetRTV();
   }
@@ -54,10 +59,16 @@ class SwapChainManager {
 
   void Present(UINT syncInterval = 1, UINT flags = 0);
 
-  IDXGISwapChain4* GetSwapChain() const { return swap_chain_.Get(); }
+  IDXGISwapChain4* GetSwapChain() const {
+    return swap_chain_.Get();
+  }
 
-  UINT GetWdith() const { return width_; }
-  UINT GetHeight() const { return height_; }
+  UINT GetWdith() const {
+    return width_;
+  }
+  UINT GetHeight() const {
+    return height_;
+  }
 
   bool Resize(UINT width, UINT height, DescriptorHeapManager& descriptor_manager);
 
