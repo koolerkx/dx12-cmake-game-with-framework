@@ -30,7 +30,7 @@ class FrameworkDefaultAssets {
   std::shared_ptr<Mesh> GetRect2DMesh() const;
 
   // Default materials used by sprite rendering and debug lines
-  MaterialInstance* GetSprite2DDefaultMaterial() const;  // Alias to UI by default
+  MaterialInstance* GetSprite2DDefaultMaterial() const;  // Alias to UI sprite
   MaterialInstance* GetSpriteWorldOpaqueMaterial() const;
   MaterialInstance* GetSpriteWorldTransparentMaterial() const;
   MaterialInstance* GetSpriteUIMaterial() const;

@@ -21,14 +21,19 @@ void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   RenderPassManager& render_pass_manager = graphic_->GetRenderPassManager();
   SceneRenderer& scene_renderer = render_pass_manager.GetSceneRenderer();
 
-  // Set camera data if available
+  // Set camera data if available (fallback to identity to avoid stale data)
+  SceneData scene_data{};
+  DirectX::XMStoreFloat4x4(&scene_data.viewMatrix, DirectX::XMMatrixIdentity());
+  DirectX::XMStoreFloat4x4(&scene_data.projMatrix, DirectX::XMMatrixIdentity());
+  DirectX::XMStoreFloat4x4(&scene_data.viewProjMatrix, DirectX::XMMatrixIdentity());
+  DirectX::XMStoreFloat4x4(&scene_data.invViewProjMatrix, DirectX::XMMatrixIdentity());
+  scene_data.cameraPosition = {0.0f, 0.0f, 0.0f};
+
   if (active_camera) {
     CameraComponent* camera_component = active_camera->GetComponent<CameraComponent>();
     TransformComponent* camera_transform = active_camera->GetComponent<TransformComponent>();
 
     if (camera_component && camera_transform) {
-      SceneData scene_data;
-
       DirectX::XMMATRIX view = camera_component->GetViewMatrix();
       DirectX::XMMATRIX proj = camera_component->GetProjectionMatrix();
       DirectX::XMMATRIX view_proj = DirectX::XMMatrixMultiply(view, proj);
@@ -55,55 +60,74 @@ void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
       cached_camera_data_.is_valid = true;
     }
   } else {
-    SceneData scene_data{};
-    DirectX::XMStoreFloat4x4(&scene_data.viewMatrix, DirectX::XMMatrixIdentity());
-    DirectX::XMStoreFloat4x4(&scene_data.projMatrix, DirectX::XMMatrixIdentity());
-    DirectX::XMStoreFloat4x4(&scene_data.viewProjMatrix, DirectX::XMMatrixIdentity());
-    DirectX::XMStoreFloat4x4(&scene_data.invViewProjMatrix, DirectX::XMMatrixIdentity());
-    scene_data.cameraPosition = {0.0f, 0.0f, 0.0f};
-    scene_renderer.SetSceneData(scene_data);
     cached_camera_data_.is_valid = false;
   }
 
-  // Clear previous frame data
-  scene_renderer.Clear();
-  scene_renderer.ResetStats();
+  // Ensure scene renderer has at least identity data
+  scene_renderer.SetSceneData(scene_data);
 
-  // Submit all renderables from the scene to the appropriate queues
-  Submit(scene, render_pass_manager);
+  // Prepare render queues split by layer to avoid UI/world cross-talk
+  std::vector<RenderPacket> world_packets;
+  std::vector<RenderPacket> ui_packets;
+  BuildRenderQueues(scene, world_packets, ui_packets);
 
   // Pass toggles for ordered rendering
   RenderPass* forward_pass = render_pass_manager.GetPass("Forward");
   RenderPass* ui_pass = render_pass_manager.GetPass("UI");
 
   // Phase 1: world (opaque + transparent). UI disabled.
+  render_pass_manager.Clear();
   if (ui_pass) ui_pass->SetEnabled(false);
   if (forward_pass) forward_pass->SetEnabled(true);
+  for (const auto& packet : world_packets) {
+    render_pass_manager.SubmitPacket(packet);
+  }
   render_pass_manager.RenderFrame(graphic_->GetCommandList(), graphic_->GetTextureManager());
 
   // Phase 2: Debug 3D (uses depth written by world)
   RenderDebugVisuals(scene_renderer);
 
-  // Phase 3: UI only
+  // Phase 3: UI only (orthographic, no depth)
+  render_pass_manager.Clear();
   if (forward_pass) forward_pass->SetEnabled(false);
   if (ui_pass) ui_pass->SetEnabled(true);
+
+  // Upload UI frame constants (orthographic, top-left origin)
+  {
+    SceneData ui_scene{};
+    DirectX::XMMATRIX view = DirectX::XMMatrixIdentity();
+    DirectX::XMMATRIX proj = DirectX::XMMatrixOrthographicOffCenterLH(
+      0.0f, static_cast<float>(graphic_->GetFrameBufferWidth()), 0.0f, static_cast<float>(graphic_->GetFrameBufferHeight()), 0.0f, 1.0f);
+    DirectX::XMMATRIX view_proj = DirectX::XMMatrixMultiply(view, proj);
+
+    DirectX::XMStoreFloat4x4(&ui_scene.viewMatrix, view);
+    DirectX::XMStoreFloat4x4(&ui_scene.projMatrix, proj);
+    DirectX::XMStoreFloat4x4(&ui_scene.viewProjMatrix, view_proj);
+    DirectX::XMVECTOR det;
+    DirectX::XMMATRIX inv_view_proj = DirectX::XMMatrixInverse(&det, view_proj);
+    DirectX::XMStoreFloat4x4(&ui_scene.invViewProjMatrix, inv_view_proj);
+    ui_scene.cameraPosition = {0.0f, 0.0f, 0.0f};
+    scene_renderer.SetSceneData(ui_scene);
+  }
+
+  for (const auto& packet : ui_packets) {
+    render_pass_manager.SubmitPacket(packet);
+  }
   render_pass_manager.RenderFrame(graphic_->GetCommandList(), graphic_->GetTextureManager());
 
   // Phase 4: Debug 2D overlay (RT only)
   RenderDebugVisuals2D(frame_index);
 
-  // Restore pass enable states for next frame
+  // Clear render queues for next frame and restore pass defaults
+  render_pass_manager.Clear();
   if (forward_pass) forward_pass->SetEnabled(true);
   if (ui_pass) ui_pass->SetEnabled(true);
-
-  // Clear render queues for next frame before presenting
-  render_pass_manager.Clear();
 
   // End frame - present
   graphic_->EndFrame();
 }
 
-void RenderSystem::Submit(Scene& scene, RenderPassManager& render_pass_manager) {
+void RenderSystem::BuildRenderQueues(Scene& scene, std::vector<RenderPacket>& world_packets, std::vector<RenderPacket>& ui_packets) {
   const auto& game_objects = scene.GetGameObjects();
 
   for (const auto& game_object : game_objects) {
@@ -116,10 +140,6 @@ void RenderSystem::Submit(Scene& scene, RenderPassManager& render_pass_manager) 
       continue;
     }
 
-    // Build a RenderPacket from the renderer component and submit to the
-    // RenderPassManager unified queue. This ensures render_queue_ is
-    // populated for the frame (previous code relied on direct
-    // SceneRenderer submissions which left render_queue_ empty).
     RenderPacket packet;
     packet.mesh = renderer->GetMesh();
     packet.material = renderer->GetMaterial();
@@ -140,11 +160,10 @@ void RenderSystem::Submit(Scene& scene, RenderPassManager& render_pass_manager) 
       continue;
     }
 
-    // Route packets based on layer to keep UI isolated from world passes
     if (HasLayer(packet.layer, RenderLayer::UI)) {
-      render_pass_manager.SubmitToPass("UI", packet);
+      ui_packets.push_back(packet);
     } else {
-      render_pass_manager.SubmitToPass("Forward", packet);
+      world_packets.push_back(packet);
     }
   }
 }
@@ -172,13 +191,17 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& scene_renderer) {
     return;
   }
 
-  if (!debug_settings_.enable_3d_debug) {
-    return;
+  const auto& cmds3D = debug_service_.GetCommands3D();
+  const auto& cmds2D = debug_service_.GetCommands2D();
+
+  if (cmds3D.lines3D.empty() && cmds2D.GetTotalCommandCount() == 0) {
+    return;  // Nothing to render
   }
 
-  const auto& cmds3D = debug_service_.GetCommands3D();
-  if (cmds3D.lines3D.empty()) {
-    return;  // Nothing to render
+  const bool render_depth_tested = debug_settings_.enable_3d_debug && debug_settings_.draw_depth_tested_3d && cached_camera_data_.is_valid;
+  const bool render_overlay = debug_settings_.enable_3d_debug && debug_settings_.draw_overlay_3d;
+  if (!render_depth_tested && !render_overlay) {
+    return;
   }
 
   ID3D12GraphicsCommandList* cmd_list = graphic_->GetCommandList();
@@ -194,8 +217,7 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& scene_renderer) {
   cmd_list->RSSetScissorRects(1, &scissor);
 
   SceneGlobalData debug_scene_data{};
-  const bool has_camera = cached_camera_data_.is_valid;
-  if (has_camera) {
+  if (cached_camera_data_.is_valid) {
     debug_scene_data.view_matrix = cached_camera_data_.view_matrix;
     debug_scene_data.projection_matrix = cached_camera_data_.projection_matrix;
     debug_scene_data.view_projection_matrix = cached_camera_data_.view_projection_matrix;
@@ -211,12 +233,25 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& scene_renderer) {
   const uint32_t frame_index = graphic_->GetCurrentFrameIndex();
   debug_renderer_.BeginFrame(frame_index);
 
-  // Depth-tested pass then overlay pass share the same vertex buffer; allow toggling
-  if (debug_settings_.enable_3d_depth_lines && has_camera) {
-    debug_renderer_.RenderDepthTested(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
-  }
-  if (debug_settings_.enable_3d_overlay_lines) {
-    debug_renderer_.RenderOverlay(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
+  // Depth-tested pass then overlay pass share the same vertex buffer
+  auto render_depth = [&]() {
+    if (render_depth_tested) {
+      debug_renderer_.RenderDepthTested(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
+    }
+  };
+
+  auto render_overlay_pass = [&]() {
+    if (render_overlay) {
+      debug_renderer_.RenderOverlay(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
+    }
+  };
+
+  if (debug_settings_.depth_first_3d) {
+    render_depth();
+    render_overlay_pass();
+  } else {
+    render_overlay_pass();
+    render_depth();
   }
 
 }
@@ -227,7 +262,7 @@ void RenderSystem::RenderDebugVisuals2D(uint32_t frame_index) {
   }
 
   const auto& cmds2D = debug_service_.GetCommands2D();
-  if (cmds2D.GetTotalCommandCount() == 0) {
+  if (!debug_settings_.enable_2d_debug || cmds2D.GetTotalCommandCount() == 0) {
     return;  // Nothing to render
   }
 
@@ -246,14 +281,16 @@ void RenderSystem::RenderDebugVisuals2D(uint32_t frame_index) {
   UINT width = graphic_->GetFrameBufferWidth();
   UINT height = graphic_->GetFrameBufferHeight();
 
-  DirectX::XMMATRIX ortho_proj = DirectX::XMMatrixOrthographicOffCenterLH(
-    0.0f, static_cast<float>(width), 0.0f, static_cast<float>(height), 0.0f, 1.0f);
+  DirectX::XMMATRIX ortho_proj = DirectX::XMMatrixOrthographicOffCenterLH(0.0f,
+    static_cast<float>(width),   // left, right
+    0.0f,                        // top
+    static_cast<float>(height),  // bottom
+    0.0f,
+    1.0f);
 
   UISceneData ui_scene_data;
   ui_scene_data.view_projection_matrix = ortho_proj;
 
   debug_renderer_2d_.BeginFrame(frame_index);
-  if (debug_settings_.enable_2d_debug) {
-    debug_renderer_2d_.Render(cmds2D, cmd_list, ui_scene_data, debug_settings_);
-  }
+  debug_renderer_2d_.Render(cmds2D, cmd_list, ui_scene_data, debug_settings_);
 }

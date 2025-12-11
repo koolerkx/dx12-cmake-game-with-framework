@@ -3,10 +3,10 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
-#include "material_instance.h"
 #include "material_template.h"
+
+class MaterialInstance;
 
 // MaterialManager: Manages MaterialTemplates
 // Provides centralized creation and lookup of material templates
@@ -25,21 +25,28 @@ class MaterialManager {
     const std::vector<TextureSlotDefinition>& texture_slots = {},
     const std::vector<ConstantBufferDefinition>& constant_buffers = {});
 
+  // Create and register a material instance owned by the manager
+  MaterialInstance* CreateInstance(const std::string& name, MaterialTemplate* material_template);
+
   // Get template by name
   MaterialTemplate* GetTemplate(const std::string& name);
   const MaterialTemplate* GetTemplate(const std::string& name) const;
 
+  // Get instance by name
+  MaterialInstance* GetInstance(const std::string& name);
+  const MaterialInstance* GetInstance(const std::string& name) const;
+
   // Check if template exists
   bool HasTemplate(const std::string& name) const;
 
-  // Create a material instance owned by the manager
-  MaterialInstance* CreateInstance(MaterialTemplate* material_template, const std::string& debug_name = "");
-
-  // Remove a previously created instance (no-op if not found)
-  void RemoveInstance(MaterialInstance* instance);
+  // Check if instance exists
+  bool HasInstance(const std::string& name) const;
 
   // Remove template
   void RemoveTemplate(const std::string& name);
+
+  // Remove instance
+  void RemoveInstance(const std::string& name);
 
   // Clear all templates
   void Clear();
@@ -51,7 +58,13 @@ class MaterialManager {
 
   void PrintStats() const;
 
+  size_t GetInstanceCount() const {
+    return instances_.size();
+  }
+
+  void PrintStats() const;
+
  private:
   std::unordered_map<std::string, std::unique_ptr<MaterialTemplate>> templates_;
-  std::vector<std::unique_ptr<MaterialInstance>> instances_;
+  std::unordered_map<std::string, std::unique_ptr<MaterialInstance>> instances_;
 };

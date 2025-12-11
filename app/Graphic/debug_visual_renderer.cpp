@@ -96,10 +96,12 @@ void DebugVisualRenderer::RenderDepthTested(const DebugVisualCommandBuffer& cmds
     return;
   }
 
-  const D3D12_GPU_VIRTUAL_ADDRESS cb_address =
-    sceneData.scene_cb_gpu_address ? sceneData.scene_cb_gpu_address : frame_cb.GetGPUAddress();
+  const D3D12_GPU_VIRTUAL_ADDRESS cb_address = sceneData.scene_cb_gpu_address ? sceneData.scene_cb_gpu_address : frame_cb.GetGPUAddress();
   if (cb_address == 0) {
-    return;  // No valid camera/frame constants for depth-tested rendering
+    return;
+  }
+  if (cb_address == 0) {
+    return;
   }
 
   DirectX::XMFLOAT4X4 identity_world;
@@ -130,6 +132,7 @@ void DebugVisualRenderer::RenderOverlay(const DebugVisualCommandBuffer& cmds,
   auto& frame = frames_[current_frame_index_];
 
   const UINT start_offset = frame.vertex_count;  // Depth-tested vertices already written (if any)
+  assert(start_offset <= MAX_DEBUG_VERTICES);
   if (start_offset >= MAX_DEBUG_VERTICES) {
     return;
   }
@@ -148,8 +151,7 @@ void DebugVisualRenderer::RenderOverlay(const DebugVisualCommandBuffer& cmds,
   frame.vertex_count += overlay_vertex_count;
   last_frame_vertex_count_ = frame.vertex_count;
 
-  const D3D12_GPU_VIRTUAL_ADDRESS cb_address =
-    sceneData.scene_cb_gpu_address ? sceneData.scene_cb_gpu_address : frame_cb.GetGPUAddress();
+  const D3D12_GPU_VIRTUAL_ADDRESS cb_address = sceneData.scene_cb_gpu_address ? sceneData.scene_cb_gpu_address : frame_cb.GetGPUAddress();
 
   DirectX::XMFLOAT4X4 identity_world;
   DirectX::XMStoreFloat4x4(&identity_world, DirectX::XMMatrixIdentity());

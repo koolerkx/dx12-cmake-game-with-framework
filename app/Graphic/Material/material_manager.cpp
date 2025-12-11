@@ -1,6 +1,5 @@
 #include "material_manager.h"
 
-#include <algorithm>
 #include <cassert>
 #include <iostream>
 
@@ -35,6 +34,28 @@ MaterialTemplate* MaterialManager::CreateTemplate(const std::string& name,
   return ptr;
 }
 
+MaterialInstance* MaterialManager::CreateInstance(const std::string& name, MaterialTemplate* material_template) {
+  assert(material_template != nullptr);
+
+  if (HasInstance(name)) {
+    std::cerr << "[MaterialManager] Instance '" << name << "' already exists" << '\n';
+    return GetInstance(name);
+  }
+
+  auto instance = std::make_unique<MaterialInstance>();
+  if (!instance->Initialize(material_template)) {
+    std::cerr << "[MaterialManager] Failed to initialize instance '" << name << "'" << '\n';
+    return nullptr;
+  }
+
+  MaterialInstance* ptr = instance.get();
+  instances_[name] = std::move(instance);
+
+  std::cout << "[MaterialManager] Created instance: " << name << '\n';
+
+  return ptr;
+}
+
 MaterialTemplate* MaterialManager::GetTemplate(const std::string& name) {
   auto it = templates_.find(name);
   if (it != templates_.end()) {
@@ -51,40 +72,28 @@ const MaterialTemplate* MaterialManager::GetTemplate(const std::string& name) co
   return nullptr;
 }
 
+MaterialInstance* MaterialManager::GetInstance(const std::string& name) {
+  auto it = instances_.find(name);
+  if (it != instances_.end()) {
+    return it->second.get();
+  }
+  return nullptr;
+}
+
+const MaterialInstance* MaterialManager::GetInstance(const std::string& name) const {
+  auto it = instances_.find(name);
+  if (it != instances_.end()) {
+    return it->second.get();
+  }
+  return nullptr;
+}
+
 bool MaterialManager::HasTemplate(const std::string& name) const {
   return templates_.find(name) != templates_.end();
 }
 
-MaterialInstance* MaterialManager::CreateInstance(MaterialTemplate* material_template, const std::string& debug_name) {
-  if (material_template == nullptr) {
-    std::cerr << "[MaterialManager] Cannot create instance with null template" << '\n';
-    return nullptr;
-  }
-
-  auto instance = std::make_unique<MaterialInstance>();
-  if (!instance->Initialize(material_template)) {
-    std::cerr << "[MaterialManager] Failed to initialize material instance for template '" << material_template->GetName() << "'" << '\n';
-    return nullptr;
-  }
-
-  if (!debug_name.empty()) {
-    std::cout << "[MaterialManager] Created instance: " << debug_name << " (template=" << material_template->GetName() << ")" << '\n';
-  }
-
-  instances_.push_back(std::move(instance));
-  return instances_.back().get();
-}
-
-void MaterialManager::RemoveInstance(MaterialInstance* instance) {
-  if (instance == nullptr) {
-    return;
-  }
-
-  auto it = std::find_if(instances_.begin(), instances_.end(), [instance](const auto& ptr) { return ptr.get() == instance; });
-  if (it != instances_.end()) {
-    instances_.erase(it);
-    std::cout << "[MaterialManager] Removed material instance" << '\n';
-  }
+bool MaterialManager::HasInstance(const std::string& name) const {
+  return instances_.find(name) != instances_.end();
 }
 
 void MaterialManager::RemoveTemplate(const std::string& name) {
@@ -95,8 +104,16 @@ void MaterialManager::RemoveTemplate(const std::string& name) {
   }
 }
 
+void MaterialManager::RemoveInstance(const std::string& name) {
+  auto it = instances_.find(name);
+  if (it != instances_.end()) {
+    std::cout << "[MaterialManager] Removed instance: " << name << '\n';
+    instances_.erase(it);
+  }
+}
+
 void MaterialManager::Clear() {
-  std::cout << "[MaterialManager] Clearing " << templates_.size() << " templates" << '\n';
+  std::cout << "[MaterialManager] Clearing " << templates_.size() << " templates and " << instances_.size() << " instances" << '\n';
   instances_.clear();
   templates_.clear();
 }
@@ -110,6 +127,15 @@ void MaterialManager::PrintStats() const {
   for (const auto& [name, template_ptr] : templates_) {
     std::cout << "  - " << name << " (Textures: " << template_ptr->GetTextureSlotCount()
               << ", CBs: " << template_ptr->GetConstantBufferCount() << ")" << '\n';
+  }
+
+  std::cout << "\nRegistered Instances:" << '\n';
+  for (const auto& [name, instance_ptr] : instances_) {
+    std::cout << "  - " << name;
+    if (instance_ptr && instance_ptr->GetTemplate()) {
+      std::cout << " (Template: " << instance_ptr->GetTemplate()->GetName() << ")";
+    }
+    std::cout << '\n';
   }
 
   std::cout << "===================================\n" << '\n';

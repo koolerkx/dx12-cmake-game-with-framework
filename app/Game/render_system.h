@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "Scene/scene.h"
 #include "debug_visual_renderer.h"
 #include "debug_visual_renderer_2d.h"
@@ -53,7 +55,7 @@ class RenderSystem {
     bool is_valid = false;
   } cached_camera_data_;
 
-  void Submit(Scene& scene, RenderPassManager& render_pass_manager);
+  void BuildRenderQueues(Scene& scene, std::vector<RenderPacket>& world_packets, std::vector<RenderPacket>& ui_packets);
   void RenderDebugVisuals(SceneRenderer& scene_renderer);
   void RenderDebugVisuals2D(uint32_t frame_index);
 };
