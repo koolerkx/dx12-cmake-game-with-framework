@@ -1,6 +1,7 @@
 #include "buffer.h"
 
 #include <cassert>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 
@@ -74,15 +75,22 @@ bool Buffer::Create(ID3D12Device* device, size_t size, Type type, D3D12_HEAP_TYP
 }
 
 void Buffer::Upload(const void* data, size_t size) {
+  Upload(data, size, 0);
+}
+
+void Buffer::Upload(const void* data, size_t size, size_t offset) {
   assert(data != nullptr);
+  assert(offset <= size_);
   assert(size <= size_);
+  assert(offset + size <= size_);
 
   if (mapped_data_ == nullptr) {
     std::cerr << "Buffer::Upload - Buffer is not mapped. Only upload heap buffers can be uploaded directly" << '\n';
     return;
   }
 
-  std::memcpy(mapped_data_, data, size);
+  auto* dst = reinterpret_cast<std::uint8_t*>(mapped_data_) + offset;
+  std::memcpy(dst, data, size);
 }
 
 D3D12_VERTEX_BUFFER_VIEW Buffer::GetVBV(uint32_t stride) const {

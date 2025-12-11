@@ -13,117 +13,37 @@
 void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   assert(graphic_ != nullptr);
 
-  // Begin frame - clears render targets, sets up command list
   graphic_->BeginFrame();
   const uint32_t frame_index = graphic_->GetCurrentFrameIndex();
 
-  // Get render pass manager
-  RenderPassManager& render_pass_manager = graphic_->GetRenderPassManager();
-  SceneRenderer& scene_renderer = render_pass_manager.GetSceneRenderer();
+  auto& rpm = graphic_->GetRenderPassManager();
+  SceneRenderer& sr = rpm.GetSceneRenderer();
 
-  // Set camera data if available (fallback to identity to avoid stale data)
-  SceneData scene_data{};
-  DirectX::XMStoreFloat4x4(&scene_data.viewMatrix, DirectX::XMMatrixIdentity());
-  DirectX::XMStoreFloat4x4(&scene_data.projMatrix, DirectX::XMMatrixIdentity());
-  DirectX::XMStoreFloat4x4(&scene_data.viewProjMatrix, DirectX::XMMatrixIdentity());
-  DirectX::XMStoreFloat4x4(&scene_data.invViewProjMatrix, DirectX::XMMatrixIdentity());
-  scene_data.cameraPosition = {0.0f, 0.0f, 0.0f};
+  sr.BeginFrame(frame_index);
 
-  if (active_camera) {
-    CameraComponent* camera_component = active_camera->GetComponent<CameraComponent>();
-    TransformComponent* camera_transform = active_camera->GetComponent<TransformComponent>();
+  // 1) World SceneData
+  SceneData world_scene{};
+  SetupWorldSceneData(active_camera, sr, world_scene);
 
-    if (camera_component && camera_transform) {
-      DirectX::XMMATRIX view = camera_component->GetViewMatrix();
-      DirectX::XMMATRIX proj = camera_component->GetProjectionMatrix();
-      DirectX::XMMATRIX view_proj = DirectX::XMMatrixMultiply(view, proj);
-
-      // Store row-major matrices directly; HLSL declares them as row_major
-      DirectX::XMStoreFloat4x4(&scene_data.viewMatrix, view);
-      DirectX::XMStoreFloat4x4(&scene_data.projMatrix, proj);
-      DirectX::XMStoreFloat4x4(&scene_data.viewProjMatrix, view_proj);
-
-      DirectX::XMVECTOR det;
-      DirectX::XMMATRIX inv_view_proj = DirectX::XMMatrixInverse(&det, view_proj);
-      DirectX::XMStoreFloat4x4(&scene_data.invViewProjMatrix, inv_view_proj);
-
-      scene_data.cameraPosition = camera_transform->GetPosition();
-
-      // Set scene data in scene renderer
-      scene_renderer.SetSceneData(scene_data);
-
-      // Cache camera data for debug rendering
-      cached_camera_data_.view_matrix = view;
-      cached_camera_data_.projection_matrix = proj;
-      cached_camera_data_.view_projection_matrix = view_proj;
-      cached_camera_data_.camera_position = camera_transform->GetPosition();
-      cached_camera_data_.is_valid = true;
-    }
-  } else {
-    cached_camera_data_.is_valid = false;
-  }
-
-  // Ensure scene renderer has at least identity data
-  scene_renderer.SetSceneData(scene_data);
-
-  // Prepare render queues split by layer to avoid UI/world cross-talk
+  // 2)  render queues
   std::vector<RenderPacket> world_packets;
   std::vector<RenderPacket> ui_packets;
   BuildRenderQueues(scene, world_packets, ui_packets);
 
-  // Pass toggles for ordered rendering
-  RenderPass* forward_pass = render_pass_manager.GetPass("Forward");
-  RenderPass* ui_pass = render_pass_manager.GetPass("UI");
+  // 3) World pass + 3D debug
+  RenderWorldPass(scene, active_camera, rpm, sr, world_packets);
 
-  // Phase 1: world (opaque + transparent). UI disabled.
-  render_pass_manager.Clear();
-  if (ui_pass) ui_pass->SetEnabled(false);
-  if (forward_pass) forward_pass->SetEnabled(true);
-  for (const auto& packet : world_packets) {
-    render_pass_manager.SubmitPacket(packet);
-  }
-  render_pass_manager.RenderFrame(graphic_->GetCommandList(), graphic_->GetTextureManager());
+  // 4) UI pass
+  RenderUIPass(rpm, sr, ui_packets);
 
-  // Phase 2: Debug 3D (uses depth written by world)
-  RenderDebugVisuals(scene_renderer);
-
-  // Phase 3: UI only (orthographic, no depth)
-  render_pass_manager.Clear();
-  if (forward_pass) forward_pass->SetEnabled(false);
-  if (ui_pass) ui_pass->SetEnabled(true);
-
-  // Upload UI frame constants (orthographic, top-left origin)
-  {
-    SceneData ui_scene{};
-    DirectX::XMMATRIX view = DirectX::XMMatrixIdentity();
-    DirectX::XMMATRIX proj = DirectX::XMMatrixOrthographicOffCenterLH(
-      0.0f, static_cast<float>(graphic_->GetFrameBufferWidth()), 0.0f, static_cast<float>(graphic_->GetFrameBufferHeight()), 0.0f, 1.0f);
-    DirectX::XMMATRIX view_proj = DirectX::XMMatrixMultiply(view, proj);
-
-    DirectX::XMStoreFloat4x4(&ui_scene.viewMatrix, view);
-    DirectX::XMStoreFloat4x4(&ui_scene.projMatrix, proj);
-    DirectX::XMStoreFloat4x4(&ui_scene.viewProjMatrix, view_proj);
-    DirectX::XMVECTOR det;
-    DirectX::XMMATRIX inv_view_proj = DirectX::XMMatrixInverse(&det, view_proj);
-    DirectX::XMStoreFloat4x4(&ui_scene.invViewProjMatrix, inv_view_proj);
-    ui_scene.cameraPosition = {0.0f, 0.0f, 0.0f};
-    scene_renderer.SetSceneData(ui_scene);
-  }
-
-  for (const auto& packet : ui_packets) {
-    render_pass_manager.SubmitPacket(packet);
-  }
-  render_pass_manager.RenderFrame(graphic_->GetCommandList(), graphic_->GetTextureManager());
-
-  // Phase 4: Debug 2D overlay (RT only)
+  // 5) 2D debug
   RenderDebugVisuals2D(frame_index);
 
-  // Clear render queues for next frame and restore pass defaults
-  render_pass_manager.Clear();
-  if (forward_pass) forward_pass->SetEnabled(true);
-  if (ui_pass) ui_pass->SetEnabled(true);
+  // 6) reset pass if needed
+  rpm.Clear();
+  if (rpm.GetPass("Forward")) rpm.GetPass("Forward")->SetEnabled(true);
+  if (rpm.GetPass("UI")) rpm.GetPass("UI")->SetEnabled(true);
 
-  // End frame - present
   graphic_->EndFrame();
 }
 
@@ -228,7 +148,7 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& scene_renderer) {
     debug_scene_data.view_projection_matrix = DirectX::XMMatrixIdentity();
     debug_scene_data.camera_position = {0.0f, 0.0f, 0.0f};
   }
-  debug_scene_data.scene_cb_gpu_address = scene_renderer.GetFrameConstantBuffer().GetGPUAddress();
+  debug_scene_data.scene_cb_gpu_address = scene_renderer.GetCurrentSceneCBVAddress();
 
   const uint32_t frame_index = graphic_->GetCurrentFrameIndex();
   debug_renderer_.BeginFrame(frame_index);
@@ -253,7 +173,6 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& scene_renderer) {
     render_overlay_pass();
     render_depth();
   }
-
 }
 
 void RenderSystem::RenderDebugVisuals2D(uint32_t frame_index) {
@@ -283,8 +202,8 @@ void RenderSystem::RenderDebugVisuals2D(uint32_t frame_index) {
 
   DirectX::XMMATRIX ortho_proj = DirectX::XMMatrixOrthographicOffCenterLH(0.0f,
     static_cast<float>(width),   // left, right
-    0.0f,                        // top
     static_cast<float>(height),  // bottom
+    0.0f,                        // top
     0.0f,
     1.0f);
 
@@ -293,4 +212,98 @@ void RenderSystem::RenderDebugVisuals2D(uint32_t frame_index) {
 
   debug_renderer_2d_.BeginFrame(frame_index);
   debug_renderer_2d_.Render(cmds2D, cmd_list, ui_scene_data, debug_settings_);
+}
+
+void RenderSystem::SetupWorldSceneData(GameObject* active_camera, SceneRenderer& scene_renderer, SceneData& out_scene_data) {
+  // default fallback scene data
+  DirectX::XMStoreFloat4x4(&out_scene_data.viewMatrix, DirectX::XMMatrixIdentity());
+  DirectX::XMStoreFloat4x4(&out_scene_data.projMatrix, DirectX::XMMatrixIdentity());
+  DirectX::XMStoreFloat4x4(&out_scene_data.viewProjMatrix, DirectX::XMMatrixIdentity());
+  DirectX::XMStoreFloat4x4(&out_scene_data.invViewProjMatrix, DirectX::XMMatrixIdentity());
+  out_scene_data.cameraPosition = {0.0f, 0.0f, 0.0f};
+  out_scene_data.debugId = 1;
+
+  if (active_camera) {
+    auto* camera_component = active_camera->GetComponent<CameraComponent>();
+    auto* camera_transform = active_camera->GetComponent<TransformComponent>();
+    if (camera_component && camera_transform) {
+      DirectX::XMMATRIX view = camera_component->GetViewMatrix();
+      DirectX::XMMATRIX proj = camera_component->GetProjectionMatrix();
+      DirectX::XMMATRIX view_proj = DirectX::XMMatrixMultiply(view, proj);
+
+      DirectX::XMStoreFloat4x4(&out_scene_data.viewMatrix, view);
+      DirectX::XMStoreFloat4x4(&out_scene_data.projMatrix, proj);
+      DirectX::XMStoreFloat4x4(&out_scene_data.viewProjMatrix, view_proj);
+
+      DirectX::XMVECTOR det;
+      DirectX::XMMATRIX inv_view_proj = DirectX::XMMatrixInverse(&det, view_proj);
+      DirectX::XMStoreFloat4x4(&out_scene_data.invViewProjMatrix, inv_view_proj);
+
+      out_scene_data.cameraPosition = camera_transform->GetPosition();
+
+      cached_camera_data_.view_matrix = view;
+      cached_camera_data_.projection_matrix = proj;
+      cached_camera_data_.view_projection_matrix = view_proj;
+      cached_camera_data_.camera_position = camera_transform->GetPosition();
+      cached_camera_data_.is_valid = true;
+    } else {
+      cached_camera_data_.is_valid = false;
+    }
+  } else {
+    cached_camera_data_.is_valid = false;
+  }
+
+  // write SceneRenderer
+  scene_renderer.SetSceneData(out_scene_data);
+}
+
+void RenderSystem::RenderWorldPass(
+  Scene&, GameObject*, RenderPassManager& rpm, SceneRenderer& scene_renderer, const std::vector<RenderPacket>& world_packets) {
+  RenderPass* forward_pass = rpm.GetPass("Forward");
+  RenderPass* ui_pass = rpm.GetPass("UI");
+
+  rpm.Clear();
+  if (ui_pass) ui_pass->SetEnabled(false);
+  if (forward_pass) forward_pass->SetEnabled(true);
+
+  for (const auto& packet : world_packets) {
+    rpm.SubmitPacket(packet);
+  }
+
+  rpm.RenderFrame(graphic_->GetCommandList(), graphic_->GetTextureManager());
+
+  // cached_camera_data_ + scene_renderer.GetFrameConstantBuffer()
+  RenderDebugVisuals(scene_renderer);
+}
+
+void RenderSystem::RenderUIPass(RenderPassManager& rpm, SceneRenderer& scene_renderer, const std::vector<RenderPacket>& ui_packets) {
+  RenderPass* forward_pass = rpm.GetPass("Forward");
+  RenderPass* ui_pass = rpm.GetPass("UI");
+
+  rpm.Clear();
+  if (forward_pass) forward_pass->SetEnabled(false);
+  if (ui_pass) ui_pass->SetEnabled(true);
+
+  SceneData ui_scene{};
+  DirectX::XMMATRIX view = DirectX::XMMatrixIdentity();
+  DirectX::XMMATRIX proj = DirectX::XMMatrixOrthographicOffCenterLH(
+    0.0f, static_cast<float>(graphic_->GetFrameBufferWidth()), static_cast<float>(graphic_->GetFrameBufferHeight()), 0.0f, 0.0f, 1.0f);
+  DirectX::XMMATRIX view_proj = DirectX::XMMatrixMultiply(view, proj);
+
+  DirectX::XMStoreFloat4x4(&ui_scene.viewMatrix, view);
+  DirectX::XMStoreFloat4x4(&ui_scene.projMatrix, proj);
+  DirectX::XMStoreFloat4x4(&ui_scene.viewProjMatrix, view_proj);
+  DirectX::XMVECTOR det;
+  DirectX::XMMATRIX inv_view_proj = DirectX::XMMatrixInverse(&det, view_proj);
+  DirectX::XMStoreFloat4x4(&ui_scene.invViewProjMatrix, inv_view_proj);
+  ui_scene.cameraPosition = {0.0f, 0.0f, 0.0f};
+  ui_scene.debugId = 2;
+
+  scene_renderer.SetSceneData(ui_scene);
+
+  for (const auto& packet : ui_packets) {
+    rpm.SubmitPacket(packet);
+  }
+
+  rpm.RenderFrame(graphic_->GetCommandList(), graphic_->GetTextureManager());
 }

@@ -140,7 +140,8 @@ GameObject* Game::CreateSprite(const SpriteCreateParams& params) {
   // Material selection: use provided material or default Sprite2D material
   MaterialInstance* material_to_use = params.material;
   if (!material_to_use) {
-    material_to_use = defaults.GetSprite2DDefaultMaterial();
+    // Route to default material based on layer: UI gets UI material (no depth), world gets depth-tested sprite material.
+    material_to_use = HasLayer(params.layer, RenderLayer::UI) ? defaults.GetSpriteUIMaterial() : defaults.GetSpriteWorldOpaqueMaterial();
   }
 
   if (material_to_use) {
@@ -183,7 +184,7 @@ void Game::CreateNewDemoScene() {
 
   // Create sprite #1: Red tint, normal UV
   SpriteCreateParams sprite1_params;
-  sprite1_params.position = {-2.0f, 0.0f, 1.0f};  // z 改成 1.0f
+  sprite1_params.position = {-4.0f, 0.0f, 0.0f};  // z 改成 1.0f
   sprite1_params.size = {1.5f, 1.5f, 1.0f};
   sprite1_params.layer = RenderLayer::Opaque;
   sprite1_params.color = {1.0f, 0.2f, 0.2f, 1.0f};         // Red tint
@@ -211,7 +212,7 @@ void Game::CreateNewDemoScene() {
 
   // Create sprite #3: Blue tint, offset UV
   SpriteCreateParams sprite3_params;
-  sprite3_params.position = {2.0f, 0.0f, -1.0f};
+  sprite3_params.position = {4.0f, 0.0f, 0.0f};
   sprite3_params.size = {1.5f, 1.5f, 1.0f};
   sprite3_params.layer = RenderLayer::Opaque;
   sprite3_params.color = {0.2f, 0.2f, 1.0f, 1.0f};           // Blue tint
@@ -232,7 +233,10 @@ void Game::CreateCamera() {
   TransformComponent* cam_transform = new TransformComponent();
   // Position camera so that sprites around the origin are in front of it
   cam_transform->SetPosition(-3.0f, 3.0f, -5.0f);
-  cam_transform->SetRotation(DirectX::XMConvertToRadians(30.0f), DirectX::XMConvertToRadians(30.0f), 0.0f);
+  float rotx = 30.0f;
+  float roty = 30.0f;
+  cam_transform->SetRotation(DirectX::XMConvertToRadians(rotx), DirectX::XMConvertToRadians(roty), 0.0f);
+
   camera_3d->AddComponent(cam_transform);
 
   CameraComponent* camera_component = new CameraComponent();

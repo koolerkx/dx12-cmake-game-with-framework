@@ -56,8 +56,6 @@ class MaterialManager {
     return templates_.size();
   }
 
-  void PrintStats() const;
-
   size_t GetInstanceCount() const {
     return instances_.size();
   }

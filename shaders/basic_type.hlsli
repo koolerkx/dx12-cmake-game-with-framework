@@ -35,5 +35,5 @@ cbuffer FrameCB : register(b1) {
   row_major float4x4 view_proj;
   row_major float4x4 inv_view_proj;
   float3 camera_pos;
-  float pad;
+  uint debug_id;
 };

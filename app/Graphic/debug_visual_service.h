@@ -141,16 +141,9 @@ struct DebugVisualSettings {
   // Global toggles
   bool enable_3d_debug = true;
   bool enable_2d_debug = true;
-<<<<<<< Current (Your changes)
-  bool enable_3d_overlay = true;       // Draw overlay (no depth) lines
-  bool enable_3d_depth_tested = true;  // Draw depth-tested lines
-  bool enable_3d_depth_lines = true;
-  bool enable_3d_overlay_lines = true;
-=======
-  bool draw_depth_tested_3d = true;
-  bool draw_overlay_3d = true;
-  bool depth_first_3d = true;
->>>>>>> Incoming (Background Agent changes)
+  bool draw_depth_tested_3d = true;  // Depth-tested debug lines/gizmos (occluded by world)
+  bool draw_overlay_3d = false;      // Overlay disabled by default to avoid depth-free 3D gizmos
+  bool depth_first_3d = true;        // Render depth-tested first when both enabled
 
   // Check if a 3D category is enabled
   bool IsCategoryEnabled(DebugCategory category) const {

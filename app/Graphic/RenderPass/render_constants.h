@@ -29,4 +29,11 @@ inline void SetFrameConstants(ID3D12GraphicsCommandList* cmd, const Buffer& fram
     cmd->SetGraphicsRootConstantBufferView(3, frame_cb.GetGPUAddress());
   }
 }
+
+inline void SetFrameConstants(ID3D12GraphicsCommandList* cmd, D3D12_GPU_VIRTUAL_ADDRESS cb_address) {
+  // Frame CB is bound to root parameter index 3 (b1)
+  if (cb_address != 0) {
+    cmd->SetGraphicsRootConstantBufferView(3, cb_address);
+  }
+}
 }  // namespace RenderHelpers

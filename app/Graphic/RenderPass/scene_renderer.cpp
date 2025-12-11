@@ -8,7 +8,10 @@
 #include "RenderPass/render_constants.h"
 
 bool SceneRenderer::Initialize(ID3D12Device* device) {
-  bool result = frame_cb_.Create(device, sizeof(SceneData), Buffer::Type::Constant, D3D12_HEAP_TYPE_UPLOAD);
+  const size_t per_frame_size = kMaxSceneUpdatesPerFrame * kAlignedSceneDataSize;
+  const size_t total_size = kFrameCount * per_frame_size;
+
+  bool result = frame_cb_.Create(device, total_size, Buffer::Type::Constant, D3D12_HEAP_TYPE_UPLOAD);
 
   if (!result) {
     std::cerr << "[SceneRenderer] Failed to create frame constant buffer." << '\n';
@@ -16,6 +19,15 @@ bool SceneRenderer::Initialize(ID3D12Device* device) {
   }
   frame_cb_.SetDebugName("Scene_FrameCB");
   return true;
+}
+
+void SceneRenderer::BeginFrame(uint32_t frame_index) {
+  current_frame_index_ = frame_index % kFrameCount;
+
+  const size_t per_frame_size = kMaxSceneUpdatesPerFrame * kAlignedSceneDataSize;
+  current_frame_base_offset_ = static_cast<size_t>(current_frame_index_) * per_frame_size;
+  current_cb_offset_ = current_frame_base_offset_;
+  current_scene_data_gpu_address_ = 0;
 }
 
 void SceneRenderer::Submit(const RenderPacket& packet) {
@@ -88,7 +100,7 @@ void SceneRenderer::Flush(ID3D12GraphicsCommandList* command_list, TextureManage
       command_list->SetGraphicsRootSignature(current_template->GetRootSignature());
 
       // Bind frame constant buffer (b1)
-      RenderHelpers::SetFrameConstants(command_list, frame_cb_);
+      RenderHelpers::SetFrameConstants(command_list, current_scene_data_gpu_address_);
       ++pso_switches;
     }
 
@@ -129,7 +141,18 @@ bool SceneRenderer::SetSceneData(const SceneData& scene_data) {
   if (!frame_cb_.IsValid()) {
     return false;
   }
-  frame_cb_.Upload(&scene_data, sizeof(SceneData));
+
+  const size_t per_frame_size = kMaxSceneUpdatesPerFrame * kAlignedSceneDataSize;
+  const size_t frame_end = current_frame_base_offset_ + per_frame_size;
+  if (current_cb_offset_ + kAlignedSceneDataSize > frame_end) {
+    std::cerr << "[SceneRenderer] Error: Exceeded max SetSceneData calls per frame (kMaxSceneUpdatesPerFrame)" << '\n';
+    return false;
+  }
+
+  frame_cb_.Upload(&scene_data, sizeof(SceneData), current_cb_offset_);
+
+  current_scene_data_gpu_address_ = frame_cb_.GetGPUAddress() + current_cb_offset_;
+  current_cb_offset_ += kAlignedSceneDataSize;
 
   return true;
 }

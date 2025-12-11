@@ -20,6 +20,8 @@ class Buffer : public GpuResource {
 
   void Upload(const void* data, size_t size);
 
+  void Upload(const void* data, size_t size, size_t offset);
+
   // View getters
   D3D12_VERTEX_BUFFER_VIEW GetVBV(uint32_t stride) const;
   D3D12_INDEX_BUFFER_VIEW GetIBV(DXGI_FORMAT format) const;

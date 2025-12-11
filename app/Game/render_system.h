@@ -2,12 +2,12 @@
 
 #include <vector>
 
+#include "RenderPass/scene_renderer.h"
 #include "Scene/scene.h"
 #include "debug_visual_renderer.h"
 #include "debug_visual_renderer_2d.h"
 #include "debug_visual_service.h"
 #include "game_object.h"
-
 
 class Graphic;
 class RenderPassManager;
@@ -58,4 +58,14 @@ class RenderSystem {
   void BuildRenderQueues(Scene& scene, std::vector<RenderPacket>& world_packets, std::vector<RenderPacket>& ui_packets);
   void RenderDebugVisuals(SceneRenderer& scene_renderer);
   void RenderDebugVisuals2D(uint32_t frame_index);
+
+  void RenderWorldPass(Scene& scene,
+    GameObject* active_camera,
+    RenderPassManager& rpm,
+    SceneRenderer& scene_renderer,
+    const std::vector<RenderPacket>& world_packets);
+
+  void RenderUIPass(RenderPassManager& rpm, SceneRenderer& scene_renderer, const std::vector<RenderPacket>& ui_packets);
+
+  void SetupWorldSceneData(GameObject* active_camera, SceneRenderer& scene_renderer, SceneData& out_scene_data);
 };

@@ -21,7 +21,7 @@ struct SceneData {
   DirectX::XMFLOAT4X4 invViewProjMatrix;
 
   DirectX::XMFLOAT3 cameraPosition;
-  float padding;
+  uint32_t debugId = 0;
 };
 
 // Lightweight render packet submitted to the scene renderer
@@ -85,6 +85,8 @@ class SceneRenderer {
 
   bool Initialize(ID3D12Device* device);
 
+  void BeginFrame(uint32_t frame_index);
+
   // Submit a render packet
   void Submit(const RenderPacket& packet);
 
@@ -96,6 +98,10 @@ class SceneRenderer {
 
   // Set FrameCB, Scene Data
   bool SetSceneData(const SceneData& scene_data);
+
+  D3D12_GPU_VIRTUAL_ADDRESS GetCurrentSceneCBVAddress() const {
+    return current_scene_data_gpu_address_;
+  }
 
   // Get frame constant buffer for debug rendering
   const Buffer& GetFrameConstantBuffer() const {
@@ -123,6 +129,10 @@ class SceneRenderer {
   void PrintStats() const;
 
  private:
+  static constexpr uint32_t kFrameCount = 2;
+  static constexpr uint32_t kMaxSceneUpdatesPerFrame = 64;
+  static constexpr size_t kAlignedSceneDataSize = (sizeof(SceneData) + 255u) & ~255u;
+
   std::vector<RenderPacket> packets_;
 
   // Statistics
@@ -134,4 +144,9 @@ class SceneRenderer {
   uint64_t GenerateSortKey(const RenderPacket& packet) const;
 
   Buffer frame_cb_;
+
+  uint32_t current_frame_index_ = 0;
+  size_t current_frame_base_offset_ = 0;
+  size_t current_cb_offset_ = 0;
+  D3D12_GPU_VIRTUAL_ADDRESS current_scene_data_gpu_address_ = 0;
 };
