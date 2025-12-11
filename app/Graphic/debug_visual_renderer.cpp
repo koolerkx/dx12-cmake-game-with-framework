@@ -1,5 +1,6 @@
 #include "debug_visual_renderer.h"
 
+#include <cassert>
 #include <iostream>
 
 #include "framework_default_assets.h"
@@ -92,6 +93,9 @@ void DebugVisualRenderer::RenderDepthTested(const DebugVisualCommandBuffer& cmds
 
   const D3D12_GPU_VIRTUAL_ADDRESS cb_address =
     sceneData.scene_cb_gpu_address ? sceneData.scene_cb_gpu_address : frame_cb.GetGPUAddress();
+  if (cb_address == 0) {
+    return;  // No valid camera/frame constants for depth-tested rendering
+  }
 
   DirectX::XMFLOAT4X4 identity_world;
   DirectX::XMStoreFloat4x4(&identity_world, DirectX::XMMatrixIdentity());
@@ -134,6 +138,7 @@ void DebugVisualRenderer::RenderOverlay(const DebugVisualCommandBuffer& cmds,
     return;
   }
 
+  assert(start_offset + overlay_vertex_count <= MAX_DEBUG_VERTICES);
   frame.vertex_count += overlay_vertex_count;
   last_frame_vertex_count_ = frame.vertex_count;
 
@@ -236,6 +241,7 @@ UINT DebugVisualRenderer::FillVertexData(const DebugVisualCommandBuffer& cmds,
     // Check for overflow
     if (vertex_index + 2 > max_vertices) {
       std::cerr << "[DebugVisualRenderer] Vertex overflow, truncating." << '\n';
+      assert(false && "DebugVisualRenderer vertex buffer overflow");
       break;
     }
 

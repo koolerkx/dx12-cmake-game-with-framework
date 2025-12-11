@@ -133,7 +133,12 @@ void RenderSystem::Submit(Scene& scene, RenderPassManager& render_pass_manager) 
       continue;
     }
 
-    render_pass_manager.SubmitPacket(packet);
+    // Route packets to the correct render pass based on layer
+    if (packet.layer == RenderLayer::UI) {
+      render_pass_manager.SubmitPacketToPass("UI", packet);
+    } else {
+      render_pass_manager.SubmitPacketToPass("Forward", packet);
+    }
   }
 }
 
@@ -185,21 +190,31 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& scene_renderer) {
     debug_scene_data.projection_matrix = cached_camera_data_.projection_matrix;
     debug_scene_data.view_projection_matrix = cached_camera_data_.view_projection_matrix;
     debug_scene_data.camera_position = cached_camera_data_.camera_position;
+    debug_scene_data.scene_cb_gpu_address = scene_renderer.GetFrameConstantBuffer().GetGPUAddress();
   } else {
     debug_scene_data.view_matrix = DirectX::XMMatrixIdentity();
     debug_scene_data.projection_matrix = DirectX::XMMatrixIdentity();
     debug_scene_data.view_projection_matrix = DirectX::XMMatrixIdentity();
     debug_scene_data.camera_position = {0.0f, 0.0f, 0.0f};
+    debug_scene_data.scene_cb_gpu_address = 0;  // Disable depth-tested debug when no camera
   }
-  debug_scene_data.scene_cb_gpu_address = scene_renderer.GetFrameConstantBuffer().GetGPUAddress();
 
   const uint32_t frame_index = graphic_->GetCurrentFrameIndex();
   debug_renderer_.BeginFrame(frame_index);
 
-  // Depth-tested pass then overlay pass share the same vertex buffer
-  debug_renderer_.RenderDepthTested(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
-  debug_renderer_.RenderOverlay(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
+  const bool can_render_depth = debug_settings_.enable_3d_depth_tested && cached_camera_data_.is_valid;
+  const bool can_render_overlay = debug_settings_.enable_3d_overlay;
 
+<<<<<<< Current (Your changes)
+=======
+  if (can_render_depth) {
+    debug_renderer_.RenderDepthTested(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
+  }
+  if (can_render_overlay) {
+    debug_renderer_.RenderOverlay(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
+  }
+
+>>>>>>> Incoming (Background Agent changes)
 }
 
 void RenderSystem::RenderDebugVisuals2D(uint32_t frame_index) {
@@ -229,8 +244,8 @@ void RenderSystem::RenderDebugVisuals2D(uint32_t frame_index) {
 
   DirectX::XMMATRIX ortho_proj = DirectX::XMMatrixOrthographicOffCenterLH(0.0f,
     static_cast<float>(width),   // left, right
-    static_cast<float>(height),  // bottom (flipped), top
-    0.0f,
+    0.0f,                        // bottom
+    static_cast<float>(height),  // top
     0.0f,
     1.0f);
 

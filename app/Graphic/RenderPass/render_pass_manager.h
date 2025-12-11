@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "RenderPass/fullscreen_pass_helper.h"
@@ -27,8 +28,11 @@ class RenderPassManager {
   // Get a pass by name
   RenderPass* GetPass(const std::string& name);
 
-  // Submit render packet to unified queue
+  // Submit render packet to unified queue (legacy)
   void SubmitPacket(const RenderPacket& packet);
+
+  // Submit render packet directly to a specific pass queue
+  void SubmitPacketToPass(const std::string& pass_name, const RenderPacket& packet);
 
   // Execute all enabled passes
   void RenderFrame(ID3D12GraphicsCommandList* command_list, TextureManager& texture_manager);
@@ -59,7 +63,9 @@ class RenderPassManager {
 
  private:
   std::vector<RenderPacket> render_queue_;
+  std::unordered_map<std::string, std::vector<RenderPacket>> pass_queues_;
   std::vector<std::unique_ptr<RenderPass>> passes_;
+  std::vector<std::string> pass_names_;
   std::unordered_map<std::string, RenderPass*> pass_map_;
 
   SceneRenderer scene_renderer_;

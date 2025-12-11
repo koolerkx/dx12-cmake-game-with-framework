@@ -27,6 +27,7 @@ void RenderPassManager::RegisterPass(const std::string& name, std::unique_ptr<Re
 
   RenderPass* pass_ptr = pass.get();
   passes_.push_back(std::move(pass));
+  pass_names_.push_back(name);
   pass_map_[name] = pass_ptr;
 
   std::cout << "[RenderPassManager] Registered pass: " << name << '\n';
@@ -49,22 +50,36 @@ void RenderPassManager::SubmitPacket(const RenderPacket& packet) {
   render_queue_.push_back(packet);
 }
 
-void RenderPassManager::RenderFrame(ID3D12GraphicsCommandList* command_list, TextureManager& texture_manager) {
-  assert(command_list != nullptr);
-
-  if (render_queue_.empty()) {
+void RenderPassManager::SubmitPacketToPass(const std::string& pass_name, const RenderPacket& packet) {
+  if (!packet.IsValid()) {
+    std::cerr << "[RenderPassManager] Warning: Invalid render packet submitted to pass: " << pass_name << '\n';
     return;
   }
 
-  // Submit all packets to scene renderer
-  scene_renderer_.Clear();
-  for (const auto& packet : render_queue_) {
-    scene_renderer_.Submit(packet);
-  }
+  pass_queues_[pass_name].push_back(packet);
+}
+
+void RenderPassManager::RenderFrame(ID3D12GraphicsCommandList* command_list, TextureManager& texture_manager) {
+  assert(command_list != nullptr);
 
   // Execute each enabled pass in order
-  for (const auto& pass : passes_) {
+  for (size_t i = 0; i < passes_.size(); ++i) {
+    const auto& pass = passes_[i];
     if (!pass->IsEnabled()) {
+      continue;
+    }
+
+    // Submit only packets targeted for this pass (or fall back to shared queue)
+    scene_renderer_.Clear();
+    const std::string& pass_name = pass_names_[i];
+    auto queue_it = pass_queues_.find(pass_name);
+    const auto& queue = (queue_it != pass_queues_.end()) ? queue_it->second : render_queue_;
+    for (const auto& packet : queue) {
+      scene_renderer_.Submit(packet);
+    }
+
+    // Skip empty queues
+    if (queue.empty()) {
       continue;
     }
 
@@ -81,6 +96,7 @@ void RenderPassManager::RenderFrame(ID3D12GraphicsCommandList* command_list, Tex
 
 void RenderPassManager::Clear() {
   render_queue_.clear();
+  pass_queues_.clear();
   scene_renderer_.Clear();
   scene_renderer_.ResetStats();
 }

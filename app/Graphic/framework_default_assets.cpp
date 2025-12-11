@@ -102,11 +102,6 @@ void FrameworkDefaultAssets::Shutdown() {
   sprite_ui_template_ = nullptr;
   debug_line_template_overlay_ = nullptr;
   debug_line_template_depth_ = nullptr;
-  sprite_world_opaque_material_ = nullptr;
-  sprite_world_transparent_material_ = nullptr;
-  sprite_ui_material_ = nullptr;
-  debug_line_material_overlay_ = nullptr;
-  debug_line_material_depth_ = nullptr;
 }
 
 TextureHandle FrameworkDefaultAssets::GetWhiteTexture() const {
@@ -130,19 +125,19 @@ std::shared_ptr<Mesh> FrameworkDefaultAssets::GetRect2DMesh() const {
 }
 
 MaterialInstance* FrameworkDefaultAssets::GetSprite2DDefaultMaterial() const {
-  return sprite_world_opaque_material_;
+  return sprite_ui_default_.get();
 }
 
 MaterialInstance* FrameworkDefaultAssets::GetSpriteWorldOpaqueMaterial() const {
-  return sprite_world_opaque_material_;
+  return sprite_world_opaque_default_.get();
 }
 
 MaterialInstance* FrameworkDefaultAssets::GetSpriteWorldTransparentMaterial() const {
-  return sprite_world_transparent_material_;
+  return sprite_world_transparent_default_.get();
 }
 
 MaterialInstance* FrameworkDefaultAssets::GetSpriteUIMaterial() const {
-  return sprite_ui_material_;
+  return sprite_ui_default_.get();
 }
 
 MaterialTemplate* FrameworkDefaultAssets::GetDebugLineTemplateOverlay() const {
@@ -154,11 +149,11 @@ MaterialTemplate* FrameworkDefaultAssets::GetDebugLineTemplateDepth() const {
 }
 
 MaterialInstance* FrameworkDefaultAssets::GetDebugLineMaterialOverlay() const {
-  return debug_line_material_overlay_;
+  return debug_line_overlay_default_.get();
 }
 
 MaterialInstance* FrameworkDefaultAssets::GetDebugLineMaterialDepth() const {
-  return debug_line_material_depth_;
+  return debug_line_depth_default_.get();
 }
 
 void FrameworkDefaultAssets::CreateDefaultMaterials(Graphic& gfx) {
@@ -255,7 +250,6 @@ void FrameworkDefaultAssets::CreateSpriteMaterials(Graphic& gfx) {
         sprite_world_opaque_default_ = std::make_unique<MaterialInstance>();
         if (sprite_world_opaque_default_->Initialize(sprite_world_opaque_template_)) {
           sprite_world_opaque_default_->SetTexture("BaseColor", white_texture_);
-          sprite_world_opaque_material_ = sprite_world_opaque_default_.get();
           std::cout << "[FrameworkDefaultAssets] Created SpriteWorldOpaque material" << '\n';
         }
       }
@@ -289,7 +283,6 @@ void FrameworkDefaultAssets::CreateSpriteMaterials(Graphic& gfx) {
         sprite_world_transparent_default_ = std::make_unique<MaterialInstance>();
         if (sprite_world_transparent_default_->Initialize(sprite_world_transparent_template_)) {
           sprite_world_transparent_default_->SetTexture("BaseColor", white_texture_);
-          sprite_world_transparent_material_ = sprite_world_transparent_default_.get();
           std::cout << "[FrameworkDefaultAssets] Created SpriteWorldTransparent material" << '\n';
         }
       }
@@ -321,7 +314,6 @@ void FrameworkDefaultAssets::CreateSpriteMaterials(Graphic& gfx) {
         sprite_ui_default_ = std::make_unique<MaterialInstance>();
         if (sprite_ui_default_->Initialize(sprite_ui_template_)) {
           sprite_ui_default_->SetTexture("BaseColor", white_texture_);
-          sprite_ui_material_ = sprite_ui_default_.get();
           std::cout << "[FrameworkDefaultAssets] Created SpriteUI material" << '\n';
         }
       }
@@ -380,7 +372,6 @@ void FrameworkDefaultAssets::CreateDebugLineMaterials(Graphic& gfx) {
     if (debug_line_template_overlay_) {
       debug_line_overlay_default_ = std::make_unique<MaterialInstance>();
       if (debug_line_overlay_default_->Initialize(debug_line_template_overlay_)) {
-        debug_line_material_overlay_ = debug_line_overlay_default_.get();
         std::cout << "[FrameworkDefaultAssets] Created DebugLine overlay material" << '\n';
       }
     }
@@ -413,7 +404,6 @@ void FrameworkDefaultAssets::CreateDebugLineMaterials(Graphic& gfx) {
     if (debug_line_template_depth_) {
       debug_line_depth_default_ = std::make_unique<MaterialInstance>();
       if (debug_line_depth_default_->Initialize(debug_line_template_depth_)) {
-        debug_line_material_depth_ = debug_line_depth_default_.get();
         std::cout << "[FrameworkDefaultAssets] Created DebugLine depth material" << '\n';
       }
     }

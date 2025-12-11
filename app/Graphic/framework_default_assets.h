@@ -30,7 +30,7 @@ class FrameworkDefaultAssets {
   std::shared_ptr<Mesh> GetRect2DMesh() const;
 
   // Default materials used by sprite rendering and debug lines
-  MaterialInstance* GetSprite2DDefaultMaterial() const;  // Alias to world opaque
+  MaterialInstance* GetSprite2DDefaultMaterial() const;  // UI-safe default for 2D sprites
   MaterialInstance* GetSpriteWorldOpaqueMaterial() const;
   MaterialInstance* GetSpriteWorldTransparentMaterial() const;
   MaterialInstance* GetSpriteUIMaterial() const;
@@ -58,7 +58,7 @@ class FrameworkDefaultAssets {
 
   std::shared_ptr<Mesh> rect2d_mesh_ = nullptr;
 
-  // Material templates and instances for default materials
+  // Material templates and instances for default materials (owned here)
   MaterialTemplate* sprite_world_opaque_template_ = nullptr;
   MaterialTemplate* sprite_world_transparent_template_ = nullptr;
   MaterialTemplate* sprite_ui_template_ = nullptr;
@@ -72,13 +72,6 @@ class FrameworkDefaultAssets {
 
   MaterialTemplate* debug_line_template_depth_ = nullptr;
   std::unique_ptr<MaterialInstance> debug_line_depth_default_;
-
-  // Material instances are owned/managed by MaterialManager; we store raw pointers
-  MaterialInstance* sprite_world_opaque_material_ = nullptr;
-  MaterialInstance* sprite_world_transparent_material_ = nullptr;
-  MaterialInstance* sprite_ui_material_ = nullptr;
-  MaterialInstance* debug_line_material_overlay_ = nullptr;
-  MaterialInstance* debug_line_material_depth_ = nullptr;
 
   // Internal helper methods
   void CreateDefaultMaterials(Graphic& gfx);

@@ -29,10 +29,10 @@ struct DebugVertexOutput
     float4 color    : COLOR;
 };
 
-// Per-object world transform
+// Per-object world transform (row-major to match CPU upload)
 cbuffer PerObjectWorld : register(b0)
 {
-    float4x4 world_matrix;
+    row_major float4x4 world_matrix;
 };
 
 DebugVertexOutput main(DebugVertexInput input)
@@ -40,8 +40,7 @@ DebugVertexOutput main(DebugVertexInput input)
     DebugVertexOutput output;
     
     // Transform position: Local -> World -> View -> Projection
-    // world_matrix is column-major (not transposed) -> mul(matrix, vector)
-    float4 posW = mul(world_matrix, float4(input.position, 1.0f));
+    float4 posW = mul(float4(input.position, 1.0f), world_matrix);
     // view/proj are row-major (stored as row_major in FrameCB) -> mul(vector, matrix)
     posW = mul(posW, view);
     output.position = mul(posW, proj);
