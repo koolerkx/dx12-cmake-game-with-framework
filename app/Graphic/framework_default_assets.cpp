@@ -74,7 +74,9 @@ void FrameworkDefaultAssets::Initialize(Graphic& graphic) {
 
 void FrameworkDefaultAssets::Shutdown() {
   // Release material instances first
-  sprite2d_default_.reset();
+  sprite_world_opaque_default_.reset();
+  sprite_world_transparent_default_.reset();
+  sprite_ui_default_.reset();
   debug_line_overlay_default_.reset();
   debug_line_depth_default_.reset();
 
@@ -95,10 +97,14 @@ void FrameworkDefaultAssets::Shutdown() {
 
   graphic_ = nullptr;
   rect2d_mesh_.reset();
-  sprite2d_template_ = nullptr;
+  sprite_world_opaque_template_ = nullptr;
+  sprite_world_transparent_template_ = nullptr;
+  sprite_ui_template_ = nullptr;
   debug_line_template_overlay_ = nullptr;
   debug_line_template_depth_ = nullptr;
-  sprite_material_ = nullptr;
+  sprite_world_opaque_material_ = nullptr;
+  sprite_world_transparent_material_ = nullptr;
+  sprite_ui_material_ = nullptr;
   debug_line_material_overlay_ = nullptr;
   debug_line_material_depth_ = nullptr;
 }
@@ -124,7 +130,19 @@ std::shared_ptr<Mesh> FrameworkDefaultAssets::GetRect2DMesh() const {
 }
 
 MaterialInstance* FrameworkDefaultAssets::GetSprite2DDefaultMaterial() const {
-  return sprite_material_;
+  return sprite_world_opaque_material_;
+}
+
+MaterialInstance* FrameworkDefaultAssets::GetSpriteWorldOpaqueMaterial() const {
+  return sprite_world_opaque_material_;
+}
+
+MaterialInstance* FrameworkDefaultAssets::GetSpriteWorldTransparentMaterial() const {
+  return sprite_world_transparent_material_;
+}
+
+MaterialInstance* FrameworkDefaultAssets::GetSpriteUIMaterial() const {
+  return sprite_ui_material_;
 }
 
 MaterialTemplate* FrameworkDefaultAssets::GetDebugLineTemplateOverlay() const {
@@ -177,17 +195,17 @@ void FrameworkDefaultAssets::CreateDefaultMaterials(Graphic& gfx) {
   }
 
   // Create Sprite2D material
-  CreateSprite2DMaterial(gfx);
+  CreateSpriteMaterials(gfx);
 
   // Create DebugLine materials (overlay and depth-tested)
   CreateDebugLineMaterials(gfx);
 }
 
-void FrameworkDefaultAssets::CreateSprite2DMaterial(Graphic& gfx) {
+void FrameworkDefaultAssets::CreateSpriteMaterials(Graphic& gfx) {
   auto& shader_mgr = gfx.GetShaderManager();
   auto& material_mgr = gfx.GetMaterialManager();
 
-  // Create root signature for Sprite2D
+  // Create root signature shared across sprite variants
   ComPtr<ID3D12RootSignature> sprite_root_signature;
   RootSignatureBuilder rs_builder;
   rs_builder
@@ -204,42 +222,111 @@ void FrameworkDefaultAssets::CreateSprite2DMaterial(Graphic& gfx) {
     return;
   }
 
-  // Create pipeline state for Sprite2D
-  ComPtr<ID3D12PipelineState> sprite_pso;
-  PipelineStateBuilder pso_builder;
+  // Common shader blobs and input layout
   const ShaderBlob* vs = shader_mgr.GetShader("BasicVS");
   const ShaderBlob* ps = shader_mgr.GetShader("BasicPS");
-
   auto input_layout = GetInputLayout_VertexPositionTexture2D();
 
-  pso_builder.SetVertexShader(vs)
-    .SetPixelShader(ps)
-    .SetInputLayout(input_layout.data(), static_cast<UINT>(input_layout.size()))
-    .SetRootSignature(sprite_root_signature.Get())
-    .SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE)
-    .SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM)  // Standard back buffer format
-    .SetDepthStencilFormat(DXGI_FORMAT_D32_FLOAT)
-    .UseForwardTransparentDefaults();  // This should enable alpha blending
-
-  if (!pso_builder.Build(gfx.GetDevice(), sprite_pso)) {
-    std::cerr << "[FrameworkDefaultAssets] Failed to create Sprite2D PSO" << '\n';
-    return;
-  }
-
-  // Create material template
   std::vector<TextureSlotDefinition> sprite_texture_slots = {
     {"BaseColor", 4, D3D12_SHADER_VISIBILITY_PIXEL}  // t0, parameter index 4 (descriptor table)
   };
 
-  sprite2d_template_ = material_mgr.CreateTemplate("DefaultSprite2D", sprite_pso.Get(), sprite_root_signature.Get(), sprite_texture_slots);
+  // World Opaque (depth write)
+  {
+    ComPtr<ID3D12PipelineState> sprite_pso;
+    PipelineStateBuilder pso_builder;
+    pso_builder.SetVertexShader(vs)
+      .SetPixelShader(ps)
+      .SetInputLayout(input_layout.data(), static_cast<UINT>(input_layout.size()))
+      .SetRootSignature(sprite_root_signature.Get())
+      .SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE)
+      .SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM)
+      .SetDepthStencilFormat(DXGI_FORMAT_D32_FLOAT)
+      .SetDepthEnable(true)
+      .SetDepthWriteMask(D3D12_DEPTH_WRITE_MASK_ALL)
+      .SetDepthFunc(D3D12_COMPARISON_FUNC_LESS_EQUAL)
+      .SetBlendEnable(false, 0);
 
-  if (sprite2d_template_) {
-    // Create default instance and bind white texture
-    sprite2d_default_ = std::make_unique<MaterialInstance>();
-    if (sprite2d_default_->Initialize(sprite2d_template_)) {
-      sprite2d_default_->SetTexture("BaseColor", white_texture_);
-      sprite_material_ = sprite2d_default_.get();
-      std::cout << "[FrameworkDefaultAssets] Created Sprite2D default material" << '\n';
+    if (pso_builder.Build(gfx.GetDevice(), sprite_pso)) {
+      sprite_world_opaque_template_ =
+        material_mgr.CreateTemplate("SpriteWorldOpaque", sprite_pso.Get(), sprite_root_signature.Get(), sprite_texture_slots);
+
+      if (sprite_world_opaque_template_) {
+        sprite_world_opaque_default_ = std::make_unique<MaterialInstance>();
+        if (sprite_world_opaque_default_->Initialize(sprite_world_opaque_template_)) {
+          sprite_world_opaque_default_->SetTexture("BaseColor", white_texture_);
+          sprite_world_opaque_material_ = sprite_world_opaque_default_.get();
+          std::cout << "[FrameworkDefaultAssets] Created SpriteWorldOpaque material" << '\n';
+        }
+      }
+    } else {
+      std::cerr << "[FrameworkDefaultAssets] Failed to create SpriteWorldOpaque PSO" << '\n';
+    }
+  }
+
+  // World Transparent (depth read, no write)
+  {
+    ComPtr<ID3D12PipelineState> sprite_pso;
+    PipelineStateBuilder pso_builder;
+    pso_builder.SetVertexShader(vs)
+      .SetPixelShader(ps)
+      .SetInputLayout(input_layout.data(), static_cast<UINT>(input_layout.size()))
+      .SetRootSignature(sprite_root_signature.Get())
+      .SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE)
+      .SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM)
+      .SetDepthStencilFormat(DXGI_FORMAT_D32_FLOAT)
+      .SetDepthEnable(true)
+      .SetDepthWriteMask(D3D12_DEPTH_WRITE_MASK_ZERO)
+      .SetDepthFunc(D3D12_COMPARISON_FUNC_LESS_EQUAL)
+      .SetBlendEnable(true, 0)
+      .SetBlendFactors(D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, 0);
+
+    if (pso_builder.Build(gfx.GetDevice(), sprite_pso)) {
+      sprite_world_transparent_template_ =
+        material_mgr.CreateTemplate("SpriteWorldTransparent", sprite_pso.Get(), sprite_root_signature.Get(), sprite_texture_slots);
+
+      if (sprite_world_transparent_template_) {
+        sprite_world_transparent_default_ = std::make_unique<MaterialInstance>();
+        if (sprite_world_transparent_default_->Initialize(sprite_world_transparent_template_)) {
+          sprite_world_transparent_default_->SetTexture("BaseColor", white_texture_);
+          sprite_world_transparent_material_ = sprite_world_transparent_default_.get();
+          std::cout << "[FrameworkDefaultAssets] Created SpriteWorldTransparent material" << '\n';
+        }
+      }
+    } else {
+      std::cerr << "[FrameworkDefaultAssets] Failed to create SpriteWorldTransparent PSO" << '\n';
+    }
+  }
+
+  // UI (no depth)
+  {
+    ComPtr<ID3D12PipelineState> sprite_pso;
+    PipelineStateBuilder pso_builder;
+    pso_builder.SetVertexShader(vs)
+      .SetPixelShader(ps)
+      .SetInputLayout(input_layout.data(), static_cast<UINT>(input_layout.size()))
+      .SetRootSignature(sprite_root_signature.Get())
+      .SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE)
+      .SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM)
+      .SetDepthStencilFormat(DXGI_FORMAT_UNKNOWN)
+      .SetDepthEnable(false)
+      .SetDepthWriteMask(D3D12_DEPTH_WRITE_MASK_ZERO)
+      .SetBlendEnable(true, 0)
+      .SetBlendFactors(D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, 0);
+
+    if (pso_builder.Build(gfx.GetDevice(), sprite_pso)) {
+      sprite_ui_template_ = material_mgr.CreateTemplate("SpriteUI", sprite_pso.Get(), sprite_root_signature.Get(), sprite_texture_slots);
+
+      if (sprite_ui_template_) {
+        sprite_ui_default_ = std::make_unique<MaterialInstance>();
+        if (sprite_ui_default_->Initialize(sprite_ui_template_)) {
+          sprite_ui_default_->SetTexture("BaseColor", white_texture_);
+          sprite_ui_material_ = sprite_ui_default_.get();
+          std::cout << "[FrameworkDefaultAssets] Created SpriteUI material" << '\n';
+        }
+      }
+    } else {
+      std::cerr << "[FrameworkDefaultAssets] Failed to create SpriteUI PSO" << '\n';
     }
   }
 }

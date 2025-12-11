@@ -30,7 +30,10 @@ class FrameworkDefaultAssets {
   std::shared_ptr<Mesh> GetRect2DMesh() const;
 
   // Default materials used by sprite rendering and debug lines
-  MaterialInstance* GetSprite2DDefaultMaterial() const;
+  MaterialInstance* GetSprite2DDefaultMaterial() const;  // Alias to world opaque
+  MaterialInstance* GetSpriteWorldOpaqueMaterial() const;
+  MaterialInstance* GetSpriteWorldTransparentMaterial() const;
+  MaterialInstance* GetSpriteUIMaterial() const;
   MaterialTemplate* GetDebugLineTemplateOverlay() const;
   MaterialTemplate* GetDebugLineTemplateDepth() const;
   MaterialInstance* GetDebugLineMaterialOverlay() const;
@@ -56,8 +59,13 @@ class FrameworkDefaultAssets {
   std::shared_ptr<Mesh> rect2d_mesh_ = nullptr;
 
   // Material templates and instances for default materials
-  MaterialTemplate* sprite2d_template_ = nullptr;
-  std::unique_ptr<MaterialInstance> sprite2d_default_;
+  MaterialTemplate* sprite_world_opaque_template_ = nullptr;
+  MaterialTemplate* sprite_world_transparent_template_ = nullptr;
+  MaterialTemplate* sprite_ui_template_ = nullptr;
+
+  std::unique_ptr<MaterialInstance> sprite_world_opaque_default_;
+  std::unique_ptr<MaterialInstance> sprite_world_transparent_default_;
+  std::unique_ptr<MaterialInstance> sprite_ui_default_;
 
   MaterialTemplate* debug_line_template_overlay_ = nullptr;
   std::unique_ptr<MaterialInstance> debug_line_overlay_default_;
@@ -66,12 +74,14 @@ class FrameworkDefaultAssets {
   std::unique_ptr<MaterialInstance> debug_line_depth_default_;
 
   // Material instances are owned/managed by MaterialManager; we store raw pointers
-  MaterialInstance* sprite_material_ = nullptr;
+  MaterialInstance* sprite_world_opaque_material_ = nullptr;
+  MaterialInstance* sprite_world_transparent_material_ = nullptr;
+  MaterialInstance* sprite_ui_material_ = nullptr;
   MaterialInstance* debug_line_material_overlay_ = nullptr;
   MaterialInstance* debug_line_material_depth_ = nullptr;
 
   // Internal helper methods
   void CreateDefaultMaterials(Graphic& gfx);
-  void CreateSprite2DMaterial(Graphic& gfx);
+  void CreateSpriteMaterials(Graphic& gfx);
   void CreateDebugLineMaterials(Graphic& gfx);
 };

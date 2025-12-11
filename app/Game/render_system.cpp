@@ -15,6 +15,7 @@ void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
 
   // Begin frame - clears render targets, sets up command list
   graphic_->BeginFrame();
+  const uint32_t frame_index = graphic_->GetCurrentFrameIndex();
 
   // Get render pass manager
   RenderPassManager& render_pass_manager = graphic_->GetRenderPassManager();
@@ -64,11 +65,32 @@ void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   // Submit all renderables from the scene to the unified render queue
   Submit(scene, render_pass_manager);
 
-  // Execute all render passes (Forward, UI, etc.)
-  graphic_->RenderFrame();
+  // Pass toggles for ordered rendering
+  RenderPass* forward_pass = render_pass_manager.GetPass("Forward");
+  RenderPass* ui_pass = render_pass_manager.GetPass("UI");
 
-  // Render debug visuals after main rendering (3D depth/overlay + 2D)
+  // Phase 1: world (opaque + transparent). UI disabled.
+  if (ui_pass) ui_pass->SetEnabled(false);
+  if (forward_pass) forward_pass->SetEnabled(true);
+  render_pass_manager.RenderFrame(graphic_->GetCommandList(), graphic_->GetTextureManager());
+
+  // Phase 2: Debug 3D (uses depth written by world)
   RenderDebugVisuals(scene_renderer);
+
+  // Phase 3: UI only
+  if (forward_pass) forward_pass->SetEnabled(false);
+  if (ui_pass) ui_pass->SetEnabled(true);
+  render_pass_manager.RenderFrame(graphic_->GetCommandList(), graphic_->GetTextureManager());
+
+  // Phase 4: Debug 2D overlay (RT only)
+  RenderDebugVisuals2D(frame_index);
+
+  // Clear render queues for next frame
+  render_pass_manager.Clear();
+
+  // Restore pass enable states for next frame
+  if (forward_pass) forward_pass->SetEnabled(true);
+  if (ui_pass) ui_pass->SetEnabled(true);
 
   // End frame - present
   graphic_->EndFrame();
@@ -178,10 +200,6 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& scene_renderer) {
   debug_renderer_.RenderDepthTested(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
   debug_renderer_.RenderOverlay(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
 
-  // 2D debug overlay (UI space)
-  if (cmds2D.GetTotalCommandCount() > 0) {
-    RenderDebugVisuals2D(frame_index);
-  }
 }
 
 void RenderSystem::RenderDebugVisuals2D(uint32_t frame_index) {
