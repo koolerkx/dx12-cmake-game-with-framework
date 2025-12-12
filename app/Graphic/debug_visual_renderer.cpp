@@ -8,15 +8,15 @@
 #include "material_instance.h"
 #include "material_template.h"
 
-void DebugVisualRenderer::Initialize(Graphic& gfx) {
+void DebugVisualRenderer::Initialize(Graphic& graphic) {
   if (is_initialized_) {
     return;  // Already initialized
   }
 
-  graphic_ = &gfx;
+  graphic_ = &graphic;
 
   // Get debug line materials from default assets
-  const auto& defaults = gfx.GetDefaultAssets();
+  const auto& defaults = graphic.GetDefaultAssets();
   debug_line_material_overlay_ = defaults.GetDebugLineMaterialOverlay();
   debug_line_material_depth_ = defaults.GetDebugLineMaterialDepth();
 
@@ -73,12 +73,25 @@ void DebugVisualRenderer::BeginFrame(uint32_t frameIndex) {
 }
 
 void DebugVisualRenderer::RenderDepthTested(const DebugVisualCommandBuffer& cmds,
-  ID3D12GraphicsCommandList* cmd_list,
+  Graphic& graphic,
   const SceneGlobalData& sceneData,
   const Buffer& frame_cb,
   const DebugVisualSettings& settings) {
+  ID3D12GraphicsCommandList* cmd_list = graphic.GetCommandList();
   if (!is_initialized_ || !cmd_list || !debug_line_material_depth_ || !debug_line_template_depth_) {
     return;
+  }
+
+  // Bind main render targets and viewport/scissor for debug drawing.
+  {
+    auto rtv = graphic.GetMainRTV();
+    auto dsv = graphic.GetMainDSV();
+    cmd_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+
+    auto viewport = graphic.GetScreenViewport();
+    auto scissor = graphic.GetScissorRect();
+    cmd_list->RSSetViewports(1, &viewport);
+    cmd_list->RSSetScissorRects(1, &scissor);
   }
 
   auto& frame = frames_[current_frame_index_];
@@ -121,12 +134,25 @@ void DebugVisualRenderer::RenderDepthTested(const DebugVisualCommandBuffer& cmds
 }
 
 void DebugVisualRenderer::RenderOverlay(const DebugVisualCommandBuffer& cmds,
-  ID3D12GraphicsCommandList* cmd_list,
+  Graphic& graphic,
   const SceneGlobalData& sceneData,
   const Buffer& frame_cb,
   const DebugVisualSettings& settings) {
+  ID3D12GraphicsCommandList* cmd_list = graphic.GetCommandList();
   if (!is_initialized_ || !cmd_list || !debug_line_material_overlay_ || !debug_line_template_overlay_) {
     return;
+  }
+
+  // Bind main render targets and viewport/scissor for debug drawing.
+  {
+    auto rtv = graphic.GetMainRTV();
+    auto dsv = graphic.GetMainDSV();
+    cmd_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+
+    auto viewport = graphic.GetScreenViewport();
+    auto scissor = graphic.GetScissorRect();
+    cmd_list->RSSetViewports(1, &viewport);
+    cmd_list->RSSetScissorRects(1, &scissor);
   }
 
   auto& frame = frames_[current_frame_index_];
@@ -171,12 +197,12 @@ void DebugVisualRenderer::RenderOverlay(const DebugVisualCommandBuffer& cmds,
 }
 
 void DebugVisualRenderer::Render(const DebugVisualCommandBuffer& cmds,
-  ID3D12GraphicsCommandList* cmd_list,
+  Graphic& graphic,
   const SceneGlobalData& sceneData,
   const Buffer& frame_cb,
   const DebugVisualSettings& settings) {
-  RenderDepthTested(cmds, cmd_list, sceneData, frame_cb, settings);
-  RenderOverlay(cmds, cmd_list, sceneData, frame_cb, settings);
+  RenderDepthTested(cmds, graphic, sceneData, frame_cb, settings);
+  RenderOverlay(cmds, graphic, sceneData, frame_cb, settings);
 }
 
 bool DebugVisualRenderer::CreateFrameBuffers() {

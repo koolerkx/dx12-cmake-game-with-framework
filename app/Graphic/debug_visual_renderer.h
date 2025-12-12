@@ -46,21 +46,21 @@ class DebugVisualRenderer {
 
   // Render depth-tested debug lines
   void RenderDepthTested(const DebugVisualCommandBuffer& cmds,
-    ID3D12GraphicsCommandList* cmd_list,
+    Graphic& graphic,
     const SceneGlobalData& sceneData,
     const Buffer& frame_cb,
     const DebugVisualSettings& settings);
 
   // Render overlay (ignore depth) debug lines
   void RenderOverlay(const DebugVisualCommandBuffer& cmds,
-    ID3D12GraphicsCommandList* cmd_list,
+    Graphic& graphic,
     const SceneGlobalData& sceneData,
     const Buffer& frame_cb,
     const DebugVisualSettings& settings);
 
   // Helper to render both depth-tested then overlay (for compatibility)
   void Render(const DebugVisualCommandBuffer& cmds,
-    ID3D12GraphicsCommandList* cmd_list,
+    Graphic& graphic,
     const SceneGlobalData& sceneData,
     const Buffer& frame_cb,
     const DebugVisualSettings& settings);

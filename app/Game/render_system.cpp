@@ -1,5 +1,6 @@
 #include "render_system.h"
 
+#include <array>
 #include <cassert>
 #include <iostream>
 
@@ -8,7 +9,10 @@
 #include "Component/transform_component.h"
 #include "RenderPass/render_pass_manager.h"
 #include "RenderPass/scene_renderer.h"
+#include "debug_visual_renderer.h"
+#include "debug_visual_renderer_2d.h"
 #include "graphic.h"
+
 
 void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   assert(graphic_ != nullptr);
@@ -43,6 +47,10 @@ void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   rpm.Clear();
   if (rpm.GetPass("Forward")) rpm.GetPass("Forward")->SetEnabled(true);
   if (rpm.GetPass("UI")) rpm.GetPass("UI")->SetEnabled(true);
+
+  // Transition back buffer for presentation (explicit state management)
+  RenderTarget* backbuffer = graphic_->GetBackBufferRenderTarget();
+  graphic_->Transition(backbuffer, D3D12_RESOURCE_STATE_PRESENT);
 
   graphic_->EndFrame();
 }
@@ -124,18 +132,6 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& scene_renderer) {
     return;
   }
 
-  ID3D12GraphicsCommandList* cmd_list = graphic_->GetCommandList();
-
-  // Rebind primary render targets and viewport before debug passes
-  auto rtv = graphic_->GetMainRTV();
-  auto dsv = graphic_->GetMainDSV();
-  cmd_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
-
-  auto viewport = graphic_->GetScreenViewport();
-  auto scissor = graphic_->GetScissorRect();
-  cmd_list->RSSetViewports(1, &viewport);
-  cmd_list->RSSetScissorRects(1, &scissor);
-
   SceneGlobalData debug_scene_data{};
   if (cached_camera_data_.is_valid) {
     debug_scene_data.view_matrix = cached_camera_data_.view_matrix;
@@ -156,13 +152,13 @@ void RenderSystem::RenderDebugVisuals(SceneRenderer& scene_renderer) {
   // Depth-tested pass then overlay pass share the same vertex buffer
   auto render_depth = [&]() {
     if (render_depth_tested) {
-      debug_renderer_.RenderDepthTested(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
+      debug_renderer_.RenderDepthTested(cmds3D, *graphic_, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
     }
   };
 
   auto render_overlay_pass = [&]() {
     if (render_overlay) {
-      debug_renderer_.RenderOverlay(cmds3D, cmd_list, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
+      debug_renderer_.RenderOverlay(cmds3D, *graphic_, debug_scene_data, scene_renderer.GetFrameConstantBuffer(), debug_settings_);
     }
   };
 
@@ -185,17 +181,6 @@ void RenderSystem::RenderDebugVisuals2D(uint32_t frame_index) {
     return;  // Nothing to render
   }
 
-  ID3D12GraphicsCommandList* cmd_list = graphic_->GetCommandList();
-
-  // 2D renderer expects no DSV bound (PSO DepthStencilFormat = UNKNOWN)
-  auto rtv = graphic_->GetMainRTV();
-  cmd_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
-
-  auto viewport = graphic_->GetScreenViewport();
-  auto scissor = graphic_->GetScissorRect();
-  cmd_list->RSSetViewports(1, &viewport);
-  cmd_list->RSSetScissorRects(1, &scissor);
-
   // Create orthographic projection for UI (screen-space to NDC)
   UINT width = graphic_->GetFrameBufferWidth();
   UINT height = graphic_->GetFrameBufferHeight();
@@ -211,7 +196,7 @@ void RenderSystem::RenderDebugVisuals2D(uint32_t frame_index) {
   ui_scene_data.view_projection_matrix = ortho_proj;
 
   debug_renderer_2d_.BeginFrame(frame_index);
-  debug_renderer_2d_.Render(cmds2D, cmd_list, ui_scene_data, debug_settings_);
+  debug_renderer_2d_.Render(cmds2D, *graphic_, ui_scene_data, debug_settings_);
 }
 
 void RenderSystem::SetupWorldSceneData(GameObject* active_camera, SceneRenderer& scene_renderer, SceneData& out_scene_data) {
@@ -259,6 +244,22 @@ void RenderSystem::SetupWorldSceneData(GameObject* active_camera, SceneRenderer&
 
 void RenderSystem::RenderWorldPass(
   Scene&, GameObject*, RenderPassManager& rpm, SceneRenderer& scene_renderer, const std::vector<RenderPacket>& world_packets) {
+  RenderTarget* backbuffer = graphic_->GetBackBufferRenderTarget();
+  DepthBuffer* depth = graphic_->GetDepthBuffer();
+
+  // Explicit resource state setup for the main scene pass
+  graphic_->Transition(backbuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
+  graphic_->Transition(depth, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+  // Clear after transitioning to the correct states
+  if (backbuffer) {
+    std::array<float, 4> clear_color = {0.2f, 0.3f, 0.4f, 1.0f};
+    graphic_->Clear(backbuffer, clear_color.data());
+  }
+  if (depth) {
+    graphic_->Clear(depth, 1.0f, 0);
+  }
+
   RenderPass* forward_pass = rpm.GetPass("Forward");
   RenderPass* ui_pass = rpm.GetPass("UI");
 
@@ -270,13 +271,18 @@ void RenderSystem::RenderWorldPass(
     rpm.SubmitPacket(packet);
   }
 
-  rpm.RenderFrame(graphic_->GetCommandList(), graphic_->GetTextureManager());
+  graphic_->RenderPasses();
 
   // cached_camera_data_ + scene_renderer.GetFrameConstantBuffer()
   RenderDebugVisuals(scene_renderer);
 }
 
 void RenderSystem::RenderUIPass(RenderPassManager& rpm, SceneRenderer& scene_renderer, const std::vector<RenderPacket>& ui_packets) {
+  // Ensure the main render target is in the correct state for UI rendering.
+  // (Usually a no-op unless an intermediate pass changed the state.)
+  RenderTarget* backbuffer = graphic_->GetBackBufferRenderTarget();
+  graphic_->Transition(backbuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
   RenderPass* forward_pass = rpm.GetPass("Forward");
   RenderPass* ui_pass = rpm.GetPass("UI");
 
@@ -305,5 +311,5 @@ void RenderSystem::RenderUIPass(RenderPassManager& rpm, SceneRenderer& scene_ren
     rpm.SubmitPacket(packet);
   }
 
-  rpm.RenderFrame(graphic_->GetCommandList(), graphic_->GetTextureManager());
+  graphic_->RenderPasses();
 }
