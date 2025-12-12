@@ -13,6 +13,11 @@
 
 using namespace DirectX;
 
+namespace {
+constexpr const char* kBlockTestWorldMaterialInstance = "BlockTest_World";
+constexpr const char* kBlockTestUIMaterialInstance = "BlockTest_UI";
+}  // namespace
+
 void Game::Initialize(Graphic& graphic) {
   graphic_ = &graphic;
   render_system_.Initialize(graphic);
@@ -21,6 +26,36 @@ void Game::Initialize(Graphic& graphic) {
   if (!VerifyDefaultAssets()) {
     std::cerr << "[Game] DefaultAssets verification failed!" << '\n';
     return;
+  }
+
+  // Load block_test.png and create a dedicated material instance for world + UI.
+  graphic.ExecuteImmediate([&](ID3D12GraphicsCommandList* cmd) {
+    TextureLoadParams params;
+    params.file_path = L"Content/textures/block_test.png";
+    params.force_srgb = false;
+    block_test_texture_ = graphic.GetTextureManager().LoadTexture(cmd, params);
+  });
+
+  if (!block_test_texture_.IsValid()) {
+    std::cerr << "[Game] Failed to load Content/textures/block_test.png; block test sprites will use default textures" << '\n';
+  } else {
+    const auto& defaults = graphic_->GetDefaultAssets();
+    auto& material_mgr = graphic_->GetMaterialManager();
+
+    if (defaults.GetSpriteWorldOpaqueMaterial() && defaults.GetSpriteWorldOpaqueMaterial()->GetTemplate()) {
+      block_test_world_material_ =
+        material_mgr.CreateInstance(kBlockTestWorldMaterialInstance, defaults.GetSpriteWorldOpaqueMaterial()->GetTemplate());
+      if (block_test_world_material_) {
+        block_test_world_material_->SetTexture("BaseColor", block_test_texture_);
+      }
+    }
+
+    if (defaults.GetSpriteUIMaterial() && defaults.GetSpriteUIMaterial()->GetTemplate()) {
+      block_test_ui_material_ = material_mgr.CreateInstance(kBlockTestUIMaterialInstance, defaults.GetSpriteUIMaterial()->GetTemplate());
+      if (block_test_ui_material_) {
+        block_test_ui_material_->SetTexture("BaseColor", block_test_texture_);
+      }
+    }
   }
 
   // Create demo scene using new system
@@ -181,6 +216,39 @@ void Game::CreateNewDemoScene() {
 
   // Create camera using existing method temporarily
   CreateCamera();
+
+  // Block-test sprite in world (Forward pass layer)
+  if (block_test_world_material_) {
+    SpriteCreateParams block_world;
+    block_world.position = {0.0f, 2.0f, 0.0f};
+    block_world.size = {1.5f, 1.5f, 1.0f};
+    block_world.layer = RenderLayer::Opaque;
+    block_world.material = block_test_world_material_;
+    block_world.color = {1.0f, 1.0f, 1.0f, 1.0f};
+    block_world.uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};
+    GameObject* sprite = CreateSprite(block_world);
+    if (sprite) {
+      sprite->SetName("BlockTest_WorldSprite");
+      std::cout << "[Game] Created block_test world sprite" << '\n';
+    }
+  }
+
+  // Block-test sprite in UI (UIPass)
+  if (block_test_ui_material_) {
+    SpriteCreateParams block_ui;
+    block_ui.position = {50.0f, 50.0f, 0.0f};  // screen-space pixels (orthographic UI pass)
+    block_ui.size = {256.0f, 256.0f, 1.0f};
+    block_ui.layer = RenderLayer::UI;
+    block_ui.material = block_test_ui_material_;
+    block_ui.sort_order = 1000.0f;
+    block_ui.color = {1.0f, 1.0f, 1.0f, 1.0f};
+    block_ui.uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};
+    GameObject* sprite = CreateSprite(block_ui);
+    if (sprite) {
+      sprite->SetName("BlockTest_UISprite");
+      std::cout << "[Game] Created block_test UI sprite" << '\n';
+    }
+  }
 
   // Create sprite #1: Red tint, normal UV
   SpriteCreateParams sprite1_params;

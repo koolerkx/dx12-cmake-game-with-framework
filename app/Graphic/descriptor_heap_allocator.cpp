@@ -10,8 +10,10 @@ bool DescriptorHeapAllocator::Initialize(ID3D12Device* device, D3D12_DESCRIPTOR_
   assert(capacity > 0);
 
   type_ = type;
+  base_index_ = 0;
   capacity_ = capacity;
   shader_visible_ = shader_visible;
+  owns_heap_ = true;
   descriptor_size_ = device->GetDescriptorHandleIncrementSize(type);
 
   D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
@@ -58,6 +60,35 @@ bool DescriptorHeapAllocator::Initialize(ID3D12Device* device, D3D12_DESCRIPTOR_
   }
   heap_->SetName(name.c_str());
 
+  Reset();
+  return true;
+}
+
+bool DescriptorHeapAllocator::InitializeFromExistingHeap(ID3D12Device* device,
+  ID3D12DescriptorHeap* existing_heap,
+  D3D12_DESCRIPTOR_HEAP_TYPE type,
+  uint32_t base_index,
+  uint32_t capacity,
+  bool shader_visible) {
+  assert(device != nullptr);
+  assert(existing_heap != nullptr);
+
+  type_ = type;
+  base_index_ = base_index;
+  capacity_ = capacity;
+  shader_visible_ = shader_visible;
+  owns_heap_ = false;
+  descriptor_size_ = device->GetDescriptorHandleIncrementSize(type);
+
+  heap_ = existing_heap;
+  heap_start_cpu_ = heap_->GetCPUDescriptorHandleForHeapStart();
+  if (shader_visible_) {
+    heap_start_gpu_ = heap_->GetGPUDescriptorHandleForHeapStart();
+  } else {
+    heap_start_gpu_.ptr = 0;
+  }
+
+  Reset();
   return true;
 }
 
@@ -200,7 +231,7 @@ void DescriptorHeapAllocator::MergeFreeBlocks() {
 
 D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeapAllocator::GetCpuHandle(uint32_t index) const {
   D3D12_CPU_DESCRIPTOR_HANDLE handle = heap_start_cpu_;
-  handle.ptr += static_cast<SIZE_T>(index) * descriptor_size_;
+  handle.ptr += static_cast<SIZE_T>(base_index_ + index) * descriptor_size_;
   return handle;
 }
 
@@ -210,6 +241,6 @@ D3D12_GPU_DESCRIPTOR_HANDLE DescriptorHeapAllocator::GetGpuHandle(uint32_t index
   }
 
   D3D12_GPU_DESCRIPTOR_HANDLE handle = heap_start_gpu_;
-  handle.ptr += static_cast<UINT64>(index) * descriptor_size_;
+  handle.ptr += static_cast<UINT64>(base_index_ + index) * descriptor_size_;
   return handle;
 }
