@@ -21,7 +21,7 @@ class RenderPassManager {
   RenderPassManager& operator=(const RenderPassManager&) = delete;
 
   // Initialize manager with device
-  bool Initialize(ID3D12Device* device, uint32_t frame_count);
+  bool Initialize(ID3D12Device* device, uint32_t frame_count, UploadContext& upload_context);
 
   // Register a render pass
   void RegisterPass(const std::string& name, std::unique_ptr<RenderPass> pass);
