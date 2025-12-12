@@ -31,6 +31,15 @@ class DescriptorHeapAllocator {
   DescriptorHeapAllocator& operator=(const DescriptorHeapAllocator&) = delete;
 
   bool Initialize(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t capacity, bool shader_visible = false);
+  // Create an allocator that sub-allocates from an existing heap in the range:
+  // [base_index, base_index + capacity).
+  // The underlying heap is still owned elsewhere; this allocator only manages indices.
+  bool InitializeFromExistingHeap(ID3D12Device* device,
+    ID3D12DescriptorHeap* existing_heap,
+    D3D12_DESCRIPTOR_HEAP_TYPE type,
+    uint32_t base_index,
+    uint32_t capacity,
+    bool shader_visible);
   Allocation Allocate(uint32_t count = 1);
   void Free(const Allocation& allocation);
   void Reset();
@@ -40,6 +49,9 @@ class DescriptorHeapAllocator {
   }
   D3D12_DESCRIPTOR_HEAP_TYPE GetType() const {
     return type_;
+  }
+  uint32_t GetBaseIndex() const {
+    return base_index_;
   }
 
   // Statistic
@@ -60,9 +72,11 @@ class DescriptorHeapAllocator {
   ComPtr<ID3D12DescriptorHeap> heap_ = nullptr;
   D3D12_DESCRIPTOR_HEAP_TYPE type_ = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
   uint32_t descriptor_size_ = 0;
+  uint32_t base_index_ = 0;
   uint32_t capacity_ = 0;
   uint32_t allocated_ = 0;
   bool shader_visible_ = false;
+  bool owns_heap_ = true;
 
   D3D12_CPU_DESCRIPTOR_HANDLE heap_start_cpu_ = {};
   D3D12_GPU_DESCRIPTOR_HANDLE heap_start_gpu_ = {};
@@ -78,10 +92,10 @@ class DescriptorHeapAllocator {
       return index < other.index;
     }
   };
-  
+
   std::list<FreeBlock> free_blocks_;
   std::multimap<uint32_t, std::list<FreeBlock>::iterator> free_blocks_by_size_;
-  
+
   void MergeFreeBlocks();
   std::list<FreeBlock>::iterator FindBestFitBlock(uint32_t count);
 };

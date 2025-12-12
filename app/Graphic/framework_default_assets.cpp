@@ -317,6 +317,9 @@ void FrameworkDefaultAssets::CreateSpriteMaterials(Graphic& gfx) {
       .SetDepthStencilFormat(DXGI_FORMAT_UNKNOWN)
       .SetDepthEnable(false)
       .SetDepthWriteMask(D3D12_DEPTH_WRITE_MASK_ZERO)
+      // UI uses an ortho projection with negative Y scale (top-left origin),
+      // which flips winding. Disable culling to avoid backface-culling the quad.
+      .SetCullMode(D3D12_CULL_MODE_NONE)
       .SetBlendEnable(true, 0)
       .SetBlendFactors(D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, 0);
 

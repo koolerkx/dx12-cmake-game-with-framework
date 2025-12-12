@@ -48,7 +48,8 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
     return false;
   }
 
-  if (!texture_manager_.Initialize(device_.Get(), &descriptor_heap_manager_.GetSrvAllocator(), 1024)) {
+  // Textures are persistent; allocate their SRVs from the static region.
+  if (!texture_manager_.Initialize(device_.Get(), &descriptor_heap_manager_.GetSrvStaticAllocator(), 1024)) {
     MessageBoxW(nullptr, L"Graphic: Failed to initialize texture manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }
@@ -81,7 +82,7 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
         frame_buffer_width,
         frame_buffer_height,
         descriptor_heap_manager_.GetDsvAllocator(),
-        &descriptor_heap_manager_.GetSrvAllocator(),
+        &descriptor_heap_manager_.GetSrvStaticAllocator(),
         DXGI_FORMAT_R32_TYPELESS)) {
     MessageBoxW(nullptr, L"Graphic: Failed to create depth buffer", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;

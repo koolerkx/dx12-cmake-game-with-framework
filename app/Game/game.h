@@ -6,6 +6,7 @@
 #include "Scene/scene.h"
 #include "game_object.h"
 #include "render_system.h"
+#include "texture_manager.h"
 
 class Graphic;
 class MaterialInstance;
@@ -47,6 +48,11 @@ class Game {
 
   GameObject* active_camera_ = nullptr;
   GameObject* demo_sprite_ = nullptr;  // Current demo sprite for reference
+
+  // Block test assets (human verification for SRV heap correctness)
+  TextureHandle block_test_texture_ = INVALID_TEXTURE_HANDLE;
+  MaterialInstance* block_test_world_material_ = nullptr;
+  MaterialInstance* block_test_ui_material_ = nullptr;
 
   // Initialization helpers
   bool VerifyDefaultAssets();  // DefaultAssets sanity check
