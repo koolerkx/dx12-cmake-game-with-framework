@@ -43,7 +43,7 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
   // Initialize primitive geometry 2D
   primitive_geometry_2d_ = std::make_unique<PrimitiveGeometry2D>(device_.Get());
 
-  if (!descriptor_heap_manager_.Initalize(device_.Get())) {
+  if (!descriptor_heap_manager_.Initalize(device_.Get(), FrameCount)) {
     MessageBoxW(nullptr, L"Graphic: Failed to initialize descriptor heap manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }
@@ -73,6 +73,7 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
         hwnd,
         frame_buffer_width,
         frame_buffer_height,
+        FrameCount,
         descriptor_heap_manager_)) {
     return false;
   }
@@ -99,7 +100,7 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
     return false;
   }
 
-  if (!render_pass_manager_.Initialize(device_.Get())) {
+  if (!render_pass_manager_.Initialize(device_.Get(), FrameCount)) {
     MessageBoxW(nullptr, L"Graphic: Failed to initialize render pass manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }
@@ -172,16 +173,33 @@ void Graphic::ExecuteImmediate(const std::function<void(ID3D12GraphicsCommandLis
 }
 
 void Graphic::BeginFrame() {
-  // Reset command allocator and list
-  command_allocator_->Reset();
-  command_list_->Reset(command_allocator_.Get(), nullptr);
+  // Pin the frame index for the entire frame (BeginFrame..EndFrame).
+  frame_index_ = swap_chain_manager_.GetCurrentBackBufferIndex();
+
+#if defined(_DEBUG) || defined(DEBUG)
+  // Throttled sync diagnostics: helps confirm frames-in-flight behavior without spamming logs.
+  // Expectation: completed value typically lags behind the most recent signaled value.
+  static uint32_t s_debug_frame_counter = 0;
+  if ((s_debug_frame_counter++ % 120u) == 0u) {
+    std::cout << "[FrameSync] frame=" << s_debug_frame_counter << " frame_index=" << frame_index_
+              << " slot_fence=" << frame_fence_values_[frame_index_]
+              << " completed=" << fence_manager_.GetCompletedFenceValue() << '\n';
+  }
+#endif
+
+  // Wait only for the previous use of this frame slot (not a full GPU flush).
+  fence_manager_.WaitForFenceValue(frame_fence_values_[frame_index_]);
+
+  // Reset the per-frame allocator and command list for recording.
+  command_allocators_[frame_index_]->Reset();
+  command_list_->Reset(command_allocators_[frame_index_].Get(), nullptr);
 
   // Reset descriptor heaps for this frame
-  descriptor_heap_manager_.BeginFrame();
+  descriptor_heap_manager_.BeginFrame(frame_index_);
   descriptor_heap_manager_.SetDescriptorHeaps(command_list_.Get());
 
   // Get current render targets
-  auto* backbufferRT = swap_chain_manager_.GetCurrentRenderTarget();
+  auto* backbufferRT = swap_chain_manager_.GetRenderTarget(frame_index_);
 
   // Set viewport and scissor rect
   command_list_->RSSetViewports(1, &viewport_);
@@ -215,11 +233,18 @@ void Graphic::EndFrame() {
   std::array<ID3D12CommandList*, 1> cmdlists = {command_list_.Get()};
   command_queue_->ExecuteCommandLists(static_cast<UINT>(cmdlists.size()), cmdlists.data());
 
-  // Wait for GPU to finish
-  fence_manager_.WaitForGpu(command_queue_.Get());
+  // Signal completion for this frame slot (no per-frame flush).
+  const uint64_t signal_value = fence_manager_.GetCurrentFenceValue();
+  fence_manager_.SignalFence(command_queue_.Get());
+  frame_fence_values_[frame_index_] = signal_value;
 
   // Present
-  swap_chain_manager_.Present(1, 0);
+  const UINT sync_interval = vsync_enabled_ ? 1u : 0u;
+  UINT present_flags = 0u;
+  if (!vsync_enabled_ && swap_chain_manager_.IsTearingSupported() && !swap_chain_manager_.IsFullscreenExclusive()) {
+    present_flags |= DXGI_PRESENT_ALLOW_TEARING;
+  }
+  swap_chain_manager_.Present(sync_interval, present_flags);
 }
 
 void Graphic::Shutdown() {
@@ -247,7 +272,8 @@ void Graphic::Shutdown() {
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE Graphic::GetMainRTV() const {
-  return swap_chain_manager_.GetCurrentRTV();
+  const RenderTarget* rt = swap_chain_manager_.GetRenderTarget(frame_index_);
+  return rt ? rt->GetRTV() : D3D12_CPU_DESCRIPTOR_HANDLE{};
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE Graphic::GetMainDSV() const {
@@ -345,18 +371,19 @@ bool Graphic::CreateCommandQueue() {
 }
 
 bool Graphic::CreateCommandAllocator() {
-  HRESULT hr = device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocator_));
-
-  if (FAILED(hr) || command_allocator_ == nullptr) {
-    std::cerr << "[Graphic] Failed to create command allocator." << '\n';
-    return false;
+  for (uint32_t i = 0; i < FrameCount; ++i) {
+    HRESULT hr = device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocators_[i]));
+    if (FAILED(hr) || command_allocators_[i] == nullptr) {
+      std::cerr << "[Graphic] Failed to create command allocator for frame slot " << i << "." << '\n';
+      return false;
+    }
   }
   return true;
 }
 
 bool Graphic::CreateCommandList() {
-  HRESULT hr =
-    device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocator_.Get(), nullptr, IID_PPV_ARGS(&command_list_));
+  HRESULT hr = device_->CreateCommandList(
+    0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocators_[0].Get(), nullptr, IID_PPV_ARGS(&command_list_));
 
   if (FAILED(hr) || command_list_ == nullptr) {
     std::cerr << "[Graphic] Failed to create command list." << '\n';

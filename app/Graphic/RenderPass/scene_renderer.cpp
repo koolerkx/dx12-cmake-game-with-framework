@@ -7,9 +7,10 @@
 #include "utils.h"
 #include "RenderPass/render_constants.h"
 
-bool SceneRenderer::Initialize(ID3D12Device* device) {
+bool SceneRenderer::Initialize(ID3D12Device* device, uint32_t frame_count) {
+  frame_count_ = (frame_count == 0) ? 1u : frame_count;
   const size_t per_frame_size = kMaxSceneUpdatesPerFrame * kAlignedSceneDataSize;
-  const size_t total_size = kFrameCount * per_frame_size;
+  const size_t total_size = static_cast<size_t>(frame_count_) * per_frame_size;
 
   bool result = frame_cb_.Create(device, total_size, Buffer::Type::Constant, D3D12_HEAP_TYPE_UPLOAD);
 
@@ -22,7 +23,7 @@ bool SceneRenderer::Initialize(ID3D12Device* device) {
 }
 
 void SceneRenderer::BeginFrame(uint32_t frame_index) {
-  current_frame_index_ = frame_index % kFrameCount;
+  current_frame_index_ = (frame_count_ == 0) ? 0u : (frame_index % frame_count_);
 
   const size_t per_frame_size = kMaxSceneUpdatesPerFrame * kAlignedSceneDataSize;
   current_frame_base_offset_ = static_cast<size_t>(current_frame_index_) * per_frame_size;

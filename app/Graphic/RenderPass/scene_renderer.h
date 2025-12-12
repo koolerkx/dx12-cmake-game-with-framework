@@ -83,7 +83,7 @@ class SceneRenderer {
   SceneRenderer(const SceneRenderer&) = delete;
   SceneRenderer& operator=(const SceneRenderer&) = delete;
 
-  bool Initialize(ID3D12Device* device);
+  bool Initialize(ID3D12Device* device, uint32_t frame_count);
 
   void BeginFrame(uint32_t frame_index);
 
@@ -129,7 +129,6 @@ class SceneRenderer {
   void PrintStats() const;
 
  private:
-  static constexpr uint32_t kFrameCount = 2;
   static constexpr uint32_t kMaxSceneUpdatesPerFrame = 64;
   static constexpr size_t kAlignedSceneDataSize = (sizeof(SceneData) + 255u) & ~255u;
 
@@ -145,6 +144,7 @@ class SceneRenderer {
 
   Buffer frame_cb_;
 
+  uint32_t frame_count_ = 1;
   uint32_t current_frame_index_ = 0;
   size_t current_frame_base_offset_ = 0;
   size_t current_cb_offset_ = 0;

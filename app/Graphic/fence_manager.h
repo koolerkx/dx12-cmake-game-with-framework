@@ -18,6 +18,9 @@ class FenceManager {
   bool Initialize(ID3D12Device* device);
   void WaitForGpu(ID3D12CommandQueue* command_queue);
   void SignalFence(ID3D12CommandQueue* command_queue);
+
+  // Wait for a specific fence value to complete.
+  // Intended for frame-slot reuse (frames-in-flight), not as a global GPU flush.
   void WaitForFenceValue(UINT64 fence_value);
 
   UINT64 GetCurrentFenceValue() const {

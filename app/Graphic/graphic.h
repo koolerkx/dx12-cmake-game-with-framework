@@ -4,6 +4,7 @@
 #include <d3d12.h>
 #include <dxgi1_6.h>
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -45,6 +46,10 @@ class Graphic {
 
   // Execute a short-lived command list for one-shot work (uploads, copies)
   void ExecuteImmediate(const std::function<void(ID3D12GraphicsCommandList*)>& recordFunc);
+
+  void SetVSync(bool enabled) {
+    vsync_enabled_ = enabled;
+  }
 
   // Access upload context for one-shot uploads
   UploadContext& GetUploadContext() {
@@ -95,15 +100,15 @@ class Graphic {
   }
 
   UINT GetCurrentFrameIndex() const {
-    return swap_chain_manager_.GetCurrentFrameIndex();
+    return frame_index_;
   }
 
   // Barrier helpers (state-tracked wrappers)
   RenderTarget* GetBackBufferRenderTarget() {
-    return swap_chain_manager_.GetCurrentRenderTarget();
+    return swap_chain_manager_.GetRenderTarget(frame_index_);
   }
   const RenderTarget* GetBackBufferRenderTarget() const {
-    return swap_chain_manager_.GetCurrentRenderTarget();
+    return swap_chain_manager_.GetRenderTarget(frame_index_);
   }
 
   DepthBuffer* GetDepthBuffer() {
@@ -119,14 +124,18 @@ class Graphic {
   D3D12_VIEWPORT GetScreenViewport() const;
   D3D12_RECT GetScissorRect() const;
 
-  static constexpr int FRAME_BUFFER_COUNT = 2;
+  // How many frames can be in-flight (CPU recording vs GPU executing).
+  // This is the single source of truth for per-frame-slot resources.
+  static constexpr uint32_t FrameCount = 2;
 
  private:
   // Core D3D12 objects
   ComPtr<ID3D12Device5> device_ = nullptr;
   ComPtr<IDXGIFactory6> dxgi_factory_ = nullptr;
 
-  ComPtr<ID3D12CommandAllocator> command_allocator_ = nullptr;
+  uint32_t frame_index_ = 0;
+  std::array<ComPtr<ID3D12CommandAllocator>, FrameCount> command_allocators_ = {};
+  std::array<uint64_t, FrameCount> frame_fence_values_ = {};
   ComPtr<ID3D12GraphicsCommandList> command_list_ = nullptr;
   ComPtr<ID3D12CommandQueue> command_queue_ = nullptr;
 
@@ -151,6 +160,8 @@ class Graphic {
 
   UINT frame_buffer_width_ = 0;
   UINT frame_buffer_height_ = 0;
+
+  bool vsync_enabled_ = true;
 
   // Viewport and scissor
   D3D12_VIEWPORT viewport_ = {};

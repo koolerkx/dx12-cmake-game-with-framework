@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
+#include <vector>
 
 #include "d3d12.h"
 #include "descriptor_heap_allocator.h"
@@ -19,8 +21,8 @@ class DescriptorHeapManager {
   DescriptorHeapManager(const DescriptorHeapManager&) = delete;
   DescriptorHeapManager& operator=(const DescriptorHeapManager&) = delete;
 
-  bool Initalize(ID3D12Device* device);
-  void BeginFrame();
+  bool Initalize(ID3D12Device* device, uint32_t frame_count);
+  void BeginFrame(uint32_t frame_index);
   void SetDescriptorHeaps(ID3D12GraphicsCommandList* command_list);
 
   DescriptorHeapAllocator& GetRtvAllocator() {
@@ -35,10 +37,10 @@ class DescriptorHeapManager {
   }
   // Per-frame SRV allocations (reset at BeginFrame).
   DescriptorHeapAllocator& GetSrvDynamicAllocator() {
-    return srv_dynamic_heap_;
+    return *srv_dynamic_frames_[current_frame_index_];
   }
   DescriptorHeapAllocator& GetSamplerAllocator() {
-    return sampler_heap_;
+    return *sampler_frames_[current_frame_index_];
   }
 
   void PrintStats() const;
@@ -50,8 +52,14 @@ class DescriptorHeapManager {
   // Underlying SRV heap (owned) + two sub-allocators (static prefix + dynamic suffix).
   DescriptorHeapAllocator srv_heap_;
   DescriptorHeapAllocator srv_static_heap_;
-  DescriptorHeapAllocator srv_dynamic_heap_;
+  std::vector<std::unique_ptr<DescriptorHeapAllocator>> srv_dynamic_frames_;
+
+  // Underlying sampler heap (owned) + per-frame sub-allocators (slices).
   DescriptorHeapAllocator sampler_heap_;
+  std::vector<std::unique_ptr<DescriptorHeapAllocator>> sampler_frames_;
+
+  uint32_t frame_count_ = 1;
+  uint32_t current_frame_index_ = 0;
 
   struct Config {
     uint32_t rtv_capacity = DEFAULT_RTV_CAPACITY;

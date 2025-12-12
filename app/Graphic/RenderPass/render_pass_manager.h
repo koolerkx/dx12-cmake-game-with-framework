@@ -2,6 +2,7 @@
 
 #include <d3d12.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -20,7 +21,7 @@ class RenderPassManager {
   RenderPassManager& operator=(const RenderPassManager&) = delete;
 
   // Initialize manager with device
-  bool Initialize(ID3D12Device* device);
+  bool Initialize(ID3D12Device* device, uint32_t frame_count);
 
   // Register a render pass
   void RegisterPass(const std::string& name, std::unique_ptr<RenderPass> pass);

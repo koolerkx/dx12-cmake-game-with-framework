@@ -5,11 +5,11 @@
 
 #include "RenderPass/render_pass.h"
 
-bool RenderPassManager::Initialize(ID3D12Device* device) {
+bool RenderPassManager::Initialize(ID3D12Device* device, uint32_t frame_count) {
   assert(device != nullptr);
 
   // Initialize shared scene renderer
-  if (!scene_renderer_.Initialize(device)) {
+  if (!scene_renderer_.Initialize(device, frame_count)) {
     std::cerr << "[RenderPassManager] Failed to initialize scene renderer" << '\n';
     return false;
   }
