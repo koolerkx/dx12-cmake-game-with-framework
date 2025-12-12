@@ -1,5 +1,6 @@
 #include "render_system.h"
 
+#include <array>
 #include <cassert>
 #include <iostream>
 
@@ -43,6 +44,13 @@ void RenderSystem::RenderFrame(Scene& scene, GameObject* active_camera) {
   rpm.Clear();
   if (rpm.GetPass("Forward")) rpm.GetPass("Forward")->SetEnabled(true);
   if (rpm.GetPass("UI")) rpm.GetPass("UI")->SetEnabled(true);
+
+  // Transition back buffer for presentation (explicit state management)
+  ID3D12GraphicsCommandList* cmd_list = graphic_->GetCommandList();
+  RenderTarget* backbuffer = graphic_->GetBackBufferRenderTarget();
+  if (backbuffer) {
+    backbuffer->TransitionTo(cmd_list, D3D12_RESOURCE_STATE_PRESENT);
+  }
 
   graphic_->EndFrame();
 }
@@ -259,6 +267,27 @@ void RenderSystem::SetupWorldSceneData(GameObject* active_camera, SceneRenderer&
 
 void RenderSystem::RenderWorldPass(
   Scene&, GameObject*, RenderPassManager& rpm, SceneRenderer& scene_renderer, const std::vector<RenderPacket>& world_packets) {
+  ID3D12GraphicsCommandList* cmd_list = graphic_->GetCommandList();
+  RenderTarget* backbuffer = graphic_->GetBackBufferRenderTarget();
+  DepthBuffer* depth = graphic_->GetDepthBuffer();
+
+  // Explicit resource state setup for the main scene pass
+  if (backbuffer) {
+    backbuffer->TransitionTo(cmd_list, D3D12_RESOURCE_STATE_RENDER_TARGET);
+  }
+  if (depth) {
+    depth->TransitionTo(cmd_list, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+  }
+
+  // Clear after transitioning to the correct states
+  if (backbuffer) {
+    std::array<float, 4> clear_color = {0.2f, 0.3f, 0.4f, 1.0f};
+    backbuffer->Clear(cmd_list, clear_color.data());
+  }
+  if (depth) {
+    depth->Clear(cmd_list, 1.0f, 0);
+  }
+
   RenderPass* forward_pass = rpm.GetPass("Forward");
   RenderPass* ui_pass = rpm.GetPass("UI");
 
@@ -277,6 +306,14 @@ void RenderSystem::RenderWorldPass(
 }
 
 void RenderSystem::RenderUIPass(RenderPassManager& rpm, SceneRenderer& scene_renderer, const std::vector<RenderPacket>& ui_packets) {
+  // Ensure the main render target is in the correct state for UI rendering.
+  // (Usually a no-op unless an intermediate pass changed the state.)
+  ID3D12GraphicsCommandList* cmd_list = graphic_->GetCommandList();
+  RenderTarget* backbuffer = graphic_->GetBackBufferRenderTarget();
+  if (backbuffer) {
+    backbuffer->TransitionTo(cmd_list, D3D12_RESOURCE_STATE_RENDER_TARGET);
+  }
+
   RenderPass* forward_pass = rpm.GetPass("Forward");
   RenderPass* ui_pass = rpm.GetPass("UI");
 

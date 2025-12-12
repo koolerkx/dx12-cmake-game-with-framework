@@ -62,7 +62,7 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
         frame_buffer_width,
         frame_buffer_height,
         descriptor_heap_manager_.GetDsvAllocator(),
-        nullptr,
+        &descriptor_heap_manager_.GetSrvAllocator(),
         DXGI_FORMAT_D32_FLOAT)) {
     MessageBoxW(nullptr, L"Graphic: Failed to create depth buffer", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
@@ -160,20 +160,12 @@ void Graphic::BeginFrame() {
   descriptor_heap_manager_.BeginFrame();
   descriptor_heap_manager_.SetDescriptorHeaps(command_list_.Get());
 
-  // Transition swap chain back buffer to render target state
-  swap_chain_manager_.TransitionToRenderTarget(command_list_.Get());
-
   // Get current render targets
   auto* backbufferRT = swap_chain_manager_.GetCurrentRenderTarget();
 
   // Set viewport and scissor rect
   command_list_->RSSetViewports(1, &viewport_);
   command_list_->RSSetScissorRects(1, &scissor_rect_);
-
-  // Clear render target and depth buffer
-  std::array<float, 4> clear_color = {0.2f, 0.3f, 0.4f, 1.0f};
-  backbufferRT->Clear(command_list_.Get(), clear_color.data());
-  depth_buffer_.Clear(command_list_.Get(), 1.0f, 0);
 
   // Note: OMSetRenderTargets is now handled by each RenderPass::Begin() to bind their specific RT/DSV
 
@@ -197,9 +189,6 @@ void Graphic::RenderFrame() {
 }
 
 void Graphic::EndFrame() {
-  // Transition swap chain back buffer to present state
-  swap_chain_manager_.TransitionToPresent(command_list_.Get());
-
   // Execute command list
   command_list_->Close();
 

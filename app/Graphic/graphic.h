@@ -90,6 +90,21 @@ class Graphic {
     return swap_chain_manager_.GetCurrentFrameIndex();
   }
 
+  // Barrier helpers (state-tracked wrappers)
+  RenderTarget* GetBackBufferRenderTarget() {
+    return swap_chain_manager_.GetCurrentRenderTarget();
+  }
+  const RenderTarget* GetBackBufferRenderTarget() const {
+    return swap_chain_manager_.GetCurrentRenderTarget();
+  }
+
+  DepthBuffer* GetDepthBuffer() {
+    return &depth_buffer_;
+  }
+  const DepthBuffer* GetDepthBuffer() const {
+    return &depth_buffer_;
+  }
+
   // Access to main render targets and viewport state
   D3D12_CPU_DESCRIPTOR_HANDLE GetMainRTV() const;
   D3D12_CPU_DESCRIPTOR_HANDLE GetMainDSV() const;
