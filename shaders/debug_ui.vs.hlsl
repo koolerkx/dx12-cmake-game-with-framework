@@ -25,7 +25,7 @@ struct VSOutput {
 
 // Orthographic projection matrix for UI (screen-space to NDC)
 cbuffer UIConstants : register(b0) {
-  float4x4 viewProjMatrix;
+  row_major float4x4 viewProjMatrix;
 };
 
 VSOutput main(VSInput input) {

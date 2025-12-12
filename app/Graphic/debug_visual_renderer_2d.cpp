@@ -150,9 +150,9 @@ void DebugVisualRenderer2D::Render(const DebugVisualCommandBuffer2D& commands,
   command_list->SetGraphicsRootSignature(root_signature_.Get());
 
   // Set view-projection matrix as root constant
-  DirectX::XMFLOAT4X4 view_proj_transposed;
-  DirectX::XMStoreFloat4x4(&view_proj_transposed, DirectX::XMMatrixTranspose(scene_data.view_projection_matrix));
-  command_list->SetGraphicsRoot32BitConstants(0, 16, &view_proj_transposed, 0);
+  DirectX::XMFLOAT4X4 view_proj;
+  DirectX::XMStoreFloat4x4(&view_proj, scene_data.view_projection_matrix);
+  command_list->SetGraphicsRoot32BitConstants(0, 16, &view_proj, 0);
 
   // Set vertex buffer
   D3D12_VERTEX_BUFFER_VIEW vbv = frame_res.vertex_buffer->GetVBV(sizeof(DebugVertex2D));
