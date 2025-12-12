@@ -2,6 +2,7 @@
 
 #include <d3d12.h>
 #include <dxgi.h>
+#include <dxgi1_5.h>
 #include <dxgiformat.h>
 #include <winerror.h>
 #include <winnt.h>
@@ -32,13 +33,15 @@ bool SwapChainManager::Initialize(ID3D12Device* device,
   // This must be set before creating the swap chain so we can set the proper swapchain flags.
   tearing_supported_ = false;
   {
-    BOOL allow_tearing = FALSE;
-    HRESULT feature_hr = factory->CheckFeatureSupport(
-      DXGI_FEATURE_PRESENT_ALLOW_TEARING,
-      &allow_tearing,
-      static_cast<UINT>(sizeof(allow_tearing)));
-    if (SUCCEEDED(feature_hr) && allow_tearing == TRUE) {
-      tearing_supported_ = true;
+    ComPtr<IDXGIFactory5> factory5;
+    // Safe cast: check if the current factory supports IDXGIFactory5 interface
+    if (SUCCEEDED(factory->QueryInterface(IID_PPV_ARGS(&factory5)))) {
+      BOOL allow_tearing = FALSE;
+      HRESULT feature_hr =
+        factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allow_tearing, static_cast<UINT>(sizeof(allow_tearing)));
+      if (SUCCEEDED(feature_hr) && allow_tearing == TRUE) {
+        tearing_supported_ = true;
+      }
     }
   }
 
