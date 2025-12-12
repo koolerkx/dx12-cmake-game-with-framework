@@ -220,7 +220,7 @@ void Game::CreateNewDemoScene() {
   // Block-test sprite in world (Forward pass layer)
   if (block_test_world_material_) {
     SpriteCreateParams block_world;
-    block_world.position = {0.0f, 2.0f, 0.0f};
+    block_world.position = {0.0f, 0.0f, 1.0f};
     block_world.size = {1.5f, 1.5f, 1.0f};
     block_world.layer = RenderLayer::Opaque;
     block_world.material = block_test_world_material_;
