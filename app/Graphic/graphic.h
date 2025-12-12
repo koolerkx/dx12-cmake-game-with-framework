@@ -47,6 +47,10 @@ class Graphic {
   // Execute a short-lived command list for one-shot work (uploads, copies)
   void ExecuteImmediate(const std::function<void(ID3D12GraphicsCommandList*)>& recordFunc);
 
+  void SetVSync(bool enabled) {
+    vsync_enabled_ = enabled;
+  }
+
   // Access upload context for one-shot uploads
   UploadContext& GetUploadContext() {
     return upload_context_;
@@ -156,6 +160,8 @@ class Graphic {
 
   UINT frame_buffer_width_ = 0;
   UINT frame_buffer_height_ = 0;
+
+  bool vsync_enabled_ = true;
 
   // Viewport and scissor
   D3D12_VIEWPORT viewport_ = {};

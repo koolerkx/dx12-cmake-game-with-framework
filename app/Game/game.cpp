@@ -20,6 +20,11 @@ constexpr const char* kBlockTestUIMaterialInstance = "BlockTest_UI";
 
 void Game::Initialize(Graphic& graphic) {
   graphic_ = &graphic;
+
+#if defined(_DEBUG) || defined(DEBUG)
+  graphic_->SetVSync(false);
+#endif
+
   render_system_.Initialize(graphic);
 
   // Verify DefaultAssets are ready before proceeding

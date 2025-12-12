@@ -239,7 +239,9 @@ void Graphic::EndFrame() {
   frame_fence_values_[frame_index_] = signal_value;
 
   // Present
-  swap_chain_manager_.Present(1, 0);
+  const UINT sync_interval = vsync_enabled_ ? 1u : 0u;
+  const UINT present_flags = 0u;  // Future: handle DXGI_PRESENT_ALLOW_TEARING here
+  swap_chain_manager_.Present(sync_interval, present_flags);
 }
 
 void Graphic::Shutdown() {
