@@ -31,7 +31,7 @@ class DebugVisualRenderer2D {
 
   void BeginFrame(uint32_t frame_index);
   void Render(const DebugVisualCommandBuffer2D& commands,
-    ID3D12GraphicsCommandList* command_list,
+    Graphic& graphic,
     const UISceneData& scene_data,
     const DebugVisualSettings& settings);
 

@@ -67,14 +67,26 @@ void DebugVisualRenderer2D::BeginFrame(uint32_t frame_index) {
 }
 
 void DebugVisualRenderer2D::Render(const DebugVisualCommandBuffer2D& commands,
-  ID3D12GraphicsCommandList* command_list,
+  Graphic& graphic,
   const UISceneData& scene_data,
   const DebugVisualSettings& settings) {
   if (commands.GetTotalCommandCount() == 0) {
     return;
   }
 
+  ID3D12GraphicsCommandList* command_list = graphic.GetCommandList();
   assert(command_list != nullptr);
+
+  // 2D renderer expects no DSV bound (PSO DepthStencilFormat = UNKNOWN)
+  {
+    auto rtv = graphic.GetMainRTV();
+    command_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+
+    auto viewport = graphic.GetScreenViewport();
+    auto scissor = graphic.GetScissorRect();
+    command_list->RSSetViewports(1, &viewport);
+    command_list->RSSetScissorRects(1, &scissor);
+  }
 
   FrameResource& frame_res = frame_resources_[current_frame_index_];
   assert(frame_res.vertex_buffer != nullptr);

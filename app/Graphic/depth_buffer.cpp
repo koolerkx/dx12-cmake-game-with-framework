@@ -18,17 +18,31 @@ bool DepthBuffer::Create(ID3D12Device* device,
 
   width_ = width;
   height_ = height;
-  format_ = format;
-  srv_format_ = GetSRVFormat(format);
+  // Resolve resource/view formats.
+  //
+  // For depth SRV debug (ImGui/postprocess)
+  // - Resource: R32_TYPELESS
+  // - DSV:      D32_FLOAT
+  // - SRV:      R32_FLOAT
+  //
+  // Accept either D32_FLOAT or R32_TYPELESS as the caller-facing "format".
+  if (format == DXGI_FORMAT_D32_FLOAT || format == DXGI_FORMAT_R32_TYPELESS) {
+    resource_format_ = DXGI_FORMAT_R32_TYPELESS;
+    dsv_format_ = DXGI_FORMAT_D32_FLOAT;
+    srv_format_ = DXGI_FORMAT_R32_FLOAT;
+  } else {
+    // Default behavior for other depth formats.
+    dsv_format_ = format;
+    srv_format_ = GetSRVFormat(format);
+    resource_format_ = (srv_allocator != nullptr) ? GetTypelessFormat(format) : format;
+  }
 
   // Create clear value
   D3D12_CLEAR_VALUE clear_value = {};
-  clear_value.Format = format;
+  // Clear format must be the DSV format (never typeless).
+  clear_value.Format = dsv_format_;
   clear_value.DepthStencil.Depth = 1.0f;
   clear_value.DepthStencil.Stencil = 0;
-
-  // Determine resource format (typeless if SRV is needed)
-  DXGI_FORMAT resource_format = (srv_allocator != nullptr) ? GetTypelessFormat(format) : format;
 
   // Determine resource flags
   D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
@@ -39,7 +53,7 @@ bool DepthBuffer::Create(ID3D12Device* device,
 
   // Create texture resource
   CD3DX12_RESOURCE_DESC resource_desc =
-    CD3DX12_RESOURCE_DESC::Tex2D(resource_format, width, height, 1, 1, sample_count, sample_quality, flags);
+    CD3DX12_RESOURCE_DESC::Tex2D(resource_format_, width, height, 1, 1, sample_count, sample_quality, flags);
 
   CD3DX12_HEAP_PROPERTIES heap_props(D3D12_HEAP_TYPE_DEFAULT);
 
@@ -94,7 +108,7 @@ bool DepthBuffer::CreateDSV(ID3D12Device* device, DescriptorHeapAllocator& dsv_a
 
   // Create DSV
   D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
-  dsv_desc.Format = format_;
+  dsv_desc.Format = dsv_format_;
   dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
   dsv_desc.Flags = D3D12_DSV_FLAG_NONE;
   dsv_desc.Texture2D.MipSlice = 0;

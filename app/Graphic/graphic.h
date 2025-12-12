@@ -4,6 +4,7 @@
 #include <d3d12.h>
 #include <dxgi1_6.h>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 
@@ -14,6 +15,7 @@
 #include "descriptor_heap_manager.h"
 #include "fence_manager.h"
 #include "framework_default_assets.h"
+#include "gpu_resource.h"
 #include "material_manager.h"
 #include "primitive_geometry_2d.h"
 #include "shader_manager.h"
@@ -34,6 +36,12 @@ class Graphic {
   void RenderFrame();
   void EndFrame();
   void Shutdown();
+
+  // RenderSystem decides WHEN; Graphic handles HOW (encapsulation).
+  void Transition(GpuResource* resource, D3D12_RESOURCE_STATES new_state);
+  void Clear(RenderTarget* rt, const float* clear_color);
+  void Clear(DepthBuffer* depth, float depth_val, uint8_t stencil_val);
+  void RenderPasses();
 
   // Execute a short-lived command list for one-shot work (uploads, copies)
   void ExecuteImmediate(const std::function<void(ID3D12GraphicsCommandList*)>& recordFunc);

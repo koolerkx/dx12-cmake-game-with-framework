@@ -6,6 +6,25 @@
 #include "RenderPass/forward_pass.h"
 #include "RenderPass/ui_pass.h"
 
+void Graphic::Transition(GpuResource* resource, D3D12_RESOURCE_STATES new_state) {
+  if (!resource) return;
+  resource->TransitionTo(command_list_.Get(), new_state);
+}
+
+void Graphic::Clear(RenderTarget* rt, const float* clear_color) {
+  if (!rt || !clear_color) return;
+  rt->Clear(command_list_.Get(), clear_color);
+}
+
+void Graphic::Clear(DepthBuffer* depth, float depth_val, uint8_t stencil_val) {
+  if (!depth) return;
+  depth->Clear(command_list_.Get(), depth_val, stencil_val);
+}
+
+void Graphic::RenderPasses() {
+  render_pass_manager_.RenderFrame(command_list_.Get(), texture_manager_);
+}
+
 bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height) {
   frame_buffer_width_ = frame_buffer_width;
   frame_buffer_height_ = frame_buffer_height;
@@ -63,7 +82,7 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
         frame_buffer_height,
         descriptor_heap_manager_.GetDsvAllocator(),
         &descriptor_heap_manager_.GetSrvAllocator(),
-        DXGI_FORMAT_D32_FLOAT)) {
+        DXGI_FORMAT_R32_TYPELESS)) {
     MessageBoxW(nullptr, L"Graphic: Failed to create depth buffer", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }

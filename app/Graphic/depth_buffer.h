@@ -49,7 +49,11 @@ class DepthBuffer : public GpuResource {
   }
 
   DXGI_FORMAT GetFormat() const {
-    return format_;
+    return dsv_format_;
+  }
+
+  DXGI_FORMAT GetResourceFormat() const {
+    return resource_format_;
   }
 
   DXGI_FORMAT GetSRVFormat() const {
@@ -66,7 +70,9 @@ class DepthBuffer : public GpuResource {
 
   UINT width_ = 0;
   UINT height_ = 0;
-  DXGI_FORMAT format_ = DXGI_FORMAT_D32_FLOAT;      // Texture format
+
+  DXGI_FORMAT resource_format_ = DXGI_FORMAT_R32_TYPELESS;  // typeless storage format
+  DXGI_FORMAT dsv_format_ = DXGI_FORMAT_D32_FLOAT;
   DXGI_FORMAT srv_format_ = DXGI_FORMAT_R32_FLOAT;  // SRV format (if needed)
 
   bool CreateDSV(ID3D12Device* device, DescriptorHeapAllocator& dsv_allocator);
