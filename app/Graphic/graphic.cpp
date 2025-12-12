@@ -240,7 +240,10 @@ void Graphic::EndFrame() {
 
   // Present
   const UINT sync_interval = vsync_enabled_ ? 1u : 0u;
-  const UINT present_flags = 0u;  // Future: handle DXGI_PRESENT_ALLOW_TEARING here
+  UINT present_flags = 0u;
+  if (!vsync_enabled_ && swap_chain_manager_.IsTearingSupported() && !swap_chain_manager_.IsFullscreenExclusive()) {
+    present_flags |= DXGI_PRESENT_ALLOW_TEARING;
+  }
   swap_chain_manager_.Present(sync_interval, present_flags);
 }
 

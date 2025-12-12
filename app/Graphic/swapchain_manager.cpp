@@ -28,6 +28,20 @@ bool SwapChainManager::Initialize(ID3D12Device* device,
   height_ = height;
   buffer_count_ = buffer_count;
 
+  // Query whether DXGI supports present with tearing in windowed mode.
+  // This must be set before creating the swap chain so we can set the proper swapchain flags.
+  tearing_supported_ = false;
+  {
+    BOOL allow_tearing = FALSE;
+    HRESULT feature_hr = factory->CheckFeatureSupport(
+      DXGI_FEATURE_PRESENT_ALLOW_TEARING,
+      &allow_tearing,
+      static_cast<UINT>(sizeof(allow_tearing)));
+    if (SUCCEEDED(feature_hr) && allow_tearing == TRUE) {
+      tearing_supported_ = true;
+    }
+  }
+
   DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = {};
   swap_chain_desc.Width = width_;
   swap_chain_desc.Height = height_;
@@ -41,6 +55,9 @@ bool SwapChainManager::Initialize(ID3D12Device* device,
   swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
   swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
   swap_chain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+  if (tearing_supported_) {
+    swap_chain_desc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+  }
 
   ComPtr<IDXGISwapChain1> swap_chain1;
   HRESULT hr = factory->CreateSwapChainForHwnd(command_queue, hwnd, &swap_chain_desc, nullptr, nullptr, swap_chain1.GetAddressOf());
@@ -133,8 +150,11 @@ bool SwapChainManager::Resize(UINT width, UINT height, uint32_t buffer_count, De
 
   buffer_count_ = buffer_count;
   ReleaseBackBuffers();
-  HRESULT hr =
-    swap_chain_->ResizeBuffers(buffer_count_, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+  UINT swapchain_flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+  if (tearing_supported_) {
+    swapchain_flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+  }
+  HRESULT hr = swap_chain_->ResizeBuffers(buffer_count_, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, swapchain_flags);
 
   if (FAILED(hr)) {
     std::cerr << "[SwapChainManager] Failed to resize swap chain." << '\n';

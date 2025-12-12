@@ -72,6 +72,21 @@ class SwapChainManager {
 
   void Present(UINT syncInterval = 1, UINT flags = 0);
 
+  bool IsTearingSupported() const {
+    return tearing_supported_;
+  }
+
+  bool IsFullscreenExclusive() const {
+    if (!swap_chain_) {
+      return false;
+    }
+    BOOL fullscreen = FALSE;
+    if (FAILED(swap_chain_->GetFullscreenState(&fullscreen, nullptr))) {
+      return false;
+    }
+    return fullscreen == TRUE;
+  }
+
   IDXGISwapChain4* GetSwapChain() const {
     return swap_chain_.Get();
   }
@@ -92,6 +107,8 @@ class SwapChainManager {
   UINT width_ = 0;
   UINT height_ = 0;
   uint32_t buffer_count_ = 0;
+
+  bool tearing_supported_ = false;
 
   ID3D12Device* device_ = nullptr;
 
