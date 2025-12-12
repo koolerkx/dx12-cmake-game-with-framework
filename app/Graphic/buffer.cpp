@@ -5,8 +5,132 @@
 #include <cstring>
 #include <iostream>
 
+#include "../utils.h"
+#include "upload_context.h"
+
 Buffer::~Buffer() {
   Cleanup();
+}
+
+std::shared_ptr<Buffer> Buffer::CreateAndUploadToDefaultHeapForInit(
+  ID3D12Device* device,
+  UploadContext& upload_context,
+  const void* data,
+  size_t size_in_bytes,
+  Type type,
+  const std::string& debug_name) {
+  if (device == nullptr) {
+    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - device is null" << '\n';
+    return nullptr;
+  }
+  if (!upload_context.IsInitialized()) {
+    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - upload_context is not initialized" << '\n';
+    return nullptr;
+  }
+  if (data == nullptr || size_in_bytes == 0) {
+    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - invalid data/size" << '\n';
+    return nullptr;
+  }
+  if (type != Type::Vertex && type != Type::Index) {
+    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - only Vertex/Index are supported in init-only helper" << '\n';
+    return nullptr;
+  }
+
+  auto result = std::make_shared<Buffer>();
+  result->Cleanup();
+
+  result->size_ = size_in_bytes;
+  result->type_ = type;
+  result->heap_type_ = D3D12_HEAP_TYPE_DEFAULT;
+  result->mapped_data_ = nullptr;
+
+  // Create DEFAULT heap buffer in COPY_DEST
+  D3D12_HEAP_PROPERTIES default_heap_props = {};
+  default_heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+  D3D12_RESOURCE_DESC buffer_desc = {};
+  buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+  buffer_desc.Width = result->size_;
+  buffer_desc.Height = 1;
+  buffer_desc.DepthOrArraySize = 1;
+  buffer_desc.MipLevels = 1;
+  buffer_desc.Format = DXGI_FORMAT_UNKNOWN;
+  buffer_desc.SampleDesc.Count = 1;
+  buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+  buffer_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+  ComPtr<ID3D12Resource> default_resource;
+  HRESULT hr = device->CreateCommittedResource(
+    &default_heap_props,
+    D3D12_HEAP_FLAG_NONE,
+    &buffer_desc,
+    D3D12_RESOURCE_STATE_COPY_DEST,
+    nullptr,
+    IID_PPV_ARGS(default_resource.GetAddressOf()));
+
+  if (FAILED(hr) || default_resource == nullptr) {
+    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - Failed to create DEFAULT buffer resource (hr=0x" << std::hex << hr << std::dec << ")"
+              << '\n';
+    return nullptr;
+  }
+
+  result->SetResource(default_resource, D3D12_RESOURCE_STATE_COPY_DEST);
+
+  if (!debug_name.empty()) {
+    result->SetDebugName(debug_name);
+  }
+
+  // Create staging UPLOAD heap buffer
+  D3D12_HEAP_PROPERTIES upload_heap_props = {};
+  upload_heap_props.Type = D3D12_HEAP_TYPE_UPLOAD;
+
+  ComPtr<ID3D12Resource> staging_resource;
+  hr = device->CreateCommittedResource(
+    &upload_heap_props,
+    D3D12_HEAP_FLAG_NONE,
+    &buffer_desc,
+    D3D12_RESOURCE_STATE_GENERIC_READ,
+    nullptr,
+    IID_PPV_ARGS(staging_resource.GetAddressOf()));
+
+  if (FAILED(hr) || staging_resource == nullptr) {
+    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - Failed to create staging UPLOAD buffer (hr=0x" << std::hex << hr << std::dec << ")"
+              << '\n';
+    return nullptr;
+  }
+
+  if (!debug_name.empty()) {
+    staging_resource->SetName(utils::Utf8ToWstring(debug_name + "_Staging").c_str());
+  }
+
+  // Copy CPU -> staging
+  void* mapped = nullptr;
+  hr = staging_resource->Map(0, nullptr, &mapped);
+  if (FAILED(hr) || mapped == nullptr) {
+    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - Failed to map staging buffer (hr=0x" << std::hex << hr << std::dec << ")" << '\n';
+    return nullptr;
+  }
+  std::memcpy(mapped, data, size_in_bytes);
+  staging_resource->Unmap(0, nullptr);
+
+  // Atomic blocking submission: Begin -> Record -> SubmitAndWait
+  upload_context.Begin();
+  ID3D12GraphicsCommandList* cmd = upload_context.GetCommandList();
+  if (cmd == nullptr) {
+    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - upload_context returned null command list" << '\n';
+    return nullptr;
+  }
+
+  cmd->CopyBufferRegion(default_resource.Get(), 0, staging_resource.Get(), 0, size_in_bytes);
+
+  const D3D12_RESOURCE_STATES final_state =
+    (type == Type::Vertex) ? D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER : D3D12_RESOURCE_STATE_INDEX_BUFFER;
+  result->TransitionTo(cmd, final_state);
+
+  // INITIALIZATION ONLY: blocking wait makes staging lifetime safe to release on return.
+  upload_context.SubmitAndWait();
+
+  return result;
 }
 
 bool Buffer::Create(ID3D12Device* device, size_t size, Type type, D3D12_HEAP_TYPE heap_type) {

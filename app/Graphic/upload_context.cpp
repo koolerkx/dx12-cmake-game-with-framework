@@ -37,6 +37,7 @@ bool UploadContext::Initialize(ID3D12Device* device, ID3D12CommandQueue* command
   return true;
 }
 
+// This helper assumes exclusive ownership of UploadContext for the duration of the call.
 void UploadContext::Begin() {
   if (!initialized_) {
     std::cerr << "[UploadContext] Begin called before Initialize" << std::endl;

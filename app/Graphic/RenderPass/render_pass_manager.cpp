@@ -5,7 +5,7 @@
 
 #include "RenderPass/render_pass.h"
 
-bool RenderPassManager::Initialize(ID3D12Device* device, uint32_t frame_count) {
+bool RenderPassManager::Initialize(ID3D12Device* device, uint32_t frame_count, UploadContext& upload_context) {
   assert(device != nullptr);
 
   // Initialize shared scene renderer
@@ -15,7 +15,7 @@ bool RenderPassManager::Initialize(ID3D12Device* device, uint32_t frame_count) {
   }
 
   // Initialize fullscreen pass helper
-  if (!fullscreen_helper_.Initialize(device)) {
+  if (!fullscreen_helper_.Initialize(device, upload_context)) {
     std::cerr << "[RenderPassManager] Failed to initialize fullscreen pass helper" << '\n';
     return false;
   }

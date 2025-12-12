@@ -6,6 +6,7 @@
 #include "mesh.h"
 #include "render_target.h"
 #include "texture_manager.h"
+#include "upload_context.h"
 
 // Helper class for rendering fullscreen quads (post-processing, screen-space effects)
 class FullscreenPassHelper {
@@ -17,7 +18,7 @@ class FullscreenPassHelper {
   FullscreenPassHelper& operator=(const FullscreenPassHelper&) = delete;
 
   // Initialize with device
-  bool Initialize(ID3D12Device* device);
+  bool Initialize(ID3D12Device* device, UploadContext& upload_context);
 
   // Draw a fullscreen quad with custom PSO and input texture
   void DrawQuad(
@@ -40,5 +41,5 @@ class FullscreenPassHelper {
   std::shared_ptr<Buffer> index_buffer_;
   Mesh fullscreen_quad_;
 
-  bool CreateFullscreenQuadGeometry(ID3D12Device* device);
+  bool CreateFullscreenQuadGeometry(ID3D12Device* device, UploadContext& upload_context);
 };

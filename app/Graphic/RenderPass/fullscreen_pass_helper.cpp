@@ -12,10 +12,10 @@ struct FullscreenVertex {
   XMFLOAT2 uv;
 };
 
-bool FullscreenPassHelper::Initialize(ID3D12Device* device) {
+bool FullscreenPassHelper::Initialize(ID3D12Device* device, UploadContext& upload_context) {
   assert(device != nullptr);
 
-  if (!CreateFullscreenQuadGeometry(device)) {
+  if (!CreateFullscreenQuadGeometry(device, upload_context)) {
     std::cerr << "[FullscreenPassHelper] Failed to create fullscreen quad geometry" << '\n';
     return false;
   }
@@ -77,7 +77,7 @@ void FullscreenPassHelper::DrawQuadWithTexture(ID3D12GraphicsCommandList* comman
   fullscreen_quad_.Draw(command_list);
 }
 
-bool FullscreenPassHelper::CreateFullscreenQuadGeometry(ID3D12Device* device) {
+bool FullscreenPassHelper::CreateFullscreenQuadGeometry(ID3D12Device* device, UploadContext& upload_context) {
   // Fullscreen quad vertices (NDC space: -1 to 1)
   // Counter-clockwise winding
   FullscreenVertex vertices[] = {
@@ -88,25 +88,23 @@ bool FullscreenPassHelper::CreateFullscreenQuadGeometry(ID3D12Device* device) {
   };
 
   // Create vertex buffer
-  vertex_buffer_ = std::make_shared<Buffer>();
-  if (!vertex_buffer_->Create(device, sizeof(vertices), Buffer::Type::Vertex)) {
+  vertex_buffer_ = Buffer::CreateAndUploadToDefaultHeapForInit(
+    device, upload_context, vertices, sizeof(vertices), Buffer::Type::Vertex, "FullscreenQuad_VertexBuffer");
+  if (!vertex_buffer_) {
     std::cerr << "[FullscreenPassHelper] Failed to create vertex buffer" << '\n';
     return false;
   }
-  vertex_buffer_->Upload(vertices, sizeof(vertices));
-  vertex_buffer_->SetDebugName("FullscreenQuad_VertexBuffer");
 
   // Indices for two triangles
   uint16_t indices[] = {0, 1, 2, 2, 1, 3};
 
   // Create index buffer
-  index_buffer_ = std::make_shared<Buffer>();
-  if (!index_buffer_->Create(device, sizeof(indices), Buffer::Type::Index)) {
+  index_buffer_ = Buffer::CreateAndUploadToDefaultHeapForInit(
+    device, upload_context, indices, sizeof(indices), Buffer::Type::Index, "FullscreenQuad_IndexBuffer");
+  if (!index_buffer_) {
     std::cerr << "[FullscreenPassHelper] Failed to create index buffer" << '\n';
     return false;
   }
-  index_buffer_->Upload(indices, sizeof(indices));
-  index_buffer_->SetDebugName("FullscreenQuad_IndexBuffer");
 
   // Initialize mesh
   fullscreen_quad_.Initialize(vertex_buffer_, index_buffer_, sizeof(FullscreenVertex), 6, DXGI_FORMAT_R16_UINT);

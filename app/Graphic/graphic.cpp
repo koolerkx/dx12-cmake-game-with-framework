@@ -100,7 +100,7 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
     return false;
   }
 
-  if (!render_pass_manager_.Initialize(device_.Get(), FrameCount)) {
+  if (!render_pass_manager_.Initialize(device_.Get(), FrameCount, upload_context_)) {
     MessageBoxW(nullptr, L"Graphic: Failed to initialize render pass manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
     return false;
   }

@@ -28,7 +28,7 @@ void FrameworkDefaultAssets::Initialize(Graphic& graphic) {
 
   // Create a simple rect mesh using the primitive geometry helper.
   try {
-    rect2d_mesh_ = graphic.GetPrimitiveGeometry2D().CreateRect();
+    rect2d_mesh_ = graphic.GetPrimitiveGeometry2D().CreateRect(graphic.GetUploadContext());
   } catch (...) {
     rect2d_mesh_ = nullptr;
   }
