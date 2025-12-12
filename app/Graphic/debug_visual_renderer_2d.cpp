@@ -13,6 +13,7 @@
 bool DebugVisualRenderer2D::Initialize(Graphic& graphic) {
   device_ = graphic.GetDevice();
   graphic_ = &graphic;
+  frame_count_ = Graphic::FrameCount;
   assert(device_ != nullptr);
 
   // Load shaders
@@ -62,7 +63,7 @@ void DebugVisualRenderer2D::Shutdown() {
 }
 
 void DebugVisualRenderer2D::BeginFrame(uint32_t frame_index) {
-  current_frame_index_ = frame_index % FRAME_BUFFER_COUNT;
+  current_frame_index_ = (frame_count_ == 0) ? 0u : (frame_index % frame_count_);
   vertex_count_ = 0;
 }
 
@@ -200,7 +201,10 @@ bool DebugVisualRenderer2D::CreatePipelineState() {
 }
 
 bool DebugVisualRenderer2D::CreateFrameResources() {
-  for (uint32_t i = 0; i < FRAME_BUFFER_COUNT; ++i) {
+  frame_resources_.clear();
+  frame_resources_.resize(frame_count_);
+
+  for (uint32_t i = 0; i < frame_count_; ++i) {
     FrameResource& frame_res = frame_resources_[i];
 
     // Create upload buffer for vertices

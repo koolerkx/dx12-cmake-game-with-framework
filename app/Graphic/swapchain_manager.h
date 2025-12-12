@@ -12,8 +12,6 @@
 
 class SwapChainManager {
  public:
-  static constexpr UINT BUFFER_COUNT = 2;
-
   SwapChainManager() = default;
   ~SwapChainManager() = default;
   SwapChainManager(const SwapChainManager&) = delete;
@@ -25,6 +23,7 @@ class SwapChainManager {
     HWND hwnd,
     UINT width,
     UINT height,
+    uint32_t buffer_count,
     DescriptorHeapManager& descriptor_manager);
 
   UINT GetCurrentBackBufferIndex() const {
@@ -40,14 +39,28 @@ class SwapChainManager {
     return GetCurrentRenderTarget()->GetRTV();
   }
 
-  RenderTarget* GetCurrentRenderTarget() {
-    UINT index = GetCurrentBackBufferIndex();
+  RenderTarget* GetRenderTarget(uint32_t frame_index) {
+    if (backbuffer_targets_.empty() || buffer_count_ == 0) {
+      return nullptr;
+    }
+    const uint32_t index = frame_index % buffer_count_;
     return &backbuffer_targets_[index];
   }
 
-  const RenderTarget* GetCurrentRenderTarget() const {
-    UINT index = GetCurrentBackBufferIndex();
+  const RenderTarget* GetRenderTarget(uint32_t frame_index) const {
+    if (backbuffer_targets_.empty() || buffer_count_ == 0) {
+      return nullptr;
+    }
+    const uint32_t index = frame_index % buffer_count_;
     return &backbuffer_targets_[index];
+  }
+
+  RenderTarget* GetCurrentRenderTarget() {
+    return GetRenderTarget(GetCurrentBackBufferIndex());
+  }
+
+  const RenderTarget* GetCurrentRenderTarget() const {
+    return GetRenderTarget(GetCurrentBackBufferIndex());
   }
 
   ID3D12Resource* GetCurrentBackBuffer() const {
@@ -70,7 +83,7 @@ class SwapChainManager {
     return height_;
   }
 
-  bool Resize(UINT width, UINT height, DescriptorHeapManager& descriptor_manager);
+  bool Resize(UINT width, UINT height, uint32_t buffer_count, DescriptorHeapManager& descriptor_manager);
 
  private:
   ComPtr<IDXGISwapChain4> swap_chain_ = nullptr;
@@ -78,6 +91,7 @@ class SwapChainManager {
 
   UINT width_ = 0;
   UINT height_ = 0;
+  uint32_t buffer_count_ = 0;
 
   ID3D12Device* device_ = nullptr;
 

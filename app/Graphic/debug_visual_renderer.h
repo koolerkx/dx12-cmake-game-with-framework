@@ -3,7 +3,8 @@
 #include <DirectXMath.h>
 #include <d3d12.h>
 
-#include <array>
+#include <memory>
+#include <vector>
 
 #include "buffer.h"
 #include "debug_visual_service.h"
@@ -75,7 +76,6 @@ class DebugVisualRenderer {
 
  private:
   static constexpr UINT MAX_DEBUG_VERTICES = 64 * 1024;  // 64K vertices max per frame
-  static constexpr int FRAME_BUFFER_COUNT = 2;
 
   // Per-frame data
   struct FrameData {
@@ -93,11 +93,12 @@ class DebugVisualRenderer {
   // Internal state
   bool is_initialized_ = false;
   Graphic* graphic_ = nullptr;
+  uint32_t frame_count_ = 1;
   uint32_t current_frame_index_ = 0;
   uint32_t last_frame_vertex_count_ = 0;
 
   // Per-frame buffers
-  std::array<FrameData, FRAME_BUFFER_COUNT> frames_;
+  std::vector<std::unique_ptr<FrameData>> frames_;
 
   // Material system references (non-owning)
   MaterialTemplate* debug_line_template_overlay_ = nullptr;

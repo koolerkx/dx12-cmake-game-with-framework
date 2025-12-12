@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "buffer.h"
 #include "debug_visual_service.h"
@@ -21,7 +22,6 @@ struct UISceneData {
 class DebugVisualRenderer2D {
  public:
   static constexpr UINT MAX_VERTICES_PER_FRAME = 10000;
-  static constexpr UINT FRAME_BUFFER_COUNT = 2;
 
   DebugVisualRenderer2D() = default;
   ~DebugVisualRenderer2D() = default;
@@ -42,7 +42,8 @@ class DebugVisualRenderer2D {
 
   ID3D12Device* device_ = nullptr;
   Graphic* graphic_ = nullptr;  // Store reference for shader access
-  FrameResource frame_resources_[FRAME_BUFFER_COUNT];
+  uint32_t frame_count_ = 1;
+  std::vector<FrameResource> frame_resources_;
   uint32_t current_frame_index_ = 0;
   uint32_t vertex_count_ = 0;
 

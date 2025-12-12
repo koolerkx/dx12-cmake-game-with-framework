@@ -35,10 +35,21 @@ void FenceManager::WaitForFenceValue(UINT64 fence_value) {
   assert(fence_ != nullptr);
   assert(fence_event_ != nullptr);
 
-  if (fence_->GetCompletedValue() < fence_value) {
-    fence_->SetEventOnCompletion(fence_value, fence_event_);
-    WaitForSingleObject(fence_event_, INFINITE);
+  // Frame-slot reuse semantics:
+  // - value == 0: slot has not been used yet (no wait required).
+  // - value <= completed: already done (no wait required).
+  // - otherwise: wait until GPU reaches the requested value.
+  if (fence_value == 0) {
+    return;
   }
+
+  const UINT64 completed = fence_->GetCompletedValue();
+  if (fence_value <= completed) {
+    return;
+  }
+
+  fence_->SetEventOnCompletion(fence_value, fence_event_);
+  WaitForSingleObject(fence_event_, INFINITE);
 }
 
 void FenceManager::WaitForGpu(ID3D12CommandQueue* command_queue) {

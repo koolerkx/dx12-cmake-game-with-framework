@@ -68,8 +68,12 @@ void DebugVisualRenderer::BeginFrame(uint32_t frameIndex) {
     return;
   }
 
-  current_frame_index_ = frameIndex % FRAME_BUFFER_COUNT;
-  frames_[current_frame_index_].Reset();
+  current_frame_index_ = (frame_count_ == 0) ? 0u : (frameIndex % frame_count_);
+  if (current_frame_index_ < frames_.size()) {
+    if (frames_[current_frame_index_]) {
+      frames_[current_frame_index_]->Reset();
+    }
+  }
 }
 
 void DebugVisualRenderer::RenderDepthTested(const DebugVisualCommandBuffer& cmds,
@@ -94,7 +98,7 @@ void DebugVisualRenderer::RenderDepthTested(const DebugVisualCommandBuffer& cmds
     cmd_list->RSSetScissorRects(1, &scissor);
   }
 
-  auto& frame = frames_[current_frame_index_];
+  auto& frame = *frames_[current_frame_index_];
 
   // Fill depth-tested vertices first
   frame.vertex_count = FillVertexData(cmds, frame.mapped_ptr, MAX_DEBUG_VERTICES, DebugDepthMode::TestDepth, settings);
@@ -155,7 +159,7 @@ void DebugVisualRenderer::RenderOverlay(const DebugVisualCommandBuffer& cmds,
     cmd_list->RSSetScissorRects(1, &scissor);
   }
 
-  auto& frame = frames_[current_frame_index_];
+  auto& frame = *frames_[current_frame_index_];
 
   const UINT start_offset = frame.vertex_count;  // Depth-tested vertices already written (if any)
   assert(start_offset <= MAX_DEBUG_VERTICES);
@@ -210,9 +214,14 @@ bool DebugVisualRenderer::CreateFrameBuffers() {
     return false;
   }
 
+  frame_count_ = Graphic::FrameCount;
+  frames_.clear();
+  frames_.resize(frame_count_);
+
   // Create upload buffers for each frame
-  for (int i = 0; i < FRAME_BUFFER_COUNT; ++i) {
-    auto& frame = frames_[i];
+  for (uint32_t i = 0; i < frame_count_; ++i) {
+    frames_[i] = std::make_unique<FrameData>();
+    auto& frame = *frames_[i];
 
     // Create upload buffer
     size_t buffer_size = MAX_DEBUG_VERTICES * sizeof(DebugVertex);
@@ -240,7 +249,9 @@ bool DebugVisualRenderer::CreateFrameBuffers() {
 }
 
 void DebugVisualRenderer::ReleaseFrameBuffers() {
-  for (auto& frame : frames_) {
+  for (auto& frame_ptr : frames_) {
+    if (!frame_ptr) continue;
+    auto& frame = *frame_ptr;
     if (frame.is_mapped && frame.vertex_buffer.GetResource()) {
       frame.vertex_buffer.GetResource()->Unmap(0, nullptr);
       frame.is_mapped = false;
