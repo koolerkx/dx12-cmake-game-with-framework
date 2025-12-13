@@ -1,17 +1,21 @@
 #include "framework_default_assets.h"
 
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
+#include "buffer.h"
 #include "graphic.h"
 #include "material_instance.h"
 #include "material_manager.h"
 #include "material_template.h"
+#include "mesh.h"
 #include "pipeline_state_builder.h"
 #include "primitive_geometry_2d.h"
 #include "root_signature_builder.h"
 #include "shader_manager.h"
 #include "texture_manager.h"
+#include "upload_context.h"
 #include "vertex_types.h"
 
 #include "Framework/Logging/logger.h"
@@ -32,6 +36,19 @@ void FrameworkDefaultAssets::Initialize(Graphic& graphic) {
     rect2d_mesh_ = graphic.GetPrimitiveGeometry2D().CreateRect(graphic.GetUploadContext());
   } catch (...) {
     rect2d_mesh_ = nullptr;
+  }
+
+  // Create primitive 3D meshes (cube and cylinder)
+  try {
+    cube_mesh_ = CreateCubeMesh(graphic.GetDevice(), graphic.GetUploadContext());
+  } catch (...) {
+    cube_mesh_ = nullptr;
+  }
+  
+  try {
+    cylinder_mesh_ = CreateCylinderMesh(graphic.GetDevice(), graphic.GetUploadContext());
+  } catch (...) {
+    cylinder_mesh_ = nullptr;
   }
 
   // Create default textures in a single upload batch using the upload context
@@ -105,16 +122,20 @@ void FrameworkDefaultAssets::Shutdown() {
 
   graphic_ = nullptr;
   rect2d_mesh_.reset();
+  cube_mesh_.reset();
+  cylinder_mesh_.reset();
   sprite_world_opaque_template_ = nullptr;
   sprite_world_transparent_template_ = nullptr;
   sprite_ui_template_ = nullptr;
   debug_line_template_overlay_ = nullptr;
   debug_line_template_depth_ = nullptr;
+  debug_line_template_depth_biased_ = nullptr;
   sprite_world_opaque_material_ = nullptr;
   sprite_world_transparent_material_ = nullptr;
   sprite_ui_material_ = nullptr;
   debug_line_material_overlay_ = nullptr;
   debug_line_material_depth_ = nullptr;
+  debug_line_material_depth_biased_ = nullptr;
 }
 
 TextureHandle FrameworkDefaultAssets::GetWhiteTexture() const {
@@ -167,6 +188,14 @@ MaterialInstance* FrameworkDefaultAssets::GetDebugLineMaterialOverlay() const {
 
 MaterialInstance* FrameworkDefaultAssets::GetDebugLineMaterialDepth() const {
   return debug_line_material_depth_;
+}
+
+MaterialTemplate* FrameworkDefaultAssets::GetDebugLineTemplateDepthBiased() const {
+  return debug_line_template_depth_biased_;
+}
+
+MaterialInstance* FrameworkDefaultAssets::GetDebugLineMaterialDepthBiased() const {
+  return debug_line_material_depth_biased_;
 }
 
 void FrameworkDefaultAssets::CreateDefaultMaterials(Graphic& gfx) {
@@ -425,4 +454,298 @@ void FrameworkDefaultAssets::CreateDebugLineMaterials(Graphic& gfx) {
       }
     }
   }
+
+  // Depth-tested PSO with depth bias (Task 3.2)
+  // Used to prevent Z-fighting for surface-aligned debug visuals (grid, navmesh overlays)
+  {
+    ComPtr<ID3D12PipelineState> depth_biased_pso;
+    PipelineStateBuilder pso_builder;
+    pso_builder.SetVertexShader(vs)
+      .SetPixelShader(ps)
+      .SetInputLayout(input_layout.data(), static_cast<UINT>(input_layout.size()))
+      .SetRootSignature(debug_root_signature.Get())
+      .SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE)
+      .SetRenderTargetFormat(DXGI_FORMAT_R8G8B8A8_UNORM)
+      .SetDepthStencilFormat(DXGI_FORMAT_D32_FLOAT)
+      .SetDepthEnable(true)
+      .SetDepthWriteMask(D3D12_DEPTH_WRITE_MASK_ZERO)  // Read-only depth test
+      .SetDepthFunc(D3D12_COMPARISON_FUNC_LESS_EQUAL)
+      .SetCullMode(D3D12_CULL_MODE_NONE)
+      .SetFillMode(D3D12_FILL_MODE_SOLID);
+
+    // Set depth bias to prevent Z-fighting
+    // Default values: DepthBias = -10000, SlopeScaledDepthBias = -2.0f
+    // These can be adjusted via DebugVisualSettings
+    pso_builder.SetDepthBias(-10000, 0.0f, -2.0f);
+
+    if (!pso_builder.Build(gfx.GetDevice(), depth_biased_pso)) {
+      Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to create DebugLine depth-biased PSO");
+      return;
+    }
+
+    debug_line_template_depth_biased_ = 
+      material_mgr.CreateTemplate("DefaultDebugLineDepthBiased", depth_biased_pso.Get(), debug_root_signature.Get());
+
+    if (debug_line_template_depth_biased_) {
+      debug_line_material_depth_biased_ = 
+        material_mgr.CreateInstance("DebugLine_DepthBiased_Default", debug_line_template_depth_biased_);
+      if (debug_line_material_depth_biased_) {
+         Logger::Log(LogLevel::Info, LogCategory::Graphic, "[FrameworkDefaultAssets] Created DebugLine depth-biased material");
+      }
+    }
+  }
+}
+
+std::shared_ptr<Mesh> FrameworkDefaultAssets::GetCubeMesh() const {
+  return cube_mesh_;
+}
+
+std::shared_ptr<Mesh> FrameworkDefaultAssets::GetCylinderMesh() const {
+  return cylinder_mesh_;
+}
+
+std::shared_ptr<Mesh> FrameworkDefaultAssets::CreateCubeMesh(ID3D12Device* device, UploadContext& upload_context) {
+  // Cube with 24 vertices (4 per face) and 36 indices (6 faces * 2 triangles * 3 indices)
+  // Each face has unique vertices to allow proper UV mapping
+  std::vector<VertexPositionTexture2D> vertices;
+  std::vector<uint16_t> indices;
+  
+  vertices.reserve(24);
+  indices.reserve(36);
+  
+  // Define cube half-extents
+  constexpr float s = 0.5f;
+  
+  // Front face (+Z)
+  vertices.push_back({{-s, -s, +s}, {0, 1}});  // 0: bottom-left
+  vertices.push_back({{+s, -s, +s}, {1, 1}});  // 1: bottom-right
+  vertices.push_back({{-s, +s, +s}, {0, 0}});  // 2: top-left
+  vertices.push_back({{+s, +s, +s}, {1, 0}});  // 3: top-right
+  
+  // Back face (-Z)
+  vertices.push_back({{+s, -s, -s}, {0, 1}});  // 4: bottom-left (viewed from back)
+  vertices.push_back({{-s, -s, -s}, {1, 1}});  // 5: bottom-right
+  vertices.push_back({{+s, +s, -s}, {0, 0}});  // 6: top-left
+  vertices.push_back({{-s, +s, -s}, {1, 0}});  // 7: top-right
+  
+  // Left face (-X)
+  vertices.push_back({{-s, -s, -s}, {0, 1}});  // 8: bottom-left
+  vertices.push_back({{-s, -s, +s}, {1, 1}});  // 9: bottom-right
+  vertices.push_back({{-s, +s, -s}, {0, 0}});  // 10: top-left
+  vertices.push_back({{-s, +s, +s}, {1, 0}});  // 11: top-right
+  
+  // Right face (+X)
+  vertices.push_back({{+s, -s, +s}, {0, 1}});  // 12: bottom-left
+  vertices.push_back({{+s, -s, -s}, {1, 1}});  // 13: bottom-right
+  vertices.push_back({{+s, +s, +s}, {0, 0}});  // 14: top-left
+  vertices.push_back({{+s, +s, -s}, {1, 0}});  // 15: top-right
+  
+  // Top face (+Y)
+  vertices.push_back({{-s, +s, +s}, {0, 1}});  // 16: bottom-left (front edge)
+  vertices.push_back({{+s, +s, +s}, {1, 1}});  // 17: bottom-right (front edge)
+  vertices.push_back({{-s, +s, -s}, {0, 0}});  // 18: top-left (back edge)
+  vertices.push_back({{+s, +s, -s}, {1, 0}});  // 19: top-right (back edge)
+  
+  // Bottom face (-Y)
+  vertices.push_back({{-s, -s, -s}, {0, 1}});  // 20: bottom-left (back edge)
+  vertices.push_back({{+s, -s, -s}, {1, 1}});  // 21: bottom-right (back edge)
+  vertices.push_back({{-s, -s, +s}, {0, 0}});  // 22: top-left (front edge)
+  vertices.push_back({{+s, -s, +s}, {1, 0}});  // 23: top-right (front edge)
+  
+  // Indices (CCW winding for all faces)
+  // Standard Pattern for CCW Quad (BL, BR, TL, TR):
+  // Tri 1: BL(0) -> BR(1) -> TL(2)
+  // Tri 2: BR(1) -> TR(3) -> TL(2)  <-- CORRECTED from {2,1,3} which was CW
+  
+  // Front (+Z)
+  indices.insert(indices.end(), {0, 1, 2, 1, 3, 2});
+  
+  // Back (-Z) - Look from back: 4 is Left(+X), 5 is Right(-X)
+  // To get Normal -Z, we need CCW in local view
+  indices.insert(indices.end(), {4, 5, 6, 5, 7, 6});
+  
+  // Left (-X)
+  indices.insert(indices.end(), {8, 9, 10, 9, 11, 10});
+  
+  // Right (+X)
+  indices.insert(indices.end(), {12, 13, 14, 13, 15, 14});
+  
+  // Top (+Y)
+  indices.insert(indices.end(), {16, 17, 18, 17, 19, 18});
+  
+  // Bottom (-Y)
+  indices.insert(indices.end(), {20, 21, 22, 21, 23, 22});
+  
+  // Create vertex and index buffers
+  auto vb = Buffer::CreateAndUploadToDefaultHeapForInit(
+    device,
+    upload_context,
+    vertices.data(),
+    vertices.size() * sizeof(VertexPositionTexture2D),
+    Buffer::Type::Vertex,
+    "Primitive_Cube_VB"
+  );
+  
+  auto ib = Buffer::CreateAndUploadToDefaultHeapForInit(
+    device,
+    upload_context,
+    indices.data(),
+    indices.size() * sizeof(uint16_t),
+    Buffer::Type::Index,
+    "Primitive_Cube_IB"
+  );
+  
+  // Create and initialize mesh
+  auto mesh = std::make_shared<Mesh>();
+  mesh->Initialize(
+    vb,
+    ib,
+    sizeof(VertexPositionTexture2D),
+    static_cast<uint32_t>(indices.size()),
+    DXGI_FORMAT_R16_UINT,
+    D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST
+  );
+  mesh->SetDebugName("Primitive_Cube");
+  
+  return mesh;
+}
+
+std::shared_ptr<Mesh> FrameworkDefaultAssets::CreateCylinderMesh(ID3D12Device* device, UploadContext& upload_context) {
+  // Cylinder with 24 segments
+  constexpr int segments = 24;
+  constexpr float radius = 0.5f;
+  constexpr float height = 1.0f;
+  constexpr float half_height = height * 0.5f;
+  
+  std::vector<VertexPositionTexture2D> vertices;
+  std::vector<uint16_t> indices;
+  
+  // Reserve space
+  // Side: 48 vertices (24 segments * 2 for top and bottom)
+  // Top cap: 25 vertices (1 center + 24 rim)
+  // Bottom cap: 25 vertices (1 center + 24 rim)
+  vertices.reserve(98);
+  
+  // Side: 144 indices (24 segments * 6)
+  // Top cap: 72 indices (24 triangles * 3)
+  // Bottom cap: 72 indices (24 triangles * 3)
+  indices.reserve(288);
+  
+  // Side vertices
+  const uint16_t side_start = 0;
+  for (int i = 0; i < segments; ++i) {
+    float angle = (static_cast<float>(i) / segments) * DirectX::XM_2PI;
+    float x = std::cos(angle) * radius;
+    float z = std::sin(angle) * radius;
+    float u = static_cast<float>(i) / segments;
+    
+    // Bottom vertex (even index)
+    vertices.push_back({{x, -half_height, z}, {u, 1}});
+    // Top vertex (odd index)
+    vertices.push_back({{x, +half_height, z}, {u, 0}});
+  }
+  
+  // Side indices (CORRECTED: Fix inside-out winding)
+  // We want Normal Outward (radial direction)
+  // Correct CCW: BottomCurr -> TopCurr -> BottomNext
+  for (int i = 0; i < segments; ++i) {
+    const int next_i = (i + 1) % segments;
+    uint16_t b_curr = side_start + static_cast<uint16_t>(i) * 2u;
+    uint16_t t_curr = b_curr + 1u;
+    uint16_t b_next = side_start + static_cast<uint16_t>(next_i) * 2u;
+    uint16_t t_next = b_next + 1u;
+    
+    // Triangle 1: BottomCurr -> TopCurr -> BottomNext
+    indices.push_back(b_curr);
+    indices.push_back(t_curr);
+    indices.push_back(b_next);
+    
+    // Triangle 2: BottomNext -> TopCurr -> TopNext
+    indices.push_back(b_next);
+    indices.push_back(t_curr);
+    indices.push_back(t_next);
+  }
+  
+  // Top cap (Normal +Y)
+  const uint16_t top_center = static_cast<uint16_t>(vertices.size());
+  vertices.push_back({{0, +half_height, 0}, {0.5f, 0.5f}});  // Center
+  
+  for (int i = 0; i < segments; ++i) {
+    float angle = (static_cast<float>(i) / segments) * DirectX::XM_2PI;
+    float x = std::cos(angle) * radius;
+    float z = std::sin(angle) * radius;
+    float u = std::cos(angle) * 0.5f + 0.5f;
+    float v = std::sin(angle) * 0.5f + 0.5f;
+    
+    vertices.push_back({{x, +half_height, z}, {u, v}});
+  }
+  
+  // Top cap indices (CORRECTED: Center -> Next -> Current for +Y normal)
+  for (int i = 0; i < segments; ++i) {
+    const int next_i = (i + 1) % segments;
+    uint16_t current = static_cast<uint16_t>(top_center + 1u + static_cast<uint16_t>(i));
+    uint16_t next = static_cast<uint16_t>(top_center + 1u + static_cast<uint16_t>(next_i));
+    
+    indices.push_back(top_center);
+    indices.push_back(next);  // Swapped for correct +Y normal
+    indices.push_back(current);
+  }
+  
+  // Bottom cap (Normal -Y)
+  const uint16_t bottom_center = static_cast<uint16_t>(vertices.size());
+  vertices.push_back({{0, -half_height, 0}, {0.5f, 0.5f}});  // Center
+  
+  for (int i = 0; i < segments; ++i) {
+    float angle = (static_cast<float>(i) / segments) * DirectX::XM_2PI;
+    float x = std::cos(angle) * radius;
+    float z = std::sin(angle) * radius;
+    float u = std::cos(angle) * 0.5f + 0.5f;
+    float v = std::sin(angle) * 0.5f + 0.5f;
+    
+    vertices.push_back({{x, -half_height, z}, {u, v}});
+  }
+  
+  // Bottom cap indices (Center -> Current -> Next for -Y normal)
+  for (int i = 0; i < segments; ++i) {
+    const int next_i = (i + 1) % segments;
+    uint16_t current = static_cast<uint16_t>(bottom_center + 1u + static_cast<uint16_t>(i));
+    uint16_t next = static_cast<uint16_t>(bottom_center + 1u + static_cast<uint16_t>(next_i));
+    
+    indices.push_back(bottom_center);
+    indices.push_back(current);
+    indices.push_back(next);
+  }
+  
+  // Create vertex and index buffers
+  auto vb = Buffer::CreateAndUploadToDefaultHeapForInit(
+    device,
+    upload_context,
+    vertices.data(),
+    vertices.size() * sizeof(VertexPositionTexture2D),
+    Buffer::Type::Vertex,
+    "Primitive_Cylinder_VB"
+  );
+  
+  auto ib = Buffer::CreateAndUploadToDefaultHeapForInit(
+    device,
+    upload_context,
+    indices.data(),
+    indices.size() * sizeof(uint16_t),
+    Buffer::Type::Index,
+    "Primitive_Cylinder_IB"
+  );
+  
+  // Create and initialize mesh
+  auto mesh = std::make_shared<Mesh>();
+  mesh->Initialize(
+    vb,
+    ib,
+    sizeof(VertexPositionTexture2D),
+    static_cast<uint32_t>(indices.size()),
+    DXGI_FORMAT_R16_UINT,
+    D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST
+  );
+  mesh->SetDebugName("Primitive_Cylinder");
+  
+  return mesh;
 }

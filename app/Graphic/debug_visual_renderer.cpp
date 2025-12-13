@@ -30,6 +30,7 @@ void DebugVisualRenderer::Initialize(Graphic& graphic) {
 
   debug_line_template_overlay_ = defaults.GetDebugLineTemplateOverlay();
   debug_line_template_depth_ = defaults.GetDebugLineTemplateDepth();
+  debug_line_template_depth_biased_ = defaults.GetDebugLineTemplateDepthBiased();  // Task 3.2
 
   // Fallback: derive templates from materials if template getters are unavailable
   if (!debug_line_template_overlay_ && debug_line_material_overlay_) {
@@ -68,6 +69,7 @@ void DebugVisualRenderer::Shutdown() {
   debug_line_material_overlay_ = nullptr;
   debug_line_template_depth_ = nullptr;
   debug_line_material_depth_ = nullptr;
+  debug_line_template_depth_biased_ = nullptr;  // Task 3.2
   graphic_ = nullptr;
   is_initialized_ = false;
 
@@ -139,8 +141,14 @@ void DebugVisualRenderer::RenderDepthTested(const DebugVisualCommandBuffer& cmds
     frame.instance_buffer.GetVBV(sizeof(DebugLineInstanceData))
   };
 
-  cmd_list->SetPipelineState(debug_line_template_depth_->GetPSO());
-  cmd_list->SetGraphicsRootSignature(debug_line_template_depth_->GetRootSignature());
+  // Task 3.2: Select PSO based on depth bias mode
+  MaterialTemplate* active_template = debug_line_template_depth_;
+  if (settings.depth_bias_mode == DebugDepthBiasMode::SurfaceBiased && debug_line_template_depth_biased_) {
+    active_template = debug_line_template_depth_biased_;
+  }
+
+  cmd_list->SetPipelineState(active_template->GetPSO());
+  cmd_list->SetGraphicsRootSignature(active_template->GetRootSignature());
   cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
   cmd_list->IASetVertexBuffers(0, 2, vbvs);
 
@@ -405,9 +413,7 @@ UINT DebugVisualRenderer::FillInstanceData(const DebugVisualCommandBuffer& cmds,
   }
 
   UINT instance_index = 0;
-
-  // Track if we've already warned about overflow in this session
-  static bool overflow_warning_shown = false;
+  uint32_t dropped_count = 0;
 
   // Convert 3D lines matching the specified depth mode and category filter
   for (const auto& line : cmds.lines3D) {
@@ -419,14 +425,10 @@ UINT DebugVisualRenderer::FillInstanceData(const DebugVisualCommandBuffer& cmds,
       continue;  // Skip disabled categories
     }
 
-    // Check for overflow - soft fail with one-time warning
+    // Check for overflow - soft fail (Task 3.1)
     if (instance_index >= max_instances) {
-      if (!overflow_warning_shown) {
-        Logger::Log(LogLevel::Warn, LogCategory::Validation, 
-          "[DebugVisualRenderer] Instance buffer overflow, truncating. This warning will only show once.");
-        overflow_warning_shown = true;
-      }
-      break;  // Stop filling, but don't crash
+      dropped_count++;
+      continue;  // Skip this instance but keep iterating to count total dropped
     }
 
     // Generate world matrix that transforms unit segment to this line segment
@@ -438,6 +440,24 @@ UINT DebugVisualRenderer::FillInstanceData(const DebugVisualCommandBuffer& cmds,
     instance_buffer[instance_index]._pad[2] = 0;
 
     instance_index++;
+  }
+
+  // Store overflow info in current frame (will be logged by caller)
+  if (dropped_count > 0 && current_frame_index_ < frames_.size()) {
+    auto& frame = *frames_[current_frame_index_];
+    if (!frame.has_overflowed) {
+      frame.has_overflowed = true;
+      frame.dropped_instance_count = dropped_count;
+      Logger::Logf(LogLevel::Warn,
+        LogCategory::Validation,
+        Logger::Here(),
+        "[DebugVisualRenderer] Instance buffer overflow (frame={}): max={}, dropped={} instances. This warning shows once per frame.",
+        current_frame_index_,
+        max_instances,
+        dropped_count);
+    } else {
+      frame.dropped_instance_count += dropped_count;
+    }
   }
 
   return instance_index;

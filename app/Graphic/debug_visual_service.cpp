@@ -113,6 +113,32 @@ void DebugVisualService::DrawAxisGizmo(const DirectX::XMFLOAT3& origin, float le
   DrawLine3D(z0, z1, DebugColor::Blue(), depthMode, DebugCategory::Gizmo);
 }
 
+void DebugVisualService::DrawGrid(const XMFLOAT3& center,
+  uint32_t grid_size,
+  float cell_spacing,
+  const DebugColor& color,
+  DebugDepthMode mode,
+  DebugCategory category) {
+  // Calculate grid extents
+  const float half_extent = static_cast<float>(grid_size) * cell_spacing;
+  
+  // Draw lines parallel to X axis (along Z direction)
+  for (uint32_t i = 0; i <= grid_size * 2; ++i) {
+    float z = center.z - half_extent + static_cast<float>(i) * cell_spacing;
+    XMFLOAT3 p0 = {center.x - half_extent, center.y, z};
+    XMFLOAT3 p1 = {center.x + half_extent, center.y, z};
+    DrawLine3D(p0, p1, color, mode, category);
+  }
+  
+  // Draw lines parallel to Z axis (along X direction)
+  for (uint32_t i = 0; i <= grid_size * 2; ++i) {
+    float x = center.x - half_extent + static_cast<float>(i) * cell_spacing;
+    XMFLOAT3 p0 = {x, center.y, center.z - half_extent};
+    XMFLOAT3 p1 = {x, center.y, center.z + half_extent};
+    DrawLine3D(p0, p1, color, mode, category);
+  }
+}
+
 void DebugVisualService::DrawWireBox(
   const DirectX::XMFLOAT3& min_point, const DirectX::XMFLOAT3& max_point, const DebugColor& color, DebugDepthMode mode) {
   // Define the 8 vertices of the box

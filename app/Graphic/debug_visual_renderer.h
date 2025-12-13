@@ -90,8 +90,14 @@ class DebugVisualRenderer {
     UINT instance_count = 0;
     bool is_mapped = false;
 
+    // Overflow tracking (Task 3.1)
+    bool has_overflowed = false;
+    uint32_t dropped_instance_count = 0;
+
     void Reset() {
       instance_count = 0;
+      has_overflowed = false;
+      dropped_instance_count = 0;
       // Keep buffer mapped persistently
     }
   };
@@ -120,6 +126,7 @@ class DebugVisualRenderer {
   MaterialInstance* debug_line_material_overlay_ = nullptr;
   MaterialTemplate* debug_line_template_depth_ = nullptr;
   MaterialInstance* debug_line_material_depth_ = nullptr;
+  MaterialTemplate* debug_line_template_depth_biased_ = nullptr;  // Task 3.2
 
   // Internal helpers
   bool CreateFrameBuffers();

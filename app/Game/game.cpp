@@ -2,6 +2,7 @@
 
 #include <DirectXMath.h>
 
+#include <cmath>
 #include <iostream>
 
 #include "Component/camera_component.h"
@@ -132,57 +133,109 @@ void Game::OnUpdate(float dt) {
   // Step 11: Demo debug visual API usage
   auto& debug = render_system_.GetDebugVisualService();
 
+  // ============================================================================
+  // Phase 3 Testing: Overflow and Depth Bias
+  // ============================================================================
+
+  // Toggle for overflow test (press a key in your game to enable/disable)
+  static bool test_overflow = false;   // Set to true to test overflow
+  static bool test_depth_bias = true;  // Set to true to test depth bias
+
+  // Overflow Test (Task 3.1)
+  if (test_overflow) {
+    // Generate 100K debug lines to test overflow handling
+    // Expected: Warning log appears, partial lines rendered, no crash
+    for (int i = 0; i < 5000; ++i) {
+      float t = static_cast<float>(i) * 0.01f;
+      float x = sinf(t) * 10.0f;
+      float y = cosf(t * 0.5f) * 5.0f;
+      float z = sinf(t * 1.5f) * 10.0f;
+      XMFLOAT3 p0 = {x, y, z};
+      XMFLOAT3 p1 = {x + 0.1f, y + 0.1f, z + 0.1f};
+      debug.DrawLine3D(p0, p1, DebugColor::Red(), DebugDepthMode::TestDepth);
+    }
+  }
+
+  // Depth Bias Test (Task 3.2)
+  if (test_depth_bias) {
+    // Test 1: Normal mode (should see Z-fighting on coplanar grid)
+    // Uncomment to test:
+    debug.GetSettings().depth_bias_mode = DebugDepthBiasMode::Normal;
+
+    // Test 2: SurfaceBiased mode (grid should be stable, no Z-fighting)
+    // debug.GetSettings().depth_bias_mode = DebugDepthBiasMode::SurfaceBiased;
+
+    // Draw a coplanar quad using lines to verify Z-fighting behavior
+    // This simulates a "ground plane" that the grid should render on top of
+    const float size = 10.0f;
+    debug.DrawLine3D({-size, 0.0f, -size}, {size, 0.0f, -size}, DebugColor::White(), DebugDepthMode::TestDepth);
+    debug.DrawLine3D({size, 0.0f, -size}, {size, 0.0f, size}, DebugColor::White(), DebugDepthMode::TestDepth);
+    debug.DrawLine3D({size, 0.0f, size}, {-size, 0.0f, size}, DebugColor::White(), DebugDepthMode::TestDepth);
+    debug.DrawLine3D({-size, 0.0f, size}, {-size, 0.0f, -size}, DebugColor::White(), DebugDepthMode::TestDepth);
+  } else {
+    // Reset to normal mode when not testing
+    debug.GetSettings().depth_bias_mode = DebugDepthBiasMode::Normal;
+  }
+
+  // Draw ground plane grid at y=0
+  // This will test depth bias against any geometry at the same height
+  debug.DrawGrid({0.0f, 0.0f, 0.0f}, 50, 1.0f, DebugColor{0.3f, 0.3f, 0.3f, 1.0f}, DebugDepthMode::TestDepth);
+
+  // ============================================================================
+  // Regular Debug Visuals
+  // ============================================================================
+
   // 3D Debug visuals
   // Draw axis gizmo at origin - try both modes to see the difference
   debug.DrawAxisGizmo({0.0f, 0.0f, 0.0f}, 100.0f, DebugDepthMode::TestDepth);  // Change to TestDepth to see depth testing
 
-  // Draw a simple wire box around the sprite (AABB version)
-  debug.DrawWireBox({-1.5f, -1.5f, -0.5f}, {1.5f, 1.5f, 0.5f}, DebugColor::Yellow(), DebugDepthMode::TestDepth);
+  // // Draw a simple wire box around the sprite (AABB version)
+  // debug.DrawWireBox({-1.5f, -1.5f, -0.5f}, {1.5f, 1.5f, 0.5f}, DebugColor::Yellow(), DebugDepthMode::TestDepth);
 
-  // Draw some reference lines
-  debug.DrawLine3D({-3.0f, 0.0f, 0.0f}, {3.0f, 0.0f, 0.0f}, DebugColor::Cyan());
-  debug.DrawLine3D({0.0f, -3.0f, 0.0f}, {0.0f, 3.0f, 0.0f}, DebugColor::Magenta());
+  // // Draw some reference lines
+  // debug.DrawLine3D({-3.0f, 0.0f, 0.0f}, {3.0f, 0.0f, 0.0f}, DebugColor::Cyan());
+  // debug.DrawLine3D({0.0f, -3.0f, 0.0f}, {0.0f, 3.0f, 0.0f}, DebugColor::Magenta());
 
-  // ============================================================================
-  // Phase 2 Wire Primitives Demo (Task 2.1-2.3)
-  // ============================================================================
+  // // ============================================================================
+  // // Phase 2 Wire Primitives Demo (Task 2.1-2.3)
+  // // ============================================================================
 
-  // Identity quaternion for no rotation
-  DirectX::XMFLOAT4 identity_quat(0.0f, 0.0f, 0.0f, 1.0f);
+  // // Identity quaternion for no rotation
+  // DirectX::XMFLOAT4 identity_quat(0.0f, 0.0f, 0.0f, 1.0f);
 
-  // Oriented wire box (rotated 45 degrees around Y axis for visual verification)
-  DirectX::XMVECTOR rotAxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-  DirectX::XMVECTOR quat = DirectX::XMQuaternionRotationAxis(rotAxis, DirectX::XM_PIDIV4);  // 45 degrees
-  DirectX::XMFLOAT4 rotation_quat;
-  DirectX::XMStoreFloat4(&rotation_quat, quat);
-  debug.DrawWireBox({0.0f, 0.0f, 0.0f}, rotation_quat, {2.0f, 2.0f, 2.0f}, DebugColor::Green(), DebugDepthMode::TestDepth);
+  // // Oriented wire box (rotated 45 degrees around Y axis for visual verification)
+  // DirectX::XMVECTOR rotAxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+  // DirectX::XMVECTOR quat = DirectX::XMQuaternionRotationAxis(rotAxis, DirectX::XM_PIDIV4);  // 45 degrees
+  // DirectX::XMFLOAT4 rotation_quat;
+  // DirectX::XMStoreFloat4(&rotation_quat, quat);
+  // debug.DrawWireBox({0.0f, 0.0f, 0.0f}, rotation_quat, {2.0f, 2.0f, 2.0f}, DebugColor::Green(), DebugDepthMode::TestDepth);
 
-  // Wire sphere (demonstrate different segment quality)
-  debug.DrawWireSphere({3.0f, 0.0f, 0.0f}, 0.8f, DebugSegments::S16, DebugColor::Blue(), DebugDepthMode::TestDepth);
-  debug.DrawWireSphere({5.0f, 0.0f, 0.0f}, 0.8f, DebugSegments::S32, DebugColor::Cyan(), DebugDepthMode::TestDepth);
+  // // Wire sphere (demonstrate different segment quality)
+  // debug.DrawWireSphere({3.0f, 0.0f, 0.0f}, 0.8f, DebugSegments::S16, DebugColor::Blue(), DebugDepthMode::TestDepth);
+  // debug.DrawWireSphere({5.0f, 0.0f, 0.0f}, 0.8f, DebugSegments::S32, DebugColor::Cyan(), DebugDepthMode::TestDepth);
 
-  // Wire cylinder (Y-axis aligned)
-  debug.DrawWireCylinder(
-    {0.0f, 3.0f, 0.0f}, identity_quat, 0.5f, 2.0f, DebugAxis::Y, DebugSegments::S24, DebugColor::Red(), DebugDepthMode::TestDepth);
+  // // Wire cylinder (Y-axis aligned)
+  // debug.DrawWireCylinder(
+  //   {0.0f, 3.0f, 0.0f}, identity_quat, 0.5f, 2.0f, DebugAxis::Y, DebugSegments::S24, DebugColor::Red(), DebugDepthMode::TestDepth);
 
-  // Wire cylinder (Z-axis aligned, rotated)
-  debug.DrawWireCylinder(
-    {3.0f, 3.0f, 0.0f}, rotation_quat, 0.5f, 2.5f, DebugAxis::Z, DebugSegments::S24, DebugColor::Magenta(), DebugDepthMode::TestDepth);
+  // // Wire cylinder (Z-axis aligned, rotated)
+  // debug.DrawWireCylinder(
+  //   {3.0f, 3.0f, 0.0f}, rotation_quat, 0.5f, 2.5f, DebugAxis::Z, DebugSegments::S24, DebugColor::Magenta(), DebugDepthMode::TestDepth);
 
-  // Wire capsule (normal height > 2*radius)
-  debug.DrawWireCapsule(
-    {0.0f, -3.0f, 0.0f}, identity_quat, 0.5f, 2.5f, DebugAxis::Y, DebugSegments::S24, DebugColor::Yellow(), DebugDepthMode::TestDepth);
+  // // Wire capsule (normal height > 2*radius)
+  // debug.DrawWireCapsule(
+  //   {0.0f, -3.0f, 0.0f}, identity_quat, 0.5f, 2.5f, DebugAxis::Y, DebugSegments::S24, DebugColor::Yellow(), DebugDepthMode::TestDepth);
 
-  // Wire capsule (degenerate case: height <= 2*radius, should fall back to sphere)
-  debug.DrawWireCapsule(
-    {3.0f, -3.0f, 0.0f}, identity_quat, 0.6f, 1.0f, DebugAxis::Y, DebugSegments::S24, DebugColor::White(), DebugDepthMode::TestDepth);
+  // // Wire capsule (degenerate case: height <= 2*radius, should fall back to sphere)
+  // debug.DrawWireCapsule(
+  //   {3.0f, -3.0f, 0.0f}, identity_quat, 0.6f, 1.0f, DebugAxis::Y, DebugSegments::S24, DebugColor::White(), DebugDepthMode::TestDepth);
 
-  // 2D Debug visuals (UI overlay)
-  // Draw a green line at the top of the screen
-  debug.DrawLine2D({10.0f, 10.0f}, {1000.0f, 10.0f}, DebugColor::Green());
+  // // 2D Debug visuals (UI overlay)
+  // // Draw a green line at the top of the screen
+  // debug.DrawLine2D({10.0f, 10.0f}, {1000.0f, 10.0f}, DebugColor::Green());
 
-  // Draw a red rectangle
-  debug.DrawRect2D({10.0f, 20.0f}, {300.0f, 100.0f}, DebugColor::Red());
+  // // Draw a red rectangle
+  // debug.DrawRect2D({10.0f, 20.0f}, {300.0f, 100.0f}, DebugColor::Red());
 }
 
 void Game::OnFixedUpdate(float dt) {
@@ -236,6 +289,188 @@ GameObject* Game::CreateSprite(const SpriteCreateParams& params) {
   return obj;
 }
 
+GameObject* Game::CreateCube(const PrimitiveCreateParams& params) {
+  // Ensure DefaultAssets are available
+  assert(graphic_);
+  const auto& defaults = graphic_->GetDefaultAssets();
+
+  // Create GameObject
+  GameObject* obj = scene_.CreateGameObject();
+
+  // Set name
+  if (!params.name.empty()) {
+    obj->SetName(params.name);
+  } else {
+    obj->SetName("Cube");
+  }
+
+  // Transform
+  auto* transform = new TransformComponent();
+  transform->SetPosition(params.position);
+  transform->SetScale(params.scale);
+
+  // Convert quaternion to Euler angles (simplified conversion for typical rotations)
+  // For more complex rotations, proper quaternion-to-Euler conversion should be used
+  DirectX::XMFLOAT3 euler;
+
+  // Extract pitch, yaw, roll from quaternion
+  float sqw = params.rotation_quat.w * params.rotation_quat.w;
+  float sqx = params.rotation_quat.x * params.rotation_quat.x;
+  float sqy = params.rotation_quat.y * params.rotation_quat.y;
+  float sqz = params.rotation_quat.z * params.rotation_quat.z;
+
+  euler.x = std::atan2(2.0f * (params.rotation_quat.x * params.rotation_quat.w - params.rotation_quat.y * params.rotation_quat.z),
+    sqw - sqx - sqy + sqz);                                                                                                         // pitch
+  euler.y = std::asin(2.0f * (params.rotation_quat.x * params.rotation_quat.z + params.rotation_quat.y * params.rotation_quat.w));  // yaw
+  euler.z = std::atan2(2.0f * (params.rotation_quat.z * params.rotation_quat.w - params.rotation_quat.x * params.rotation_quat.y),
+    sqw + sqx - sqy - sqz);  // roll
+
+  transform->SetRotation(euler);
+  obj->AddComponent(transform);
+
+  // Renderer
+  auto* renderer = new RendererComponent();
+  renderer->SetMesh(defaults.GetCubeMesh().get());
+
+  // Material selection: use provided material or default SpriteWorldOpaque material
+  MaterialInstance* material_to_use = params.material;
+  if (!material_to_use) {
+    material_to_use = defaults.GetSpriteWorldOpaqueMaterial();
+  }
+
+  if (material_to_use) {
+    renderer->SetMaterial(material_to_use);
+  } else {
+    std::cerr << "[Game] Warning: No material available for cube creation" << '\n';
+  }
+
+  // Set rendering properties
+  renderer->SetLayer(params.layer);
+  renderer->SetTag(params.tag);
+  renderer->SetSortOrder(params.sort_order);
+
+  obj->AddComponent(renderer);
+
+  return obj;
+}
+
+GameObject* Game::CreateCylinder(const PrimitiveCreateParams& params) {
+  // Ensure DefaultAssets are available
+  assert(graphic_);
+  const auto& defaults = graphic_->GetDefaultAssets();
+
+  // Create GameObject
+  GameObject* obj = scene_.CreateGameObject();
+
+  // Set name
+  if (!params.name.empty()) {
+    obj->SetName(params.name);
+  } else {
+    obj->SetName("Cylinder");
+  }
+
+  // Transform
+  auto* transform = new TransformComponent();
+  transform->SetPosition(params.position);
+  transform->SetScale(params.scale);
+
+  // Convert quaternion to Euler angles
+  DirectX::XMFLOAT3 euler;
+  float sqw = params.rotation_quat.w * params.rotation_quat.w;
+  float sqx = params.rotation_quat.x * params.rotation_quat.x;
+  float sqy = params.rotation_quat.y * params.rotation_quat.y;
+  float sqz = params.rotation_quat.z * params.rotation_quat.z;
+
+  euler.x = std::atan2(2.0f * (params.rotation_quat.x * params.rotation_quat.w - params.rotation_quat.y * params.rotation_quat.z),
+    sqw - sqx - sqy + sqz);
+  euler.y = std::asin(2.0f * (params.rotation_quat.x * params.rotation_quat.z + params.rotation_quat.y * params.rotation_quat.w));
+  euler.z = std::atan2(2.0f * (params.rotation_quat.z * params.rotation_quat.w - params.rotation_quat.x * params.rotation_quat.y),
+    sqw + sqx - sqy - sqz);
+
+  transform->SetRotation(euler);
+  obj->AddComponent(transform);
+
+  // Renderer
+  auto* renderer = new RendererComponent();
+  renderer->SetMesh(defaults.GetCylinderMesh().get());
+
+  // Material selection: use provided material or default SpriteWorldOpaque material
+  MaterialInstance* material_to_use = params.material;
+  if (!material_to_use) {
+    material_to_use = defaults.GetSpriteWorldOpaqueMaterial();
+  }
+
+  if (material_to_use) {
+    renderer->SetMaterial(material_to_use);
+  } else {
+    std::cerr << "[Game] Warning: No material available for cylinder creation" << '\n';
+  }
+
+  // Set rendering properties
+  renderer->SetLayer(params.layer);
+  renderer->SetTag(params.tag);
+  renderer->SetSortOrder(params.sort_order);
+
+  obj->AddComponent(renderer);
+
+  return obj;
+}
+
+GameObject* Game::CreatePrimitive(PrimitiveType type, const PrimitiveCreateParams& params) {
+  switch (type) {
+    case PrimitiveType::Cube:
+      return CreateCube(params);
+    case PrimitiveType::Cylinder:
+      return CreateCylinder(params);
+    default:
+      std::cerr << "[Game] Error: Unknown primitive type" << '\n';
+      return nullptr;
+  }
+}
+
+MaterialInstance* Game::CreateMaterialInstanceForPrimitive(TextureHandle base_color_texture, const std::string& instance_name) {
+  if (!graphic_) {
+    std::cerr << "[Game] Error: Graphic not initialized" << '\n';
+    return nullptr;
+  }
+
+  auto& texture_mgr = graphic_->GetTextureManager();
+  if (!texture_mgr.IsValid(base_color_texture)) {
+    std::cerr << "[Game] Error: Invalid texture handle for primitive material" << '\n';
+    return nullptr;
+  }
+
+  // Get the SpriteWorldOpaque material instance (already exists in DefaultAssets)
+  const auto& defaults = graphic_->GetDefaultAssets();
+  auto* default_material = defaults.GetSpriteWorldOpaqueMaterial();
+  if (!default_material) {
+    std::cerr << "[Game] Error: SpriteWorldOpaque material not available" << '\n';
+    return nullptr;
+  }
+
+  // Get the template from the default material instance
+  auto* material_template = default_material->GetTemplate();
+  if (!material_template) {
+    std::cerr << "[Game] Error: Failed to get material template" << '\n';
+    return nullptr;
+  }
+
+  // Create a new material instance from the same template
+  auto& material_mgr = graphic_->GetMaterialManager();
+  MaterialInstance* new_material = material_mgr.CreateInstance(instance_name, material_template);
+  
+  if (!new_material) {
+    std::cerr << "[Game] Error: Failed to create material instance '" << instance_name << "'" << '\n';
+    return nullptr;
+  }
+
+  // Set the BaseColor texture
+  // Note: The texture slot name "BaseColor" must match what's defined in the material template
+  new_material->SetTexture("BaseColor", base_color_texture);
+
+  return new_material;
+}
+
 void Game::Shutdown() {
   // Shutdown render system first
   render_system_.Shutdown();
@@ -256,82 +491,121 @@ void Game::CreateNewDemoScene() {
   // Create camera using existing method temporarily
   CreateCamera();
 
-  // Block-test sprite in world (Forward pass layer)
-  if (block_test_world_material_) {
-    SpriteCreateParams block_world;
-    block_world.position = {0.0f, 0.0f, 1.0f};
-    block_world.size = {1.5f, 1.5f, 1.0f};
-    block_world.layer = RenderLayer::Opaque;
-    block_world.material = block_test_world_material_;
-    block_world.color = {1.0f, 1.0f, 1.0f, 1.0f};
-    block_world.uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};
-    GameObject* sprite = CreateSprite(block_world);
-    if (sprite) {
-      sprite->SetName("BlockTest_WorldSprite");
-      std::cout << "[Game] Created block_test world sprite" << '\n';
-    }
+  // Test cube using primitive mesh
+  PrimitiveCreateParams cube_params;
+  cube_params.position = {0.0f, 0.0f, 0.0f};
+  cube_params.scale = {1.0f, 1.0f, 1.0f};
+  cube_params.name = "TestCube";
+  cube_params.layer = RenderLayer::Opaque;
+  cube_params.tag = RenderTag::Dynamic;
+
+  GameObject* test_cube = CreateCube(cube_params);
+  if (test_cube) {
+    std::cout << "[Game] Created test cube with primitive mesh" << '\n';
   }
 
-  // Block-test sprite in UI (UIPass)
-  if (block_test_ui_material_) {
-    SpriteCreateParams block_ui;
-    block_ui.position = {50.0f, 50.0f, 0.0f};  // screen-space pixels (orthographic UI pass)
-    block_ui.size = {256.0f, 256.0f, 1.0f};
-    block_ui.layer = RenderLayer::UI;
-    block_ui.material = block_test_ui_material_;
-    block_ui.sort_order = 1000.0f;
-    block_ui.color = {1.0f, 1.0f, 1.0f, 1.0f};
-    block_ui.uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};
-    GameObject* sprite = CreateSprite(block_ui);
-    if (sprite) {
-      sprite->SetName("BlockTest_UISprite");
-      std::cout << "[Game] Created block_test UI sprite" << '\n';
-    }
+  // Test cylinder using primitive mesh
+  PrimitiveCreateParams cylinder_params;
+  cylinder_params.position = {2.0f, 0.0f, 0.0f};
+  cylinder_params.scale = {1.0f, 1.0f, 1.0f};
+  cylinder_params.name = "TestCylinder";
+  cylinder_params.layer = RenderLayer::Opaque;
+  cylinder_params.tag = RenderTag::Dynamic;
+
+  GameObject* test_cylinder = CreateCylinder(cylinder_params);
+  if (test_cylinder) {
+    std::cout << "[Game] Created test cylinder with primitive mesh" << '\n';
   }
 
-  // Create sprite #1: Red tint, normal UV
-  SpriteCreateParams sprite1_params;
-  sprite1_params.position = {-4.0f, 0.0f, 0.0f};  // z 改成 1.0f
-  sprite1_params.size = {1.5f, 1.5f, 1.0f};
-  sprite1_params.layer = RenderLayer::Opaque;
-  sprite1_params.color = {1.0f, 0.2f, 0.2f, 1.0f};         // Red tint
-  sprite1_params.uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};  // Normal UV
+  // Test CreatePrimitive API with cube
+  PrimitiveCreateParams cube2_params;
+  cube2_params.position = {-2.0f, 0.0f, 0.0f};
+  cube2_params.scale = {0.8f, 0.8f, 0.8f};
+  cube2_params.name = "TestCube_FromAPI";
+  cube2_params.layer = RenderLayer::Opaque;
+  cube2_params.tag = RenderTag::Dynamic;
 
-  GameObject* sprite1 = CreateSprite(sprite1_params);
-  if (sprite1) {
-    sprite1->SetName("RedSprite");
-    std::cout << "[Game] Created red tinted sprite" << '\n';
+  GameObject* test_cube2 = CreatePrimitive(PrimitiveType::Cube, cube2_params);
+  if (test_cube2) {
+    std::cout << "[Game] Created cube using CreatePrimitive API" << '\n';
   }
 
-  // Create sprite #2: Green tint, scaled UV
-  SpriteCreateParams sprite2_params;
-  sprite2_params.position = {0.0f, 0.0f, 0.0f};
-  sprite2_params.size = {1.5f, 1.5f, 1.0f};
-  sprite2_params.layer = RenderLayer::Opaque;
-  sprite2_params.color = {0.2f, 1.0f, 0.2f, 1.0f};         // Green tint
-  sprite2_params.uv_transform = {0.0f, 0.0f, 0.5f, 0.5f};  // UV scaled to 0.5 (shows only part of texture)
+  // // Block-test sprite in world (Forward pass layer)
+  // if (block_test_world_material_) {
+  //   SpriteCreateParams block_world;
+  //   block_world.position = {0.0f, 0.0f, 1.0f};
+  //   block_world.size = {1.5f, 1.5f, 1.0f};
+  //   block_world.layer = RenderLayer::Opaque;
+  //   block_world.material = block_test_world_material_;
+  //   block_world.color = {1.0f, 1.0f, 1.0f, 1.0f};
+  //   block_world.uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};
+  //   GameObject* sprite = CreateSprite(block_world);
+  //   if (sprite) {
+  //     sprite->SetName("BlockTest_WorldSprite");
+  //     std::cout << "[Game] Created block_test world sprite" << '\n';
+  //   }
+  // }
 
-  GameObject* sprite2 = CreateSprite(sprite2_params);
-  if (sprite2) {
-    sprite2->SetName("GreenSprite_ScaledUV");
-    std::cout << "[Game] Created green tinted sprite with scaled UV" << '\n';
-  }
+  // // Block-test sprite in UI (UIPass)
+  // if (block_test_ui_material_) {
+  //   SpriteCreateParams block_ui;
+  //   block_ui.position = {50.0f, 50.0f, 0.0f};  // screen-space pixels (orthographic UI pass)
+  //   block_ui.size = {256.0f, 256.0f, 1.0f};
+  //   block_ui.layer = RenderLayer::UI;
+  //   block_ui.material = block_test_ui_material_;
+  //   block_ui.sort_order = 1000.0f;
+  //   block_ui.color = {1.0f, 1.0f, 1.0f, 1.0f};
+  //   block_ui.uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};
+  //   GameObject* sprite = CreateSprite(block_ui);
+  //   if (sprite) {
+  //     sprite->SetName("BlockTest_UISprite");
+  //     std::cout << "[Game] Created block_test UI sprite" << '\n';
+  //   }
+  // }
 
-  // Create sprite #3: Blue tint, offset UV
-  SpriteCreateParams sprite3_params;
-  sprite3_params.position = {4.0f, 0.0f, 0.0f};
-  sprite3_params.size = {1.5f, 1.5f, 1.0f};
-  sprite3_params.layer = RenderLayer::Opaque;
-  sprite3_params.color = {0.2f, 0.2f, 1.0f, 1.0f};           // Blue tint
-  sprite3_params.uv_transform = {0.25f, 0.25f, 1.0f, 1.0f};  // UV offset by 0.25
+  // // Create sprite #1: Red tint, normal UV
+  // SpriteCreateParams sprite1_params;
+  // sprite1_params.position = {-4.0f, 0.0f, 0.0f};  // z 改成 1.0f
+  // sprite1_params.size = {1.5f, 1.5f, 1.0f};
+  // sprite1_params.layer = RenderLayer::Opaque;
+  // sprite1_params.color = {1.0f, 0.2f, 0.2f, 1.0f};         // Red tint
+  // sprite1_params.uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};  // Normal UV
 
-  GameObject* sprite3 = CreateSprite(sprite3_params);
-  if (sprite3) {
-    sprite3->SetName("BlueSprite_OffsetUV");
-    std::cout << "[Game] Created blue tinted sprite with offset UV" << '\n';
-  }
+  // GameObject* sprite1 = CreateSprite(sprite1_params);
+  // if (sprite1) {
+  //   sprite1->SetName("RedSprite");
+  //   std::cout << "[Game] Created red tinted sprite" << '\n';
+  // }
 
-  demo_sprite_ = sprite1;  // Keep reference to first sprite
+  // // Create sprite #2: Green tint, scaled UV
+  // SpriteCreateParams sprite2_params;
+  // sprite2_params.position = {0.0f, 0.0f, 0.0f};
+  // sprite2_params.size = {1.5f, 1.5f, 1.0f};
+  // sprite2_params.layer = RenderLayer::Opaque;
+  // sprite2_params.color = {0.2f, 1.0f, 0.2f, 1.0f};         // Green tint
+  // sprite2_params.uv_transform = {0.0f, 0.0f, 0.5f, 0.5f};  // UV scaled to 0.5 (shows only part of texture)
+
+  // GameObject* sprite2 = CreateSprite(sprite2_params);
+  // if (sprite2) {
+  //   sprite2->SetName("GreenSprite_ScaledUV");
+  //   std::cout << "[Game] Created green tinted sprite with scaled UV" << '\n';
+  // }
+
+  // // Create sprite #3: Blue tint, offset UV
+  // SpriteCreateParams sprite3_params;
+  // sprite3_params.position = {4.0f, 0.0f, 0.0f};
+  // sprite3_params.size = {1.5f, 1.5f, 1.0f};
+  // sprite3_params.layer = RenderLayer::Opaque;
+  // sprite3_params.color = {0.2f, 0.2f, 1.0f, 1.0f};           // Blue tint
+  // sprite3_params.uv_transform = {0.25f, 0.25f, 1.0f, 1.0f};  // UV offset by 0.25
+
+  // GameObject* sprite3 = CreateSprite(sprite3_params);
+  // if (sprite3) {
+  //   sprite3->SetName("BlueSprite_OffsetUV");
+  //   std::cout << "[Game] Created blue tinted sprite with offset UV" << '\n';
+  // }
+
+  // demo_sprite_ = sprite1;  // Keep reference to first sprite
 }
 
 void Game::CreateCamera() {

@@ -26,6 +26,26 @@ struct SpriteCreateParams {
   DirectX::XMFLOAT4 uv_transform = {0.0f, 0.0f, 1.0f, 1.0f};  // offset.xy, scale.xy
 };
 
+// Primitive mesh creation parameters structure
+struct PrimitiveCreateParams {
+  DirectX::XMFLOAT3 position = {0.0f, 0.0f, 0.0f};
+  DirectX::XMFLOAT4 rotation_quat = {0.0f, 0.0f, 0.0f, 1.0f};  // Identity quaternion
+  DirectX::XMFLOAT3 scale = {1.0f, 1.0f, 1.0f};
+  
+  MaterialInstance* material = nullptr;  // Optional: if null, uses SpriteWorldOpaqueMaterial as fallback
+  RenderLayer layer = RenderLayer::Opaque;
+  RenderTag tag = RenderTag::Dynamic;
+  float sort_order = 0.0f;
+  std::string name;
+};
+
+// Primitive type enumeration for unified creation API
+enum class PrimitiveType {
+  Cube,
+  Cylinder
+  // Sphere, Capsule can be added later
+};
+
 class Game {
  public:
   Game() = default;
@@ -61,4 +81,14 @@ class Game {
 
   // Create sprite using DefaultAssets
   GameObject* CreateSprite(const SpriteCreateParams& params);
+  
+  // Create primitive meshes using DefaultAssets
+  GameObject* CreateCube(const PrimitiveCreateParams& params);
+  GameObject* CreateCylinder(const PrimitiveCreateParams& params);
+  GameObject* CreatePrimitive(PrimitiveType type, const PrimitiveCreateParams& params);
+  
+  // Material creation helper for primitives
+  // Creates a MaterialInstance with the specified BaseColor texture
+  // Returns nullptr if creation fails
+  MaterialInstance* CreateMaterialInstanceForPrimitive(TextureHandle base_color_texture, const std::string& instance_name);
 };
