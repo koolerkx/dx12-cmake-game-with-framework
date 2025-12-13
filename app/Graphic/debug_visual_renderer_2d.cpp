@@ -1,7 +1,6 @@
 #include "debug_visual_renderer_2d.h"
 
 #include <cassert>
-#include <iostream>
 #include <vector>
 
 #include "graphic.h"
@@ -9,6 +8,8 @@
 #include "root_signature_builder.h"
 #include "shader_manager.h"
 #include "vertex_types.h"
+
+#include "Framework/Logging/logger.h"
 
 bool DebugVisualRenderer2D::Initialize(Graphic& graphic) {
   device_ = graphic.GetDevice();
@@ -20,34 +21,34 @@ bool DebugVisualRenderer2D::Initialize(Graphic& graphic) {
   auto& shader_mgr = graphic.GetShaderManager();
   if (!shader_mgr.HasShader("DebugUIVS")) {
     if (!shader_mgr.LoadShader(L"Content/shaders/debug_ui.vs.cso", ShaderType::Vertex, "DebugUIVS")) {
-      std::cerr << "[DebugVisualRenderer2D] Failed to load DebugUIVS shader" << '\n';
+      Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DebugVisualRenderer2D] Failed to load DebugUIVS shader");
       return false;
     }
   }
 
   if (!shader_mgr.HasShader("DebugUIPS")) {
     if (!shader_mgr.LoadShader(L"Content/shaders/debug_ui.ps.cso", ShaderType::Pixel, "DebugUIPS")) {
-      std::cerr << "[DebugVisualRenderer2D] Failed to load DebugUIPS shader" << '\n';
+      Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DebugVisualRenderer2D] Failed to load DebugUIPS shader");
       return false;
     }
   }
 
   if (!CreateRootSignature()) {
-    std::cerr << "[DebugVisualRenderer2D] Failed to create root signature" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DebugVisualRenderer2D] Failed to create root signature");
     return false;
   }
 
   if (!CreatePipelineState()) {
-    std::cerr << "[DebugVisualRenderer2D] Failed to create pipeline state" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DebugVisualRenderer2D] Failed to create pipeline state");
     return false;
   }
 
   if (!CreateFrameResources()) {
-    std::cerr << "[DebugVisualRenderer2D] Failed to create frame resources" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DebugVisualRenderer2D] Failed to create frame resources");
     return false;
   }
 
-  std::cout << "[DebugVisualRenderer2D] Initialized successfully" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "[DebugVisualRenderer2D] Initialized successfully");
   return true;
 }
 
@@ -138,7 +139,11 @@ void DebugVisualRenderer2D::Render(const DebugVisualCommandBuffer2D& commands,
   }
 
   if (vertex_count_ > MAX_VERTICES_PER_FRAME) {
-    std::cerr << "[DebugVisualRenderer2D] Vertex count exceeds maximum: " << vertex_count_ << '\n';
+    Logger::Logf(LogLevel::Warn,
+      LogCategory::Validation,
+      Logger::Here(),
+      "[DebugVisualRenderer2D] Vertex count exceeds maximum: {}",
+      vertex_count_);
     vertex_count_ = MAX_VERTICES_PER_FRAME;
   }
 
@@ -180,7 +185,7 @@ bool DebugVisualRenderer2D::CreatePipelineState() {
   const ShaderBlob* ps = shader_mgr.GetShader("DebugUIPS");
 
   if (!vs || !ps) {
-    std::cerr << "[DebugVisualRenderer2D] Required shaders not found" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DebugVisualRenderer2D] Required shaders not found");
     return false;
   }
 
@@ -212,7 +217,11 @@ bool DebugVisualRenderer2D::CreateFrameResources() {
     const size_t buffer_size = MAX_VERTICES_PER_FRAME * sizeof(DebugVertex2D);
 
     if (!frame_res.vertex_buffer->Create(device_, buffer_size, Buffer::Type::Vertex, D3D12_HEAP_TYPE_UPLOAD)) {
-      std::cerr << "[DebugVisualRenderer2D] Failed to create vertex buffer for frame " << i << '\n';
+      Logger::Logf(LogLevel::Error,
+        LogCategory::Resource,
+        Logger::Here(),
+        "[DebugVisualRenderer2D] Failed to create vertex buffer for frame {}",
+        i);
       return false;
     }
 

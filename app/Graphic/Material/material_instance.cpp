@@ -2,13 +2,14 @@
 
 #include <cassert>
 #include <cstring>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 bool MaterialInstance::Initialize(MaterialTemplate* material_template) {
   assert(material_template != nullptr);
 
   if (!material_template->IsValid()) {
-    std::cerr << "[MaterialInstance] Cannot initialize with invalid template" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Validation, "[MaterialInstance] Cannot initialize with invalid template");
     return false;
   }
 
@@ -22,7 +23,11 @@ bool MaterialInstance::Initialize(MaterialTemplate* material_template) {
     }
   }
 
-  std::cout << "[MaterialInstance] Initialized with template: " << template_->GetName() << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Graphic,
+    Logger::Here(),
+    "[MaterialInstance] Initialized with template: {}",
+    template_->GetName());
 
   return true;
 }
@@ -32,8 +37,12 @@ void MaterialInstance::SetTexture(const std::string& slot_name, TextureHandle ha
   const TextureSlotDefinition* slot = template_->GetTextureSlot(slot_name);
   if (slot == nullptr) {
     if (warning_logged_[slot_name] == false) {
-      std::cerr << "[MaterialInstance] Warning: Texture slot '" << slot_name << "' not defined in template '" << template_->GetName() << "'"
-                << '\n';
+      Logger::Logf(LogLevel::Warn,
+        LogCategory::Validation,
+        Logger::Here(),
+        "[MaterialInstance] Texture slot '{}' not defined in template '{}'",
+        slot_name,
+        template_->GetName());
       warning_logged_[slot_name] = true;
     }
     return;
@@ -62,16 +71,25 @@ void MaterialInstance::SetConstantBufferData(const std::string& cb_name, const v
   const ConstantBufferDefinition* cb_def = template_->GetConstantBuffer(cb_name);
   if (cb_def == nullptr) {
     if (warning_logged_[cb_name] == false) {
-      std::cerr << "[MaterialInstance] Warning: Constant buffer '" << cb_name << "' not defined in template '" << template_->GetName()
-                << "'" << '\n';
+      Logger::Logf(LogLevel::Warn,
+        LogCategory::Validation,
+        Logger::Here(),
+        "[MaterialInstance] Constant buffer '{}' not defined in template '{}'",
+        cb_name,
+        template_->GetName());
       warning_logged_[cb_name] = true;
     }
     return;
   }
 
   if (size != cb_def->size_in_bytes) {
-    std::cerr << "[MaterialInstance] Error: Constant buffer '" << cb_name << "' size mismatch. Expected " << cb_def->size_in_bytes
-              << " bytes, got " << size << " bytes" << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Validation,
+      Logger::Here(),
+      "[MaterialInstance] Constant buffer '{}' size mismatch. Expected {} bytes, got {} bytes",
+      cb_name,
+      cb_def->size_in_bytes,
+      size);
     return;
   }
 
@@ -86,7 +104,7 @@ void MaterialInstance::Bind(ID3D12GraphicsCommandList* command_list, TextureMana
   assert(command_list != nullptr);
 
   if (!IsValid()) {
-    std::cerr << "[MaterialInstance] Cannot bind invalid material instance" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Validation, "[MaterialInstance] Cannot bind invalid material instance");
     return;
   }
 
@@ -105,7 +123,11 @@ void MaterialInstance::Bind(ID3D12GraphicsCommandList* command_list, TextureMana
     // Get texture from manager
     const Texture* texture = texture_manager.GetTexture(handle);
     if (texture == nullptr) {
-      std::cerr << "[MaterialInstance] Warning: Invalid texture handle for slot '" << slot_def->name << "'" << '\n';
+      Logger::Logf(LogLevel::Warn,
+        LogCategory::Validation,
+        Logger::Here(),
+        "[MaterialInstance] Invalid texture handle for slot '{}'",
+        slot_def->name);
       continue;
     }
 
@@ -120,22 +142,28 @@ void MaterialInstance::Bind(ID3D12GraphicsCommandList* command_list, TextureMana
 }
 
 void MaterialInstance::PrintInfo() const {
-  std::cout << "\n=== MaterialInstance ===" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "=== MaterialInstance ===");
   if (template_ != nullptr) {
-    std::cout << "Template: " << template_->GetName() << '\n';
+    Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "Template: {}", template_->GetName());
   } else {
-    std::cout << "Template: None" << '\n';
+    Logger::Log(LogLevel::Info, LogCategory::Graphic, "Template: None");
   }
 
-  std::cout << "\nBound Textures (" << textures_.size() << "):" << '\n';
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "Bound Textures ({}):", textures_.size());
   for (const auto& [name, handle] : textures_) {
-    std::cout << "  - " << name << ": [" << handle.index << ":" << handle.generation << "]" << '\n';
+    Logger::Logf(LogLevel::Info,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "  - {}: [{}:{}]",
+      name,
+      handle.index,
+      handle.generation);
   }
 
-  std::cout << "\nConstant Buffers (" << constant_buffers_.size() << "):" << '\n';
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "Constant Buffers ({}):", constant_buffers_.size());
   for (const auto& [name, data] : constant_buffers_) {
-    std::cout << "  - " << name << ": " << data.size() << " bytes" << '\n';
+    Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "  - {}: {} bytes", name, data.size());
   }
 
-  std::cout << "========================\n" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "========================");
 }

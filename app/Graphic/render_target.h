@@ -11,13 +11,13 @@
 class RenderTarget : public GpuResource {
  public:
   RenderTarget() = default;
-  ~RenderTarget() override = default;
+  ~RenderTarget() override;
 
   RenderTarget(const RenderTarget&) = delete;
   RenderTarget& operator=(const RenderTarget&) = delete;
 
-  RenderTarget(RenderTarget&&) = default;
-  RenderTarget& operator=(RenderTarget&&) = default;
+  RenderTarget(RenderTarget&& other) noexcept;
+  RenderTarget& operator=(RenderTarget&& other) noexcept;
 
   bool Create(ID3D12Device* device,
     UINT width,
@@ -73,10 +73,15 @@ class RenderTarget : public GpuResource {
   DescriptorHeapAllocator::Allocation rtv_allocation_ = {};
   DescriptorHeapAllocator::Allocation srv_allocation_ = {};  // Optional
 
+  DescriptorHeapAllocator* rtv_allocator_ = nullptr;  // non-owning
+  DescriptorHeapAllocator* srv_allocator_ = nullptr;  // non-owning (optional)
+
   UINT width_ = 0;
   UINT height_ = 0;
   DXGI_FORMAT format_ = DXGI_FORMAT_UNKNOWN;
   std::array<float, 4> clear_color_ = {0.0f, 0.0f, 0.0f, 1.0f};
+
+  void ReleaseDescriptors();
 
   bool CreateRTV(ID3D12Device* device, DescriptorHeapAllocator& rtv_allocator, DXGI_FORMAT rtv_format);
   bool CreateSRV(ID3D12Device* device, DescriptorHeapAllocator& srv_allocator);

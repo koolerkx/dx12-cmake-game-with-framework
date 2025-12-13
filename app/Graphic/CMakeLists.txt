@@ -6,10 +6,8 @@ add_library(graphic STATIC
     ThirdParty/d3dx12.h
     graphic.cpp
     graphic.h
-    types.h
     vertex_types.h
     vertex_types.cpp
-    ../utils.h
 
     gpu_resource.h
     gpu_resource.cpp
@@ -93,6 +91,8 @@ target_include_directories(graphic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(graphic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Material)
 
 set_msvc_runtime(graphic)
+
+target_link_libraries(graphic PUBLIC framework)
 
 target_add_hlsl_auto(graphic "6.5"
     "${CMAKE_SOURCE_DIR}/shaders/basic.vs.hlsl"

@@ -2,7 +2,9 @@
 
 #include <d3d12.h>
 
-#include <iostream>
+#include <string>
+
+#include "Framework/Logging/logger.h"
 
 RootSignatureBuilder& RootSignatureBuilder::AddDescriptorTable(
   D3D12_DESCRIPTOR_RANGE_TYPE range_type, UINT num_descriptors, UINT base_shader_register, D3D12_SHADER_VISIBILITY visibility) {
@@ -117,7 +119,7 @@ RootSignatureBuilder& RootSignatureBuilder::DenyPixelShaderRootAccess() {
 
 bool RootSignatureBuilder::Build(ID3D12Device* device, ComPtr<ID3D12RootSignature>& out_root_signature) {
   if (device == nullptr) {
-    std::cerr << "[RootSignatureBuilder] Device is null" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Validation, "[RootSignatureBuilder] Device is null.");
     return false;
   }
 
@@ -136,9 +138,14 @@ bool RootSignatureBuilder::Build(ID3D12Device* device, ComPtr<ID3D12RootSignatur
     &root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1_0, signature_blob.GetAddressOf(), error_blob.GetAddressOf());
 
   if (FAILED(hr)) {
-    std::cerr << "[RootSignatureBuilder] Failed to serialize root signature" << '\n';
-    if (error_blob) {
-      std::cerr << static_cast<char*>(error_blob->GetBufferPointer()) << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[RootSignatureBuilder] D3D12SerializeRootSignature failed (hr=0x{:08X}).",
+      static_cast<uint32_t>(hr));
+    if (error_blob && error_blob->GetBufferPointer() != nullptr && error_blob->GetBufferSize() > 0) {
+      const std::string text(static_cast<const char*>(error_blob->GetBufferPointer()), error_blob->GetBufferSize());
+      Logger::Log(LogLevel::Error, LogCategory::Graphic, text);
     }
     return false;
   }
@@ -148,7 +155,11 @@ bool RootSignatureBuilder::Build(ID3D12Device* device, ComPtr<ID3D12RootSignatur
     0, signature_blob->GetBufferPointer(), signature_blob->GetBufferSize(), IID_PPV_ARGS(out_root_signature.GetAddressOf()));
 
   if (FAILED(hr)) {
-    std::cerr << "[RootSignatureBuilder] Failed to create root signature" << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[RootSignatureBuilder] CreateRootSignature failed (hr=0x{:08X}).",
+      static_cast<uint32_t>(hr));
     return false;
   }
 

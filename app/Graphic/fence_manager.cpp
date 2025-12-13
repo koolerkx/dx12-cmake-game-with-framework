@@ -1,14 +1,16 @@
 #include "fence_manager.h"
 
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Error/error_helpers.h"
+#include "Framework/Logging/logger.h"
 
 bool FenceManager::Initialize(ID3D12Device* device) {
   assert(device != nullptr);
 
   HRESULT hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence_));
   if (FAILED(hr)) {
-    std::cerr << "[FenceManager] Failed to create fence." << '\n';
+    (void)ReturnIfFailed(hr, FrameworkErrorCode::FenceManagerInitFailed, "FenceManager::CreateFence");
     return false;
   }
 
@@ -16,7 +18,7 @@ bool FenceManager::Initialize(ID3D12Device* device) {
 
   fence_event_ = CreateEvent(nullptr, FALSE, FALSE, nullptr);
   if (fence_event_ == nullptr) {
-    std::cerr << "[FenceManager] Failed to create fence event." << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FenceManager] CreateEvent failed.");
     return false;
   }
 

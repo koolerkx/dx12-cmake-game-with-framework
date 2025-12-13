@@ -1,8 +1,9 @@
 #include "texture_manager.h"
 
 #include <cassert>
-#include <iostream>
-#include "utils.h"
+
+#include "Framework/Logging/logger.h"
+#include "Framework/utils.h"
 
 bool TextureManager::Initialize(ID3D12Device* device, DescriptorHeapAllocator* srv_allocator, uint32_t max_textures) {
   assert(device != nullptr);
@@ -26,7 +27,11 @@ bool TextureManager::Initialize(ID3D12Device* device, DescriptorHeapAllocator* s
   cache_hits_ = 0;
   cache_misses_ = 0;
 
-  std::cout << "[TextureManager] Initialized with capacity: " << max_textures_ << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Resource,
+    Logger::Here(),
+    "[TextureManager] Initialized with capacity: {}.",
+    max_textures_);
   return true;
 }
 
@@ -39,7 +44,11 @@ TextureHandle TextureManager::LoadTexture(ID3D12GraphicsCommandList* command_lis
     TextureHandle cached_handle = cache_it->second;
     if (ValidateHandle(cached_handle)) {
       ++cache_hits_;
-      std::wcout << L"[TextureManager] Cache hit: " << params.file_path << '\n';
+      Logger::Logf(LogLevel::Debug,
+        LogCategory::Resource,
+        Logger::Here(),
+        "[TextureManager] Cache hit: {}",
+        WstringToUtf8(params.file_path));
       return cached_handle;
     }
     // Handle is stale, remove from cache
@@ -51,7 +60,7 @@ TextureHandle TextureManager::LoadTexture(ID3D12GraphicsCommandList* command_lis
   // Allocate new slot
   TextureHandle handle = AllocateSlot();
   if (!handle.IsValid()) {
-    std::cerr << "[TextureManager] Failed to allocate slot for texture" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[TextureManager] Failed to allocate slot for texture.");
     return INVALID_TEXTURE_HANDLE;
   }
 
@@ -63,7 +72,11 @@ TextureHandle TextureManager::LoadTexture(ID3D12GraphicsCommandList* command_lis
   bool success = slot.texture->LoadFromFile(device_, command_list, params.file_path, *srv_allocator_);
 
   if (!success) {
-    std::wcerr << L"[TextureManager] Failed to load texture: " << params.file_path << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Resource,
+      Logger::Here(),
+      "[TextureManager] Failed to load texture: {}",
+      WstringToUtf8(params.file_path));
     FreeSlot(handle.index);
     return INVALID_TEXTURE_HANDLE;
   }
@@ -75,8 +88,13 @@ TextureHandle TextureManager::LoadTexture(ID3D12GraphicsCommandList* command_lis
   // Add to cache
   cache_[params] = handle;
 
-  std::wcout << L"[TextureManager] Loaded texture: " << params.file_path << L" [" << handle.index << L":" << handle.generation << L"]"
-             << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Resource,
+    Logger::Here(),
+    "[TextureManager] Loaded texture: {} [{}:{}]",
+    WstringToUtf8(params.file_path),
+    handle.index,
+    handle.generation);
 
   return handle;
 }
@@ -89,7 +107,7 @@ TextureHandle TextureManager::CreateTexture(
   // Allocate new slot
   TextureHandle handle = AllocateSlot();
   if (!handle.IsValid()) {
-    std::cerr << "[TextureManager] Failed to allocate slot for procedural texture" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[TextureManager] Failed to allocate slot for procedural texture.");
     return INVALID_TEXTURE_HANDLE;
   }
 
@@ -101,7 +119,7 @@ TextureHandle TextureManager::CreateTexture(
   bool success = slot.texture->LoadFromMemory(device_, command_list, pixel_data, width, height, format, *srv_allocator_, row_pitch);
 
   if (!success) {
-    std::cerr << "[TextureManager] Failed to create procedural texture" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[TextureManager] Failed to create procedural texture.");
     FreeSlot(handle.index);
     return INVALID_TEXTURE_HANDLE;
   }
@@ -110,7 +128,12 @@ TextureHandle TextureManager::CreateTexture(
   slot.debug_name = L"ProceduralTexture_" + std::to_wstring(handle.index);
   slot.texture->SetDebugName(slot.debug_name);
 
-  std::cout << "[TextureManager] Created procedural texture [" << handle.index << ":" << handle.generation << "]" << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Resource,
+    Logger::Here(),
+    "[TextureManager] Created procedural texture [{}:{}].",
+    handle.index,
+    handle.generation);
 
   return handle;
 }
@@ -127,14 +150,17 @@ TextureHandle TextureManager::CreateTextureFromMemory(
 
   // Enforce required format
   if (format != DXGI_FORMAT_R8G8B8A8_UNORM) {
-    std::cerr << "[TextureManager] CreateTextureFromMemory: unsupported format, only R8G8B8A8_UNORM supported" << '\n';
+    Logger::Log(LogLevel::Error,
+      LogCategory::Validation,
+      "[TextureManager] CreateTextureFromMemory: unsupported format (only R8G8B8A8_UNORM supported)."
+    );
     return INVALID_TEXTURE_HANDLE;
   }
 
   // Allocate new slot
   TextureHandle handle = AllocateSlot();
   if (!handle.IsValid()) {
-    std::cerr << "[TextureManager] Failed to allocate slot for memory texture" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[TextureManager] Failed to allocate slot for memory texture.");
     return INVALID_TEXTURE_HANDLE;
   }
 
@@ -146,16 +172,22 @@ TextureHandle TextureManager::CreateTextureFromMemory(
   bool success = slot.texture->LoadFromMemory(device_, command_list, data, width, height, format, *srv_allocator_);
 
   if (!success) {
-    std::cerr << "[TextureManager] Failed to create texture from memory" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[TextureManager] Failed to create texture from memory.");
     FreeSlot(handle.index);
     return INVALID_TEXTURE_HANDLE;
   }
 
   // Set debug name
-  slot.debug_name = utils::Utf8ToWstring(name);
+  slot.debug_name = Utf8ToWstring(name);
   slot.texture->SetDebugName(slot.debug_name);
 
-  std::cout << "[TextureManager] Created memory texture [" << handle.index << ":" << handle.generation << "] " << name << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Resource,
+    Logger::Here(),
+    "[TextureManager] Created memory texture [{}:{}] {}",
+    handle.index,
+    handle.generation,
+    name);
 
   return handle;
 }
@@ -164,7 +196,7 @@ TextureHandle TextureManager::CreateEmptyTexture(UINT width, UINT height, DXGI_F
   // Allocate new slot
   TextureHandle handle = AllocateSlot();
   if (!handle.IsValid()) {
-    std::cerr << "[TextureManager] Failed to allocate slot for empty texture" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[TextureManager] Failed to allocate slot for empty texture.");
     return INVALID_TEXTURE_HANDLE;
   }
 
@@ -176,7 +208,7 @@ TextureHandle TextureManager::CreateEmptyTexture(UINT width, UINT height, DXGI_F
   bool success = slot.texture->Create(device_, width, height, format, *srv_allocator_, flags);
 
   if (!success) {
-    std::cerr << "[TextureManager] Failed to create empty texture" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[TextureManager] Failed to create empty texture.");
     FreeSlot(handle.index);
     return INVALID_TEXTURE_HANDLE;
   }
@@ -185,15 +217,24 @@ TextureHandle TextureManager::CreateEmptyTexture(UINT width, UINT height, DXGI_F
   slot.debug_name = L"EmptyTexture_" + std::to_wstring(handle.index);
   slot.texture->SetDebugName(slot.debug_name);
 
-  std::cout << "[TextureManager] Created empty texture [" << handle.index << ":" << handle.generation << "]" << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Resource,
+    Logger::Here(),
+    "[TextureManager] Created empty texture [{}:{}].",
+    handle.index,
+    handle.generation);
 
   return handle;
 }
 
 void TextureManager::ReleaseTexture(TextureHandle handle) {
   if (!ValidateHandle(handle)) {
-    std::cerr << "[TextureManager] Attempted to release invalid texture handle [" << handle.index << ":" << handle.generation << "]"
-              << '\n';
+    Logger::Logf(LogLevel::Warn,
+      LogCategory::Validation,
+      Logger::Here(),
+      "[TextureManager] Attempted to release invalid texture handle [{}:{}].",
+      handle.index,
+      handle.generation);
     return;
   }
 
@@ -209,7 +250,12 @@ void TextureManager::ReleaseTexture(TextureHandle handle) {
   // Free the slot
   FreeSlot(handle.index);
 
-  std::cout << "[TextureManager] Released texture [" << handle.index << ":" << handle.generation << "]" << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Resource,
+    Logger::Here(),
+    "[TextureManager] Released texture [{}:{}].",
+    handle.index,
+    handle.generation);
 }
 
 Texture* TextureManager::GetTexture(TextureHandle handle) {
@@ -250,26 +296,33 @@ void TextureManager::Clear() {
 
   active_count_ = 0;
 
-  std::cout << "[TextureManager] Cleared all textures" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Resource, "[TextureManager] Cleared all textures.");
 }
 
 void TextureManager::PrintStats() const {
-  std::cout << "\n=== Texture Manager Statistics ===" << '\n';
-  std::cout << "Active Textures: " << active_count_ << "/" << max_textures_ << '\n';
-  std::cout << "Cache Hits: " << cache_hits_ << '\n';
-  std::cout << "Cache Misses: " << cache_misses_ << '\n';
-
+  float hit_rate = 0.0f;
   if (cache_hits_ + cache_misses_ > 0) {
-    float hit_rate = static_cast<float>(cache_hits_) / static_cast<float>(cache_hits_ + cache_misses_) * 100.0f;
-    std::cout << "Cache Hit Rate: " << hit_rate << "%" << '\n';
+    hit_rate = static_cast<float>(cache_hits_) / static_cast<float>(cache_hits_ + cache_misses_) * 100.0f;
   }
 
-  std::cout << "==================================\n" << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Resource,
+    Logger::Here(),
+    "=== Texture Manager Statistics ===\nActive Textures: {}/{}\nCache Hits: {}\nCache Misses: {}\nCache Hit Rate: {:.2f}%\n==================================",
+    active_count_,
+    max_textures_,
+    cache_hits_,
+    cache_misses_,
+    hit_rate);
 }
 
 TextureHandle TextureManager::AllocateSlot() {
   if (free_list_.empty()) {
-    std::cerr << "[TextureManager] Out of texture slots! Capacity: " << max_textures_ << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Resource,
+      Logger::Here(),
+      "[TextureManager] Out of texture slots (capacity={}).",
+      max_textures_);
     return INVALID_TEXTURE_HANDLE;
   }
 
@@ -298,7 +351,11 @@ void TextureManager::FreeSlot(uint32_t index) {
   TextureSlot& slot = slots_[index];
 
   if (!slot.in_use) {
-    std::cerr << "[TextureManager] Attempted to free slot that is not in use: " << index << '\n';
+    Logger::Logf(LogLevel::Warn,
+      LogCategory::Validation,
+      Logger::Here(),
+      "[TextureManager] Attempted to free slot that is not in use: {}.",
+      index);
     return;
   }
 

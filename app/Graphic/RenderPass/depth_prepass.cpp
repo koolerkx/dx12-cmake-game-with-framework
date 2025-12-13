@@ -1,11 +1,14 @@
 #include "depth_prepass.h"
 
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 bool DepthPrepass::Initialize(ID3D12Device* device) {
   assert(device != nullptr);
-  std::cout << "[DepthPrepass] Initialized" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "[DepthPrepass] Initialized");
+  // Disable by default until integrated into the pass sequence
+  SetEnabled(false);
   return true;
 }
 
@@ -19,21 +22,28 @@ RenderFilter DepthPrepass::GetFilter() const {
 
 void DepthPrepass::Begin(ID3D12GraphicsCommandList* command_list) {
   assert(command_list != nullptr);
-
-  if (depth_buffer_ != nullptr) {
-    D3D12_CPU_DESCRIPTOR_HANDLE dsv = depth_buffer_->GetDSV();
-
-    // Set null render target, depth-only
-    command_list->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
-
-    // Clear depth buffer
-    depth_buffer_->Clear(command_list, 1.0f, 0);
-  }
-
-  // Set depth-only PSO if available
+  // Binding and clears are handled centrally by RenderPassManager via PassIODesc.
+  // Here we only set the depth-only PSO if available.
   if (depth_only_pso_ != nullptr) {
     command_list->SetPipelineState(depth_only_pso_);
   }
+}
+
+PassIODesc DepthPrepass::GetPassIO() const {
+  PassIODesc io;
+  // No color target
+  io.color.enabled = false;
+
+  // Depth: use main depth buffer, depth-write and clear
+  io.depth.enabled = true;
+  io.depth.kind = DepthAttachmentIO::Kind::MainDepth;
+  io.depth.target = nullptr;
+  io.depth.state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+  io.depth.clear = true;
+  io.depth.clear_depth = 1.0f;
+  io.depth.clear_stencil = 0;
+
+  return io;
 }
 
 void DepthPrepass::Render(ID3D12GraphicsCommandList* command_list, SceneRenderer& scene_renderer, TextureManager& texture_manager) {

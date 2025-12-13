@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "types.h"
+#include "Framework/types.h"
 
 // Defines a texture slot in the material
 struct TextureSlotDefinition {

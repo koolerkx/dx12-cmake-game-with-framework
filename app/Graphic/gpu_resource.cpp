@@ -1,6 +1,6 @@
 #include "gpu_resource.h"
 
-#include "../utils.h"
+#include "Framework/utils.h"
 
 void GpuResource::TransitionTo(ID3D12GraphicsCommandList* command_list, D3D12_RESOURCE_STATES new_state, UINT subresource) {
   if (resource_ == nullptr) {
@@ -25,7 +25,7 @@ void GpuResource::TransitionTo(ID3D12GraphicsCommandList* command_list, D3D12_RE
 
 void GpuResource::SetDebugName(const std::string& name) {
   if (resource_ != nullptr) {
-    resource_->SetName(utils::Utf8ToWstring(name).c_str());
+    resource_->SetName(Utf8ToWstring(name).c_str());
   }
   debug_name = name;
 }
@@ -34,5 +34,5 @@ void GpuResource::SetDebugName(const std::wstring& name) {
   if (resource_ != nullptr) {
     resource_->SetName(name.c_str());
   }
-  debug_name = utils::WstringToUtf8(name);
+  debug_name = WstringToUtf8(name);
 }

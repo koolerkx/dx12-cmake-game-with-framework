@@ -2,12 +2,16 @@
 
 #include <d3dcompiler.h>
 
-#include <iostream>
+#include "Framework/Logging/logger.h"
 
 bool ShaderManager::LoadShader(const std::wstring& filepath, ShaderType type, const std::string& name) {
   // Check if already loaded
   if (shaders_.find(name) != shaders_.end()) {
-    std::cerr << "[ShaderManager] Shader '" << name << "' already loaded" << '\n';
+    Logger::Logf(LogLevel::Warn,
+      LogCategory::Validation,
+      Logger::Here(),
+      "[ShaderManager] Shader '{}' already loaded.",
+      name);
     return false;
   }
 
@@ -16,7 +20,12 @@ bool ShaderManager::LoadShader(const std::wstring& filepath, ShaderType type, co
   HRESULT hr = D3DReadFileToBlob(filepath.c_str(), blob.GetAddressOf());
 
   if (FAILED(hr)) {
-    std::cerr << "[ShaderManager] Failed to load shader from file: " << name << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[ShaderManager] Failed to load shader '{}' (hr=0x{:08X}).",
+      name,
+      static_cast<uint32_t>(hr));
     return false;
   }
 
@@ -27,7 +36,7 @@ bool ShaderManager::LoadShader(const std::wstring& filepath, ShaderType type, co
 
   shaders_[name] = shader;
 
-  std::cout << "[ShaderManager] Loaded shader: " << name << '\n';
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "[ShaderManager] Loaded shader: {}", name);
   return true;
 }
 

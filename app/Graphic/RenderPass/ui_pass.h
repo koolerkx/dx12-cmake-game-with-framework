@@ -15,6 +15,8 @@ class UIPass : public RenderPass {
 
   void Begin(ID3D12GraphicsCommandList* command_list) override;
 
+  PassIODesc GetPassIO() const override;
+
   void Render(ID3D12GraphicsCommandList* command_list, SceneRenderer& scene_renderer, TextureManager& texture_manager) override;
 
   void End(ID3D12GraphicsCommandList* command_list) override;
@@ -24,6 +26,9 @@ class UIPass : public RenderPass {
   }
 
   // Set render target
+  // NOTE: This setter now influences `GetPassIO()`. If a custom
+  // `render_target` is provided, `GetPassIO()` will return a `Kind::Custom`
+  // color attachment referencing it so the manager will transition/clear/bind it.
   void SetRenderTarget(RenderTarget* render_target) {
     render_target_ = render_target;
   }
