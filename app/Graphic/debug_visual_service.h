@@ -60,6 +60,18 @@ enum class DebugDepthMode {
   TestDepth     // Respect depth buffer (read-only depth testing)
 };
 
+// Quality tiers for wire primitive circle/arc segments
+// Limits to fixed set (16/24/32) to prevent LUT explosion and ensure consistent appearance
+enum class DebugSegments : uint8_t { S16 = 16, S24 = 24, S32 = 32 };
+
+// Helper to convert DebugSegments to integer value
+constexpr uint32_t ToInt(DebugSegments s) {
+  return static_cast<uint32_t>(s);
+}
+
+// Axis direction for cylinders and capsules
+enum class DebugAxis : uint8_t { X, Y, Z };
+
 // Category for organizing debug visuals (3D)
 enum class DebugCategory {
   General,
@@ -70,6 +82,13 @@ enum class DebugCategory {
 
 // Category for 2D UI debug visuals
 enum class DebugCategory2D { General, Layout, Guides, Selection, All };
+
+// Depth bias mode for depth-tested debug rendering (Task 3.2)
+// Used to solve Z-fighting issues for surface-aligned debug visuals (grids, navmesh overlays)
+enum class DebugDepthBiasMode {
+  Normal,         // Standard rendering (for 3D gizmos, floating debug lines)
+  SurfaceBiased   // Biased rendering to prevent Z-fighting with coplanar surfaces
+};
 
 // 3D Line command
 struct DebugLine3DCommand {
@@ -145,6 +164,17 @@ struct DebugVisualSettings {
   bool draw_overlay_3d = false;      // Overlay disabled by default to avoid depth-free 3D gizmos
   bool depth_first_3d = true;        // Render depth-tested first when both enabled
 
+  // Depth bias mode for depth-tested rendering (Task 3.2)
+  // Normal: standard rendering for 3D gizmos and debug lines
+  // SurfaceBiased: use depth bias to prevent Z-fighting for grid/navmesh overlays on surfaces
+  DebugDepthBiasMode depth_bias_mode = DebugDepthBiasMode::Normal;
+
+  // Depth bias parameters (adjustable for different scenarios)
+  // These are used when depth_bias_mode == SurfaceBiased
+  int32_t depth_bias = -10000;                  // Constant depth bias (negative pulls closer to camera)
+  float slope_scaled_depth_bias = -2.0f;        // Slope-scaled bias for angled surfaces
+  float depth_bias_clamp = 0.0f;                // Bias clamp value
+
   // Check if a 3D category is enabled
   bool IsCategoryEnabled(DebugCategory category) const {
     if (!enable_3d_debug) return false;
@@ -216,10 +246,64 @@ class DebugVisualService {
 
   // Convenience overloads for common line types
   void DrawAxisGizmo(const DirectX::XMFLOAT3& origin, float length = 1.0f, DebugDepthMode depthMode = DebugDepthMode::TestDepth);
+
+  // Draw XZ plane grid centered at origin
+  // grid_size: number of grid cells in each direction (total lines = 2 * grid_size + 1 per axis)
+  // cell_spacing: distance between grid lines
+  // center: grid center position
+  // color: grid line color
+  // mode: depth test mode (recommend TestDepth with SurfaceBiased to avoid Z-fighting)
+  void DrawGrid(const DirectX::XMFLOAT3& center,
+    uint32_t grid_size = 50,
+    float cell_spacing = 1.0f,
+    const DebugColor& color = DebugColor{0.5f, 0.5f, 0.5f, 1.0f},
+    DebugDepthMode mode = DebugDepthMode::TestDepth,
+    DebugCategory category = DebugCategory::General);
+
+  // AABB wire box (min/max corners)
   void DrawWireBox(const DirectX::XMFLOAT3& min_point,
     const DirectX::XMFLOAT3& max_point,
     const DebugColor& color = DebugColor::White(),
     DebugDepthMode mode = DebugDepthMode::TestDepth);
+
+  // Oriented wire box (center + rotation + size)
+  void DrawWireBox(const DirectX::XMFLOAT3& center,
+    const DirectX::XMFLOAT4& rotation_quat,
+    const DirectX::XMFLOAT3& size,
+    const DebugColor& color = DebugColor::White(),
+    DebugDepthMode mode = DebugDepthMode::TestDepth,
+    DebugCategory category = DebugCategory::General);
+
+  // Wire sphere (3 great circles: XY, XZ, YZ planes)
+  void DrawWireSphere(const DirectX::XMFLOAT3& center,
+    float radius,
+    DebugSegments segments = DebugSegments::S24,
+    const DebugColor& color = DebugColor::White(),
+    DebugDepthMode mode = DebugDepthMode::TestDepth,
+    DebugCategory category = DebugCategory::General);
+
+  // Wire cylinder (2 rings + 4 side lines)
+  void DrawWireCylinder(const DirectX::XMFLOAT3& position,
+    const DirectX::XMFLOAT4& rotation_quat,
+    float radius,
+    float height,
+    DebugAxis axis = DebugAxis::Y,
+    DebugSegments segments = DebugSegments::S24,
+    const DebugColor& color = DebugColor::White(),
+    DebugDepthMode mode = DebugDepthMode::TestDepth,
+    DebugCategory category = DebugCategory::General);
+
+  // Wire capsule (2 rings + 4 side lines + 4 silhouette half-arcs)
+  // Falls back to sphere if height <= 2*radius
+  void DrawWireCapsule(const DirectX::XMFLOAT3& position,
+    const DirectX::XMFLOAT4& rotation_quat,
+    float radius,
+    float height,
+    DebugAxis axis = DebugAxis::Y,
+    DebugSegments segments = DebugSegments::S24,
+    const DebugColor& color = DebugColor::White(),
+    DebugDepthMode mode = DebugDepthMode::TestDepth,
+    DebugCategory category = DebugCategory::General);
 
   // Get accumulated commands for rendering
   const DebugVisualCommandBuffer& GetCommands3D() const {

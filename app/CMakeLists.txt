@@ -21,8 +21,10 @@ target_link_libraries(app PRIVATE
 
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_subdirectory(Framework)
 add_subdirectory(Graphic)
 
+target_link_libraries(app PRIVATE framework)
 target_link_libraries(app PRIVATE graphic)
 
 add_subdirectory(Game)

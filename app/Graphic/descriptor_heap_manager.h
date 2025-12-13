@@ -11,7 +11,7 @@ constexpr int DEFAULT_RTV_CAPACITY = 256;
 constexpr int DEFAULT_DSV_CAPACITY = 64;
 constexpr int DEFAULT_SRV_CAPACITY = 4096;
 constexpr int DEFAULT_SAMPLER_CAPACITY = 256;
-constexpr int DEFAULT_SRV_STATIC_RESERVED = 2048;
+constexpr int DEFAULT_SRV_PERSISTENT_RESERVED = 2048;
 
 class DescriptorHeapManager {
  public:
@@ -31,16 +31,17 @@ class DescriptorHeapManager {
   DescriptorHeapAllocator& GetDsvAllocator() {
     return dsv_heap_;
   }
-  // Persistent SRV allocations (textures, long-lived SRVs).
-  DescriptorHeapAllocator& GetSrvStaticAllocator() {
-    return srv_static_heap_;
+  // Persistent SRV allocations (textures, long-lived SRVs). Never reset during frames.
+  DescriptorHeapAllocator& GetSrvPersistentAllocator() {
+    return srv_persistent_heap_;
   }
-  // Per-frame SRV allocations (reset at BeginFrame).
-  DescriptorHeapAllocator& GetSrvDynamicAllocator() {
-    return *srv_dynamic_frames_[current_frame_index_];
+  // Transient SRV allocations (per-frame slices, reset at BeginFrame).
+  DescriptorHeapAllocator& GetSrvTransientAllocator() {
+    return *srv_transient_frames_[current_frame_index_];
   }
-  DescriptorHeapAllocator& GetSamplerAllocator() {
-    return *sampler_frames_[current_frame_index_];
+  // Transient sampler allocations (per-frame slices, reset at BeginFrame).
+  DescriptorHeapAllocator& GetSamplerTransientAllocator() {
+    return *sampler_transient_frames_[current_frame_index_];
   }
 
   void PrintStats() const;
@@ -49,14 +50,15 @@ class DescriptorHeapManager {
   DescriptorHeapAllocator rtv_heap_;
   DescriptorHeapAllocator dsv_heap_;
 
-  // Underlying SRV heap (owned) + two sub-allocators (static prefix + dynamic suffix).
+  // Persistent means static, transient means dynamic here.
+  // Underlying SRV heap (owned) + two sub-allocators (persistent prefix + transient suffix slices).
   DescriptorHeapAllocator srv_heap_;
-  DescriptorHeapAllocator srv_static_heap_;
-  std::vector<std::unique_ptr<DescriptorHeapAllocator>> srv_dynamic_frames_;
+  DescriptorHeapAllocator srv_persistent_heap_;
+  std::vector<std::unique_ptr<DescriptorHeapAllocator>> srv_transient_frames_;
 
   // Underlying sampler heap (owned) + per-frame sub-allocators (slices).
   DescriptorHeapAllocator sampler_heap_;
-  std::vector<std::unique_ptr<DescriptorHeapAllocator>> sampler_frames_;
+  std::vector<std::unique_ptr<DescriptorHeapAllocator>> sampler_transient_frames_;
 
   uint32_t frame_count_ = 1;
   uint32_t current_frame_index_ = 0;
@@ -66,7 +68,7 @@ class DescriptorHeapManager {
     uint32_t dsv_capacity = DEFAULT_DSV_CAPACITY;
 
     uint32_t srv_capacity = DEFAULT_SRV_CAPACITY;
-    uint32_t srv_static_reserved = DEFAULT_SRV_STATIC_RESERVED;
+    uint32_t srv_persistent_reserved = DEFAULT_SRV_PERSISTENT_RESERVED;
     uint32_t sampler_capacity = DEFAULT_SAMPLER_CAPACITY;
   };
 

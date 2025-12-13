@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 
+#include "Framework/types.h"
 #include "RenderPass/forward_pass.h"
 #include "RenderPass/render_pass_manager.h"
 #include "RenderPass/ui_pass.h"
@@ -22,26 +23,29 @@
 #include "shader_manager.h"
 #include "swapchain_manager.h"
 #include "texture_manager.h"
-#include "types.h"
 #include "upload_context.h"
 
 class Scene;
+struct ID3D12InfoQueue;
 
 class Graphic {
  public:
   Graphic() = default;
   ~Graphic() = default;
 
-  bool Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height);
+  void Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height);
   void BeginFrame();
   void RenderFrame();
   void EndFrame();
+  bool Resize(UINT frame_buffer_width, UINT frame_buffer_height);
   void Shutdown();
 
   // RenderSystem decides WHEN; Graphic handles HOW (encapsulation).
   void Transition(GpuResource* resource, D3D12_RESOURCE_STATES new_state);
   void Clear(RenderTarget* rt, const float* clear_color);
   void Clear(DepthBuffer* depth, float depth_val, uint8_t stencil_val);
+  // Legacy wrapper: delegates to the canonical RenderFrame() path in Graphic.
+  // Retained for compatibility; prefer calling RenderFrame() directly.
   void RenderPasses();
 
   // Execute a short-lived command list for one-shot work (uploads, copies)
@@ -132,6 +136,7 @@ class Graphic {
   // Core D3D12 objects
   ComPtr<ID3D12Device5> device_ = nullptr;
   ComPtr<IDXGIFactory6> dxgi_factory_ = nullptr;
+  ComPtr<ID3D12InfoQueue> info_queue_ = nullptr;
 
   uint32_t frame_index_ = 0;
   std::array<ComPtr<ID3D12CommandAllocator>, FrameCount> command_allocators_ = {};
@@ -169,12 +174,13 @@ class Graphic {
 
   // Initialization helpers
   bool EnableDebugLayer();
-  bool CreateFactory();
-  bool CreateDevice();
-  bool CreateCommandQueue();
-  bool CreateCommandList();
-  bool CreateCommandAllocator();
-  bool InitializeRenderPasses();
+  HRESULT CreateFactory();
+  HRESULT CreateDevice();
+  HRESULT CreateCommandQueue();
+  HRESULT CreateCommandList();
+  HRESULT CreateCommandAllocator();
+  void InitializeRenderPasses();
+  void ProcessD3D12InfoQueueMessages();
 
   // Default framework assets (textures, basic meshes, debug materials)
   std::unique_ptr<FrameworkDefaultAssets> default_assets_;

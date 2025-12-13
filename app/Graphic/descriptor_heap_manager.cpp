@@ -2,7 +2,8 @@
 
 #include <array>
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 static void SplitCapacity(uint32_t total, uint32_t parts, std::vector<uint32_t>& out_sizes) {
   out_sizes.clear();
@@ -24,86 +25,102 @@ bool DescriptorHeapManager::Initalize(ID3D12Device* device, uint32_t frame_count
   current_frame_index_ = 0;
 
   if (!rtv_heap_.Initialize(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, config_.rtv_capacity, false)) {
-    std::cerr << "Failed to initialize RTV heap" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DescriptorHeapManager] Failed to initialize RTV heap.");
     return false;
   }
   if (!dsv_heap_.Initialize(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, config_.dsv_capacity, false)) {
-    std::cerr << "Failed to initialize DSV heap" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DescriptorHeapManager] Failed to initialize DSV heap.");
     return false;
   }
   if (!srv_heap_.Initialize(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, config_.srv_capacity, true)) {
-    std::cerr << "Failed to initialize SRV heap" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DescriptorHeapManager] Failed to initialize SRV heap.");
     return false;
   }
 
   // Split SRV heap into a persistent prefix and a per-frame resettable suffix.
   // Ensure we always leave at least 1 descriptor for the dynamic region.
-  uint32_t static_reserved = config_.srv_static_reserved;
+  uint32_t persistent_reserved = config_.srv_persistent_reserved;
   if (config_.srv_capacity <= 1) {
-    static_reserved = 0;
+    persistent_reserved = 0;
   } else {
     const uint32_t max_static = config_.srv_capacity - 1;
-    if (static_reserved > max_static) {
-      static_reserved = max_static;
+    if (persistent_reserved > max_static) {
+      persistent_reserved = max_static;
     }
   }
-  const uint32_t dynamic_capacity = config_.srv_capacity - static_reserved;
+  const uint32_t transient_capacity = config_.srv_capacity - persistent_reserved;
 
-  if (!srv_static_heap_.InitializeFromExistingHeap(
-        device, srv_heap_.GetHeap(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 0, static_reserved, true)) {
-    std::cerr << "Failed to initialize SRV static sub-allocator" << '\n';
+  if (!srv_persistent_heap_.InitializeFromExistingHeap(
+        device, srv_heap_.GetHeap(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 0, persistent_reserved, true)) {
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DescriptorHeapManager] Failed to initialize SRV persistent sub-allocator.");
     return false;
   }
 
+  // Persistent SRV range must never be reset during frames.
+  srv_persistent_heap_.SetResetAllowed(false);
+
   // Split the dynamic suffix into per-frame slices so BeginFrame() can safely reset only
   // the current frame's transient descriptors under frames-in-flight.
-  srv_dynamic_frames_.clear();
-  srv_dynamic_frames_.resize(frame_count_);
+  srv_transient_frames_.clear();
+  srv_transient_frames_.resize(frame_count_);
   std::vector<uint32_t> srv_slice_sizes;
-  SplitCapacity(dynamic_capacity, frame_count_, srv_slice_sizes);
+  SplitCapacity(transient_capacity, frame_count_, srv_slice_sizes);
 
   uint32_t srv_offset = 0;
   for (uint32_t i = 0; i < frame_count_; ++i) {
-    srv_dynamic_frames_[i] = std::make_unique<DescriptorHeapAllocator>();
+    srv_transient_frames_[i] = std::make_unique<DescriptorHeapAllocator>();
     const uint32_t slice_capacity = srv_slice_sizes[i];
-    if (!srv_dynamic_frames_[i]->InitializeFromExistingHeap(
+    if (!srv_transient_frames_[i]->InitializeFromExistingHeap(
           device,
           srv_heap_.GetHeap(),
           D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-          static_reserved + srv_offset,
+        persistent_reserved + srv_offset,
           slice_capacity,
           true)) {
-      std::cerr << "Failed to initialize SRV dynamic sub-allocator (frame slice " << i << ")" << '\n';
+      Logger::Logf(LogLevel::Error,
+        LogCategory::Graphic,
+        Logger::Here(),
+        "[DescriptorHeapManager] Failed to initialize SRV dynamic sub-allocator (frame slice {}).",
+        i);
       return false;
     }
     srv_offset += slice_capacity;
   }
 
+  assert(persistent_reserved + srv_offset == config_.srv_capacity);
+  assert(srv_offset == transient_capacity);
+
   if (!sampler_heap_.Initialize(device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, config_.sampler_capacity, true)) {
-    std::cerr << "Failed to initialize sampler heap" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DescriptorHeapManager] Failed to initialize sampler heap.");
     return false;
   }
 
-  sampler_frames_.clear();
-  sampler_frames_.resize(frame_count_);
+  sampler_transient_frames_.clear();
+  sampler_transient_frames_.resize(frame_count_);
   std::vector<uint32_t> sampler_slice_sizes;
   SplitCapacity(config_.sampler_capacity, frame_count_, sampler_slice_sizes);
   uint32_t sampler_offset = 0;
   for (uint32_t i = 0; i < frame_count_; ++i) {
-    sampler_frames_[i] = std::make_unique<DescriptorHeapAllocator>();
+    sampler_transient_frames_[i] = std::make_unique<DescriptorHeapAllocator>();
     const uint32_t slice_capacity = sampler_slice_sizes[i];
-    if (!sampler_frames_[i]->InitializeFromExistingHeap(
+    if (!sampler_transient_frames_[i]->InitializeFromExistingHeap(
           device,
           sampler_heap_.GetHeap(),
           D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
           sampler_offset,
           slice_capacity,
           true)) {
-      std::cerr << "Failed to initialize sampler sub-allocator (frame slice " << i << ")" << '\n';
+      Logger::Logf(LogLevel::Error,
+        LogCategory::Graphic,
+        Logger::Here(),
+        "[DescriptorHeapManager] Failed to initialize sampler sub-allocator (frame slice {}).",
+        i);
       return false;
     }
     sampler_offset += slice_capacity;
   }
+
+  assert(sampler_offset == config_.sampler_capacity);
 
   return true;
 }
@@ -116,14 +133,14 @@ void DescriptorHeapManager::BeginFrame(uint32_t frame_index) {
   }
 
   // Only reset this frame's slices (frames-in-flight safe).
-  if (current_frame_index_ < srv_dynamic_frames_.size()) {
-    if (srv_dynamic_frames_[current_frame_index_]) {
-      srv_dynamic_frames_[current_frame_index_]->Reset();
+  if (current_frame_index_ < srv_transient_frames_.size()) {
+    if (srv_transient_frames_[current_frame_index_]) {
+      srv_transient_frames_[current_frame_index_]->Reset();
     }
   }
-  if (current_frame_index_ < sampler_frames_.size()) {
-    if (sampler_frames_[current_frame_index_]) {
-      sampler_frames_[current_frame_index_]->Reset();
+  if (current_frame_index_ < sampler_transient_frames_.size()) {
+    if (sampler_transient_frames_[current_frame_index_]) {
+      sampler_transient_frames_[current_frame_index_]->Reset();
     }
   }
 }
@@ -142,7 +159,7 @@ void DescriptorHeapManager::SetDescriptorHeaps(ID3D12GraphicsCommandList* comman
 void DescriptorHeapManager::PrintStats() const {
   uint32_t srv_dyn_allocated = 0;
   uint32_t srv_dyn_capacity = 0;
-  for (const auto& alloc : srv_dynamic_frames_) {
+  for (const auto& alloc : srv_transient_frames_) {
     if (!alloc) continue;
     srv_dyn_allocated += alloc->GetAllocated();
     srv_dyn_capacity += alloc->GetCapacity();
@@ -150,17 +167,24 @@ void DescriptorHeapManager::PrintStats() const {
 
   uint32_t sampler_allocated = 0;
   uint32_t sampler_capacity = 0;
-  for (const auto& alloc : sampler_frames_) {
+  for (const auto& alloc : sampler_transient_frames_) {
     if (!alloc) continue;
     sampler_allocated += alloc->GetAllocated();
     sampler_capacity += alloc->GetCapacity();
   }
 
-  std::cout << "\n=== Descriptor Heap Statistics ===" << '\n';
-  std::cout << "RTV Heap: " << rtv_heap_.GetAllocated() << "/" << rtv_heap_.GetCapacity() << '\n';
-  std::cout << "DSV Heap: " << dsv_heap_.GetAllocated() << "/" << dsv_heap_.GetCapacity() << '\n';
-  std::cout << "SRV Heap Static (persistent): " << srv_static_heap_.GetAllocated() << "/" << srv_static_heap_.GetCapacity() << '\n';
-  std::cout << "SRV Heap Dynamic (per-frame slices): " << srv_dyn_allocated << "/" << srv_dyn_capacity << '\n';
-  std::cout << "Sampler Heap (per-frame slices): " << sampler_allocated << "/" << sampler_capacity << '\n';
-  std::cout << "==================================\n" << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Graphic,
+    Logger::Here(),
+    "=== Descriptor Heap Statistics ===\nRTV Heap: {}/{}\nDSV Heap: {}/{}\nSRV Heap Static (persistent): {}/{}\nSRV Heap Dynamic (per-frame slices): {}/{}\nSampler Heap (per-frame slices): {}/{}\n==================================",
+    rtv_heap_.GetAllocated(),
+    rtv_heap_.GetCapacity(),
+    dsv_heap_.GetAllocated(),
+    dsv_heap_.GetCapacity(),
+    srv_persistent_heap_.GetAllocated(),
+    srv_persistent_heap_.GetCapacity(),
+    srv_dyn_allocated,
+    srv_dyn_capacity,
+    sampler_allocated,
+    sampler_capacity);
 }

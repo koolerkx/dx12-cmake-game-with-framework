@@ -4,11 +4,12 @@
 #include <d3d12.h>
 
 #include <cassert>
-#include <iostream>
 #include <memory>
 
+#include "Framework/Logging/logger.h"
+#include "Framework/utils.h"
 #include "d3dx12.h"
-#include "utils.h"
+
 
 bool Texture::Create(ID3D12Device* device,
   UINT width,
@@ -38,7 +39,11 @@ bool Texture::Create(ID3D12Device* device,
     &heap_props, D3D12_HEAP_FLAG_NONE, &texture_desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(resource.GetAddressOf()));
 
   if (FAILED(hr)) {
-    std::cerr << "[Texture] Failed to create texture resource" << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Resource,
+      Logger::Here(),
+      "[Texture] CreateCommittedResource failed (hr=0x{:08X}).",
+      static_cast<uint32_t>(hr));
     return false;
   }
 
@@ -72,7 +77,12 @@ bool Texture::LoadFromFile(
     subresource_data);
 
   if (FAILED(hr)) {
-    std::cerr << "[Texture] Failed to load texture: " << utils::WstringToUtf8(file_path) << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Resource,
+      Logger::Here(),
+      "[Texture] LoadWICTextureFromFileEx failed for '{}' (hr=0x{:08X}).",
+      WstringToUtf8(file_path),
+      static_cast<uint32_t>(hr));
     return false;
   }
 
@@ -98,7 +108,11 @@ bool Texture::LoadFromFile(
     IID_PPV_ARGS(upload_heap.GetAddressOf()));
 
   if (FAILED(hr)) {
-    std::cerr << "[Texture] Failed to create upload heap" << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Resource,
+      Logger::Here(),
+      "[Texture] Create upload heap failed (hr=0x{:08X}).",
+      static_cast<uint32_t>(hr));
     return false;
   }
 
@@ -155,7 +169,11 @@ bool Texture::LoadFromMemory(ID3D12Device* device,
         bits_per_pixel = 64;
         break;
       default:
-        std::cerr << "[Texture] Unsupported format for automatic row pitch calculation" << '\n';
+        Logger::Logf(LogLevel::Error,
+          LogCategory::Validation,
+          Logger::Here(),
+          "[Texture] Unsupported format for automatic row pitch calculation (format={}).",
+          static_cast<uint32_t>(format));
         return false;
     }
     row_pitch = (width * bits_per_pixel + 7) / 8;
@@ -170,7 +188,11 @@ bool Texture::LoadFromMemory(ID3D12Device* device,
     &heap_props, D3D12_HEAP_FLAG_NONE, &texture_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(resource.GetAddressOf()));
 
   if (FAILED(hr)) {
-    std::cerr << "[Texture] Failed to create texture resource" << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Resource,
+      Logger::Here(),
+      "[Texture] CreateCommittedResource failed (hr=0x{:08X}).",
+      static_cast<uint32_t>(hr));
     return false;
   }
 
@@ -189,7 +211,11 @@ bool Texture::LoadFromMemory(ID3D12Device* device,
     IID_PPV_ARGS(upload_heap.GetAddressOf()));
 
   if (FAILED(hr)) {
-    std::cerr << "[Texture] Failed to create upload heap" << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Resource,
+      Logger::Here(),
+      "[Texture] Create upload heap failed (hr=0x{:08X}).",
+      static_cast<uint32_t>(hr));
     return false;
   }
 
@@ -226,7 +252,7 @@ bool Texture::CreateSRV(ID3D12Device* device, DescriptorHeapAllocator& srv_alloc
   // Allocate descriptor
   srv_allocation_ = srv_allocator.Allocate(1);
   if (!srv_allocation_.IsValid()) {
-    std::cerr << "[Texture] Failed to allocate SRV descriptor" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[Texture] Failed to allocate SRV descriptor.");
     return false;
   }
 

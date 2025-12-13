@@ -9,7 +9,7 @@
 class DepthBuffer : public GpuResource {
  public:
   DepthBuffer() = default;
-  ~DepthBuffer() override = default;
+  ~DepthBuffer() override;
 
   DepthBuffer(const DepthBuffer&) = delete;
   DepthBuffer& operator=(const DepthBuffer&) = delete;
@@ -68,12 +68,17 @@ class DepthBuffer : public GpuResource {
   DescriptorHeapAllocator::Allocation dsv_allocation_ = {};
   DescriptorHeapAllocator::Allocation srv_allocation_ = {};  // Optional
 
+  DescriptorHeapAllocator* dsv_allocator_ = nullptr;  // non-owning
+  DescriptorHeapAllocator* srv_allocator_ = nullptr;  // non-owning (optional)
+
   UINT width_ = 0;
   UINT height_ = 0;
 
   DXGI_FORMAT resource_format_ = DXGI_FORMAT_R32_TYPELESS;  // typeless storage format
   DXGI_FORMAT dsv_format_ = DXGI_FORMAT_D32_FLOAT;
   DXGI_FORMAT srv_format_ = DXGI_FORMAT_R32_FLOAT;  // SRV format (if needed)
+
+  void ReleaseDescriptors();
 
   bool CreateDSV(ID3D12Device* device, DescriptorHeapAllocator& dsv_allocator);
   bool CreateSRV(ID3D12Device* device, DescriptorHeapAllocator& srv_allocator);

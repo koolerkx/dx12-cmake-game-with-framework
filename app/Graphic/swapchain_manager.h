@@ -6,9 +6,10 @@
 
 #include <vector>
 
+#include "Framework/types.h"
 #include "descriptor_heap_manager.h"
 #include "render_target.h"
-#include "types.h"
+
 
 class SwapChainManager {
  public:
@@ -40,19 +41,19 @@ class SwapChainManager {
   }
 
   RenderTarget* GetRenderTarget(uint32_t frame_index) {
-    if (backbuffer_targets_.empty() || buffer_count_ == 0) {
+    if (backbuffer_render_targets_.empty() || buffer_count_ == 0) {
       return nullptr;
     }
     const uint32_t index = frame_index % buffer_count_;
-    return &backbuffer_targets_[index];
+    return &backbuffer_render_targets_[index];
   }
 
   const RenderTarget* GetRenderTarget(uint32_t frame_index) const {
-    if (backbuffer_targets_.empty() || buffer_count_ == 0) {
+    if (backbuffer_render_targets_.empty() || buffer_count_ == 0) {
       return nullptr;
     }
     const uint32_t index = frame_index % buffer_count_;
-    return &backbuffer_targets_[index];
+    return &backbuffer_render_targets_[index];
   }
 
   RenderTarget* GetCurrentRenderTarget() {
@@ -91,8 +92,13 @@ class SwapChainManager {
     return swap_chain_.Get();
   }
 
-  UINT GetWdith() const {
+  UINT GetWidth() const {
     return width_;
+  }
+
+  // Backward-compatible typo alias.
+  UINT GetWdith() const {
+    return GetWidth();
   }
   UINT GetHeight() const {
     return height_;
@@ -102,7 +108,7 @@ class SwapChainManager {
 
  private:
   ComPtr<IDXGISwapChain4> swap_chain_ = nullptr;
-  std::vector<RenderTarget> backbuffer_targets_;
+  std::vector<RenderTarget> backbuffer_render_targets_;
 
   UINT width_ = 0;
   UINT height_ = 0;
@@ -112,10 +118,10 @@ class SwapChainManager {
 
   ID3D12Device* device_ = nullptr;
 
-  bool CreateBackBufferViews(DescriptorHeapManager& descriptor_manager);
+  bool CreateBackBufferRenderTargets(DescriptorHeapManager& descriptor_manager);
 
   /**
    * @note used for resize
    */
-  void ReleaseBackBuffers();
+  void ReleaseBackBufferRenderTargets();
 };

@@ -1,10 +1,52 @@
 #include "graphic.h"
 
-#include <array>
-#include <iostream>
+#include <d3d12sdklayers.h>
 
+#include <array>
+#include <format>
+#include <vector>
+
+#include "Framework/Error/error_helpers_fast.h"
+#include "Framework/Error/framework_error.h"
 #include "RenderPass/forward_pass.h"
 #include "RenderPass/ui_pass.h"
+
+namespace {
+FastErrorCounters g_graphic_fast_errors{};
+
+LogLevel MapD3DSeverityToLogLevel(D3D12_MESSAGE_SEVERITY severity) {
+  switch (severity) {
+    case D3D12_MESSAGE_SEVERITY_CORRUPTION:
+      return LogLevel::Fatal;
+    case D3D12_MESSAGE_SEVERITY_ERROR:
+      return LogLevel::Error;
+    case D3D12_MESSAGE_SEVERITY_WARNING:
+      return LogLevel::Warn;
+    case D3D12_MESSAGE_SEVERITY_INFO:
+      return LogLevel::Info;
+    case D3D12_MESSAGE_SEVERITY_MESSAGE:
+    default:
+      return LogLevel::Debug;
+  }
+}
+
+const char* D3D12SeverityToString(D3D12_MESSAGE_SEVERITY severity) {
+  switch (severity) {
+    case D3D12_MESSAGE_SEVERITY_CORRUPTION:
+      return "CORRUPTION";
+    case D3D12_MESSAGE_SEVERITY_ERROR:
+      return "ERROR";
+    case D3D12_MESSAGE_SEVERITY_WARNING:
+      return "WARNING";
+    case D3D12_MESSAGE_SEVERITY_INFO:
+      return "INFO";
+    case D3D12_MESSAGE_SEVERITY_MESSAGE:
+      return "MESSAGE";
+    default:
+      return "UNKNOWN";
+  }
+}
+}  // namespace
 
 void Graphic::Transition(GpuResource* resource, D3D12_RESOURCE_STATES new_state) {
   if (!resource) return;
@@ -22,50 +64,54 @@ void Graphic::Clear(DepthBuffer* depth, float depth_val, uint8_t stencil_val) {
 }
 
 void Graphic::RenderPasses() {
-  render_pass_manager_.RenderFrame(command_list_.Get(), texture_manager_);
+  render_pass_manager_.RenderFrame(*this, texture_manager_);
 }
 
-bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height) {
+void Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height) {
   frame_buffer_width_ = frame_buffer_width;
   frame_buffer_height_ = frame_buffer_height;
 
-  std::wstring init_error_caption = L"Graphic Initialization Error";
+  FrameworkDx::ThrowIfFailed(CreateFactory(), FrameworkErrorCode::DxgiFactoryCreateFailed, "CreateFactory");
+  FrameworkDx::ThrowIfFailed(CreateDevice(), FrameworkErrorCode::D3d12DeviceCreateFailed, "CreateDevice");
 
-  if (!CreateFactory()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create factory", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
-  if (!CreateDevice()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create device", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
+  // Get ID3D12InfoQueue and set filter level (remove info and message)
+  if (SUCCEEDED(device_->QueryInterface(IID_PPV_ARGS(&info_queue_)))) {
+    D3D12_MESSAGE_SEVERITY severities[] = {
+      D3D12_MESSAGE_SEVERITY_INFO,
+      D3D12_MESSAGE_SEVERITY_MESSAGE,
+    };
+
+    D3D12_INFO_QUEUE_FILTER filter = {};
+    filter.DenyList.NumSeverities = _countof(severities);
+    filter.DenyList.pSeverityList = severities;
+
+    HRESULT hr = info_queue_->PushStorageFilter(&filter);
+    if (FAILED(hr)) {
+      Logger::Log(LogLevel::Warn, LogCategory::Graphic, "D3D12 InfoQueue PushStorageFilter failed.");
+    }
+
+    info_queue_->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+    info_queue_->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+  } else {
+    Logger::Log(LogLevel::Warn, LogCategory::Graphic, "Failed to retrieve ID3D12InfoQueue interface. D3D12 logging will be limited.");
   }
 
   // Initialize primitive geometry 2D
   primitive_geometry_2d_ = std::make_unique<PrimitiveGeometry2D>(device_.Get());
 
   if (!descriptor_heap_manager_.Initalize(device_.Get(), FrameCount)) {
-    MessageBoxW(nullptr, L"Graphic: Failed to initialize descriptor heap manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
+    FrameworkFail::Throw(
+      FrameworkErrorDomain::Graphic, FrameworkErrorCode::DescriptorHeapManagerInitFailed, "DescriptorHeapManager::Initialize");
   }
 
   // Textures are persistent; allocate their SRVs from the static region.
-  if (!texture_manager_.Initialize(device_.Get(), &descriptor_heap_manager_.GetSrvStaticAllocator(), 1024)) {
-    MessageBoxW(nullptr, L"Graphic: Failed to initialize texture manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
+  if (!texture_manager_.Initialize(device_.Get(), &descriptor_heap_manager_.GetSrvPersistentAllocator(), 1024)) {
+    FrameworkFail::Throw(FrameworkErrorDomain::Resource, FrameworkErrorCode::TextureManagerInitFailed, "TextureManager::Initialize");
   }
 
-  if (!CreateCommandQueue()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create command queue", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
-  if (!CreateCommandAllocator()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create command allocator", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
-  if (!CreateCommandList()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create command list", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
+  FrameworkDx::ThrowIfFailed(CreateCommandQueue(), FrameworkErrorCode::CommandQueueCreateFailed, "CreateCommandQueue");
+  FrameworkDx::ThrowIfFailed(CreateCommandAllocator(), FrameworkErrorCode::CommandAllocatorCreateFailed, "CreateCommandAllocator");
+  FrameworkDx::ThrowIfFailed(CreateCommandList(), FrameworkErrorCode::CommandListCreateFailed, "CreateCommandList");
 
   if (!swap_chain_manager_.Initialize(device_.Get(),
         dxgi_factory_.Get(),
@@ -75,7 +121,7 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
         frame_buffer_height,
         FrameCount,
         descriptor_heap_manager_)) {
-    return false;
+    FrameworkFail::Throw(FrameworkErrorDomain::Graphic, FrameworkErrorCode::SwapchainInitFailed, "SwapChainManager::Initialize");
   }
 
   // Create depth buffer
@@ -83,26 +129,23 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
         frame_buffer_width,
         frame_buffer_height,
         descriptor_heap_manager_.GetDsvAllocator(),
-        &descriptor_heap_manager_.GetSrvStaticAllocator(),
+        &descriptor_heap_manager_.GetSrvPersistentAllocator(),
         DXGI_FORMAT_R32_TYPELESS)) {
-    MessageBoxW(nullptr, L"Graphic: Failed to create depth buffer", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
+    FrameworkFail::Throw(FrameworkErrorDomain::Graphic, FrameworkErrorCode::DepthBufferCreateFailed, "DepthBuffer::Create");
   }
   depth_buffer_.SetDebugName("SceneDepthBuffer");
 
   if (!fence_manager_.Initialize(device_.Get())) {
-    return false;
+    FrameworkFail::Throw(FrameworkErrorDomain::Graphic, FrameworkErrorCode::FenceManagerInitFailed, "FenceManager::Initialize");
   }
 
   // Initialize upload context for one-shot resource uploads
   if (!upload_context_.Initialize(device_.Get(), command_queue_.Get(), &fence_manager_)) {
-    MessageBoxW(nullptr, L"Graphic: Failed to initialize upload context", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
+    FrameworkFail::Throw(FrameworkErrorDomain::Resource, FrameworkErrorCode::UploadContextInitFailed, "UploadContext::Initialize");
   }
 
   if (!render_pass_manager_.Initialize(device_.Get(), FrameCount, upload_context_)) {
-    MessageBoxW(nullptr, L"Graphic: Failed to initialize render pass manager", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
+    FrameworkFail::Throw(FrameworkErrorDomain::Graphic, FrameworkErrorCode::RenderPassManagerInitFailed, "RenderPassManager::Initialize");
   }
 
   // Setup viewport
@@ -118,22 +161,20 @@ bool Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
   scissor_rect_.right = frame_buffer_width_;
   scissor_rect_.bottom = frame_buffer_height_;
 
-  if (!InitializeRenderPasses()) {
-    MessageBoxW(nullptr, L"Graphic: Failed to initialize render passes", init_error_caption.c_str(), MB_OK | MB_ICONERROR);
-    return false;
-  }
+  InitializeRenderPasses();
 
   // Initialize framework default assets (textures, meshes, debug materials)
   default_assets_ = std::make_unique<FrameworkDefaultAssets>();
   default_assets_->Initialize(*this);
 
-  std::cout << "[Graphic] Initialization complete - Render Pass Architecture" << '\n';
-  return true;
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "Graphic initialized.");
 }
 
-bool Graphic::InitializeRenderPasses() {
+void Graphic::InitializeRenderPasses() {
   auto forward_pass = std::make_unique<ForwardPass>();
-  forward_pass->Initialize(device_.Get());
+  if (!forward_pass->Initialize(device_.Get())) {
+    FrameworkFail::Throw(FrameworkErrorDomain::Graphic, FrameworkErrorCode::RenderPassInitFailed, "ForwardPass::Initialize");
+  }
 
   // Use swap chain back buffer as render target
   // The back buffer will be set dynamically in BeginFrame
@@ -143,7 +184,9 @@ bool Graphic::InitializeRenderPasses() {
 
   // Create UI Pass
   auto ui_pass = std::make_unique<UIPass>();
-  ui_pass->Initialize(device_.Get());
+  if (!ui_pass->Initialize(device_.Get())) {
+    FrameworkFail::Throw(FrameworkErrorDomain::Graphic, FrameworkErrorCode::RenderPassInitFailed, "UIPass::Initialize");
+  }
 
   render_pass_manager_.RegisterPass("UI", std::move(ui_pass));
 
@@ -151,8 +194,7 @@ bool Graphic::InitializeRenderPasses() {
   forward_pass_ = static_cast<ForwardPass*>(render_pass_manager_.GetPass("Forward"));
   ui_pass_ = static_cast<UIPass*>(render_pass_manager_.GetPass("UI"));
 
-  std::cout << "[Graphic] Registered " << render_pass_manager_.GetPassCount() << " render passes" << '\n';
-  return true;
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "Registered {} render passes.", render_pass_manager_.GetPassCount());
 }
 
 void Graphic::ExecuteImmediate(const std::function<void(ID3D12GraphicsCommandList*)>& recordFunc) {
@@ -181,9 +223,13 @@ void Graphic::BeginFrame() {
   // Expectation: completed value typically lags behind the most recent signaled value.
   static uint32_t s_debug_frame_counter = 0;
   if ((s_debug_frame_counter++ % 120u) == 0u) {
-    std::cout << "[FrameSync] frame=" << s_debug_frame_counter << " frame_index=" << frame_index_
-              << " slot_fence=" << frame_fence_values_[frame_index_]
-              << " completed=" << fence_manager_.GetCompletedFenceValue() << '\n';
+    Logger::Log(LogLevel::Debug,
+      LogCategory::Graphic,
+      std::format("[FrameSync] frame={} frame_index={} slot_fence={} completed={}",
+        s_debug_frame_counter,
+        frame_index_,
+        frame_fence_values_[frame_index_],
+        fence_manager_.GetCompletedFenceValue()));
   }
 #endif
 
@@ -191,8 +237,17 @@ void Graphic::BeginFrame() {
   fence_manager_.WaitForFenceValue(frame_fence_values_[frame_index_]);
 
   // Reset the per-frame allocator and command list for recording.
-  command_allocators_[frame_index_]->Reset();
-  command_list_->Reset(command_allocators_[frame_index_].Get(), nullptr);
+  {
+    const HRESULT hr_alloc = command_allocators_[frame_index_]->Reset();
+    if (ReturnIfFailedFast(hr_alloc, ContextId::Graphic_BeginFrame_ResetCommandAllocator, frame_index_, &g_graphic_fast_errors)) {
+      return;
+    }
+
+    const HRESULT hr_list = command_list_->Reset(command_allocators_[frame_index_].Get(), nullptr);
+    if (ReturnIfFailedFast(hr_list, ContextId::Graphic_BeginFrame_ResetCommandList, frame_index_, &g_graphic_fast_errors)) {
+      return;
+    }
+  }
 
   // Reset descriptor heaps for this frame
   descriptor_heap_manager_.BeginFrame(frame_index_);
@@ -220,15 +275,28 @@ void Graphic::BeginFrame() {
 void Graphic::RenderFrame() {
   // Execute all render passes through the pass manager
   // The pass manager will handle filtering and executing each pass
-  render_pass_manager_.RenderFrame(command_list_.Get(), texture_manager_);
+  render_pass_manager_.RenderFrame(*this, texture_manager_);
 
   // Clear render queue for next frame
   render_pass_manager_.Clear();
+
+  // Ensure backbuffer is in PRESENT state before closing the frame.
+  // This records a transition barrier onto the current command list so
+  // Present will always observe the correct state.
+  auto* backbufferRT = swap_chain_manager_.GetRenderTarget(frame_index_);
+  if (backbufferRT != nullptr && backbufferRT->IsValid()) {
+    Transition(backbufferRT, D3D12_RESOURCE_STATE_PRESENT);
+  }
 }
 
 void Graphic::EndFrame() {
   // Execute command list
-  command_list_->Close();
+  {
+    const HRESULT hr_close = command_list_->Close();
+    if (ReturnIfFailedFast(hr_close, ContextId::Graphic_EndFrame_CloseCommandList, frame_index_, &g_graphic_fast_errors)) {
+      return;
+    }
+  }
 
   std::array<ID3D12CommandList*, 1> cmdlists = {command_list_.Get()};
   command_queue_->ExecuteCommandLists(static_cast<UINT>(cmdlists.size()), cmdlists.data());
@@ -247,9 +315,68 @@ void Graphic::EndFrame() {
   swap_chain_manager_.Present(sync_interval, present_flags);
 }
 
+bool Graphic::Resize(UINT frame_buffer_width, UINT frame_buffer_height) {
+  if (frame_buffer_width == 0 || frame_buffer_height == 0) {
+    return true;
+  }
+
+  if (frame_buffer_width == frame_buffer_width_ && frame_buffer_height == frame_buffer_height_) {
+    return true;
+  }
+
+  if (device_ == nullptr || command_queue_ == nullptr || swap_chain_manager_.GetSwapChain() == nullptr) {
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[Graphic] Resize called before initialization.");
+    return false;
+  }
+
+  // Resize flow:
+  // 1) Wait GPU idle
+  // 2) Release backbuffers + descriptors (handled by SwapChainManager via RenderTarget destructors)
+  // 3) ResizeBuffers + recreate RTVs
+  // 4) Recreate depth buffer
+  // 5) Update viewport/scissor
+  fence_manager_.WaitForGpu(command_queue_.Get());
+
+  if (!swap_chain_manager_.Resize(frame_buffer_width, frame_buffer_height, FrameCount, descriptor_heap_manager_)) {
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[Graphic] SwapChainManager::Resize failed.");
+    return false;
+  }
+
+  if (!depth_buffer_.Create(device_.Get(),
+        frame_buffer_width,
+        frame_buffer_height,
+        descriptor_heap_manager_.GetDsvAllocator(),
+        &descriptor_heap_manager_.GetSrvPersistentAllocator(),
+        DXGI_FORMAT_R32_TYPELESS)) {
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[Graphic] DepthBuffer::Create failed during resize.");
+    return false;
+  }
+  depth_buffer_.SetDebugName("SceneDepthBuffer");
+
+  frame_buffer_width_ = frame_buffer_width;
+  frame_buffer_height_ = frame_buffer_height;
+
+  viewport_.Width = static_cast<FLOAT>(frame_buffer_width_);
+  viewport_.Height = static_cast<FLOAT>(frame_buffer_height_);
+  viewport_.TopLeftX = 0;
+  viewport_.TopLeftY = 0;
+  viewport_.MaxDepth = 1.0f;
+  viewport_.MinDepth = 0.0f;
+
+  scissor_rect_.top = 0;
+  scissor_rect_.left = 0;
+  scissor_rect_.right = frame_buffer_width_;
+  scissor_rect_.bottom = frame_buffer_height_;
+
+  return true;
+}
+
 void Graphic::Shutdown() {
   // Wait for GPU to finish all work
   fence_manager_.WaitForGpu(command_queue_.Get());
+
+  // map D3D12 info queue messages
+  ProcessD3D12InfoQueueMessages();
 
   // Print statistics before cleanup
   texture_manager_.PrintStats();
@@ -268,7 +395,7 @@ void Graphic::Shutdown() {
   texture_manager_.Clear();
   material_manager_.Clear();
 
-  std::cout << "[Graphic] Shutdown complete" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "Graphic shutdown complete.");
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE Graphic::GetMainRTV() const {
@@ -301,7 +428,7 @@ bool Graphic::EnableDebugLayer() {
   return true;
 }
 
-bool Graphic::CreateFactory() {
+HRESULT Graphic::CreateFactory() {
 #if defined(DEBUG) || defined(_DEBUG)
   EnableDebugLayer();
   UINT dxgi_factory_flag = DXGI_CREATE_FACTORY_DEBUG;
@@ -309,15 +436,11 @@ bool Graphic::CreateFactory() {
   UINT dxgi_factory_flag = 0;
 #endif
 
-  auto hr = CreateDXGIFactory2(dxgi_factory_flag, IID_PPV_ARGS(&dxgi_factory_));
-  if (FAILED(hr)) {
-    std::cerr << "[Graphic] Failed to create dxgi factory." << '\n';
-    return false;
-  }
-  return true;
+  const HRESULT hr = CreateDXGIFactory2(dxgi_factory_flag, IID_PPV_ARGS(&dxgi_factory_));
+  return hr;
 }
 
-bool Graphic::CreateDevice() {
+HRESULT Graphic::CreateDevice() {
   std::vector<ComPtr<IDXGIAdapter>> adapters;
   ComPtr<IDXGIAdapter> tmpAdapter = nullptr;
 
@@ -328,7 +451,7 @@ bool Graphic::CreateDevice() {
   for (const auto& adapter : adapters) {
     DXGI_ADAPTER_DESC adapter_desc = {};
     adapter->GetDesc(&adapter_desc);
-    if (std::wstring desc_str = adapter_desc.Description; desc_str.find(L"NVIDIA") != std::string::npos) {
+    if (std::wstring desc_str = adapter_desc.Description; desc_str.find(L"NVIDIA") != std::wstring::npos) {
       tmpAdapter = adapter;
       break;
     }
@@ -343,17 +466,16 @@ bool Graphic::CreateDevice() {
   };
 
   for (auto level : levels) {
-    auto hr = D3D12CreateDevice(tmpAdapter.Get(), level, IID_PPV_ARGS(&device_));
+    const HRESULT hr = D3D12CreateDevice(tmpAdapter.Get(), level, IID_PPV_ARGS(&device_));
     if (SUCCEEDED(hr) && device_ != nullptr) {
-      return true;
+      return S_OK;
     }
   }
 
-  std::cerr << "[Graphic] Failed to create D3D12 device." << '\n';
-  return false;
+  return E_FAIL;
 }
 
-bool Graphic::CreateCommandQueue() {
+HRESULT Graphic::CreateCommandQueue() {
   D3D12_COMMAND_QUEUE_DESC queue_desc = {};
   queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
   queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
@@ -363,33 +485,63 @@ bool Graphic::CreateCommandQueue() {
   HRESULT hr = device_->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&command_queue_));
 
   if (FAILED(hr) || command_queue_ == nullptr) {
-    std::cerr << "[Graphic] Failed to create command queue." << '\n';
-    return false;
+    return FAILED(hr) ? hr : E_FAIL;
   }
 
-  return true;
+  return S_OK;
 }
 
-bool Graphic::CreateCommandAllocator() {
+HRESULT Graphic::CreateCommandAllocator() {
   for (uint32_t i = 0; i < FrameCount; ++i) {
     HRESULT hr = device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocators_[i]));
     if (FAILED(hr) || command_allocators_[i] == nullptr) {
-      std::cerr << "[Graphic] Failed to create command allocator for frame slot " << i << "." << '\n';
-      return false;
+      return FAILED(hr) ? hr : E_FAIL;
     }
   }
-  return true;
+  return S_OK;
 }
 
-bool Graphic::CreateCommandList() {
-  HRESULT hr = device_->CreateCommandList(
-    0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocators_[0].Get(), nullptr, IID_PPV_ARGS(&command_list_));
+HRESULT Graphic::CreateCommandList() {
+  HRESULT hr =
+    device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocators_[0].Get(), nullptr, IID_PPV_ARGS(&command_list_));
 
   if (FAILED(hr) || command_list_ == nullptr) {
-    std::cerr << "[Graphic] Failed to create command list." << '\n';
-    return false;
+    return FAILED(hr) ? hr : E_FAIL;
   }
 
   command_list_->Close();
-  return true;
+  return S_OK;
+}
+
+// read messages from the info queue
+void Graphic::ProcessD3D12InfoQueueMessages() {
+  if (!info_queue_) return;
+
+  const UINT64 message_count = info_queue_->GetNumStoredMessagesAllowedByRetrievalFilter();
+  if (message_count == 0) return;
+
+  std::vector<uint8_t> buffer;
+
+  for (UINT64 i = 0; i < message_count; ++i) {
+    SIZE_T msg_size = 0;
+    info_queue_->GetMessage(i, nullptr, &msg_size);
+    if (msg_size == 0) continue;
+
+    buffer.resize(msg_size);
+    D3D12_MESSAGE* message = reinterpret_cast<D3D12_MESSAGE*>(buffer.data());
+
+    HRESULT hr = info_queue_->GetMessage(i, message, &msg_size);
+    if (SUCCEEDED(hr) && message) {
+      LogLevel level = MapD3DSeverityToLogLevel(message->Severity);
+      Logger::Logf(level,
+        LogCategory::Graphic,
+        Logger::Here(),
+        "[D3D12][{}] ID: {} | {}",
+        D3D12SeverityToString(message->Severity),
+        static_cast<int>(message->ID),
+        message->pDescription ? message->pDescription : "");
+    }
+  }
+
+  info_queue_->ClearStoredMessages();
 }

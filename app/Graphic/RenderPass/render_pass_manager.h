@@ -12,6 +12,8 @@
 #include "RenderPass/render_pass.h"
 #include "RenderPass/scene_renderer.h"
 
+class Graphic; // forward
+
 class RenderPassManager {
  public:
   RenderPassManager() = default;
@@ -36,7 +38,7 @@ class RenderPassManager {
   void SubmitToPass(const std::string& pass_name, const RenderPacket& packet);
 
   // Execute all enabled passes
-  void RenderFrame(ID3D12GraphicsCommandList* command_list, TextureManager& texture_manager);
+  void RenderFrame(Graphic& graphic, TextureManager& texture_manager);
 
   // Clear render queue
   void Clear();
@@ -70,4 +72,9 @@ class RenderPassManager {
 
   SceneRenderer scene_renderer_;
   FullscreenPassHelper fullscreen_helper_;
+
+  // Apply pass IO (transitions, clears, binding) before each pass.
+  // Returns true if IO was applied successfully. Returns false when the
+  // pass should be skipped (e.g., invalid custom targets).
+  bool ApplyPassIO(RenderPass* pass, Graphic& graphic);
 };

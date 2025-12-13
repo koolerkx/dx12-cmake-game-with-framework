@@ -8,7 +8,7 @@
 
 #include "buffer.h"
 #include "debug_visual_service.h"
-#include "types.h"
+#include "Framework/types.h"
 
 class Graphic;
 struct DebugVertex2D;
