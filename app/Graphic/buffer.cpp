@@ -63,7 +63,7 @@ std::shared_ptr<Buffer> Buffer::CreateAndUploadToDefaultHeapForInit(
   HRESULT hr = device->CreateCommittedResource(&default_heap_props,
     D3D12_HEAP_FLAG_NONE,
     &buffer_desc,
-    D3D12_RESOURCE_STATE_COPY_DEST,
+    D3D12_RESOURCE_STATE_COMMON,
     nullptr,
     IID_PPV_ARGS(default_resource.GetAddressOf()));
 
@@ -76,7 +76,7 @@ std::shared_ptr<Buffer> Buffer::CreateAndUploadToDefaultHeapForInit(
     return nullptr;
   }
 
-  result->SetResource(default_resource, D3D12_RESOURCE_STATE_COPY_DEST);
+  result->SetResource(default_resource, D3D12_RESOURCE_STATE_COMMON);
 
   if (!debug_name.empty()) {
     result->SetDebugName(debug_name);
@@ -130,6 +130,9 @@ std::shared_ptr<Buffer> Buffer::CreateAndUploadToDefaultHeapForInit(
       "Buffer::CreateAndUploadToDefaultHeapForInit: upload_context returned null command list.");
     return nullptr;
   }
+
+  // Ensure default heap resource is in COPY_DEST before issuing the copy.
+  result->TransitionTo(cmd, D3D12_RESOURCE_STATE_COPY_DEST);
 
   cmd->CopyBufferRegion(default_resource.Get(), 0, staging_resource.Get(), 0, size_in_bytes);
 
