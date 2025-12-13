@@ -44,6 +44,10 @@ class DescriptorHeapAllocator {
   void Free(const Allocation& allocation);
   void Reset();
 
+  // Debug-only safety: allow manager to forbid Reset() on persistent allocators.
+  // In release builds this is a no-op.
+  void SetResetAllowed(bool allowed);
+
   ID3D12DescriptorHeap* GetHeap() const {
     return heap_.Get();
   }
@@ -95,6 +99,8 @@ class DescriptorHeapAllocator {
 
   std::list<FreeBlock> free_blocks_;
   std::multimap<uint32_t, std::list<FreeBlock>::iterator> free_blocks_by_size_;
+
+  bool reset_allowed_ = true;
 
   void MergeFreeBlocks();
   std::list<FreeBlock>::iterator FindBestFitBlock(uint32_t count);

@@ -48,7 +48,7 @@ void Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
   }
 
   // Textures are persistent; allocate their SRVs from the static region.
-  if (!texture_manager_.Initialize(device_.Get(), &descriptor_heap_manager_.GetSrvStaticAllocator(), 1024)) {
+  if (!texture_manager_.Initialize(device_.Get(), &descriptor_heap_manager_.GetSrvPersistentAllocator(), 1024)) {
     FrameworkFail::Throw(FrameworkErrorDomain::Resource, FrameworkErrorCode::TextureManagerInitFailed, "TextureManager::Initialize");
   }
 
@@ -72,7 +72,7 @@ void Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
         frame_buffer_width,
         frame_buffer_height,
         descriptor_heap_manager_.GetDsvAllocator(),
-        &descriptor_heap_manager_.GetSrvStaticAllocator(),
+      &descriptor_heap_manager_.GetSrvPersistentAllocator(),
         DXGI_FORMAT_R32_TYPELESS)) {
     FrameworkFail::Throw(FrameworkErrorDomain::Graphic, FrameworkErrorCode::DepthBufferCreateFailed, "DepthBuffer::Create");
   }

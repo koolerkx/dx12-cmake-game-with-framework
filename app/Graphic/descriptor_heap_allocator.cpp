@@ -100,25 +100,16 @@ bool DescriptorHeapAllocator::InitializeFromExistingHeap(ID3D12Device* device,
 DescriptorHeapAllocator::Allocation DescriptorHeapAllocator::Allocate(uint32_t count) {
   assert(count > 0);
 
-  // No free block
-  if (allocated_ + count > capacity_) {
-    Logger::Logf(LogLevel::Error,
-      LogCategory::Graphic,
-      Logger::Here(),
-      "[DescriptorHeapAllocator] Allocate: out of descriptors (requested={}, available={}, free_blocks={}).",
-      count,
-      (capacity_ - allocated_),
-      free_blocks_.size());
-    return {};
-  }
-
-  Allocation allocation{};
-  allocation.count = count;
-
+  // Prefer allocating from a free block first.
+  // Note: allocated_ is a bump pointer, not a strict "in-use" counter.
+  // If we have free blocks, we may still be able to satisfy the request even
+  // when allocated_ is close to capacity_.
   auto block = FindBestFitBlock(count);
 
   // free block found
   if (block != free_blocks_.end()) {
+    Allocation allocation{};
+    allocation.count = count;
     allocation.index = block->index;
     allocation.cpu = GetCpuHandle(allocation.index);
     allocation.gpu = shader_visible_ ? GetGpuHandle(allocation.index) : D3D12_GPU_DESCRIPTOR_HANDLE{0};
@@ -148,6 +139,20 @@ DescriptorHeapAllocator::Allocation DescriptorHeapAllocator::Allocate(uint32_t c
     return allocation;
   }
 
+  // No free block; fall back to bump allocation.
+  if (allocated_ + count > capacity_) {
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[DescriptorHeapAllocator] Allocate: out of descriptors (requested={}, bump_available={}, free_blocks={}).",
+      count,
+      (capacity_ - allocated_),
+      free_blocks_.size());
+    return {};
+  }
+
+  Allocation allocation{};
+  allocation.count = count;
   allocation.index = allocated_;
   allocation.cpu = GetCpuHandle(allocation.index);
   allocation.gpu = shader_visible_ ? GetGpuHandle(allocation.index) : D3D12_GPU_DESCRIPTOR_HANDLE{0};
@@ -177,7 +182,18 @@ void DescriptorHeapAllocator::Free(const Allocation& allocation) {
   MergeFreeBlocks();
 }
 
+void DescriptorHeapAllocator::SetResetAllowed(bool allowed) {
+#ifndef NDEBUG
+  reset_allowed_ = allowed;
+#else
+  (void)allowed;
+#endif
+}
+
 void DescriptorHeapAllocator::Reset() {
+#ifndef NDEBUG
+  assert(reset_allowed_ && "DescriptorHeapAllocator::Reset is forbidden for this allocator.");
+#endif
   allocated_ = 0;
   free_blocks_.clear();
   free_blocks_by_size_.clear();
