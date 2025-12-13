@@ -37,6 +37,7 @@ class Graphic {
   void BeginFrame();
   void RenderFrame();
   void EndFrame();
+  bool Resize(UINT frame_buffer_width, UINT frame_buffer_height);
   void Shutdown();
 
   // RenderSystem decides WHEN; Graphic handles HOW (encapsulation).

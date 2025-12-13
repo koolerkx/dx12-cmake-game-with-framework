@@ -250,6 +250,62 @@ void Graphic::EndFrame() {
   swap_chain_manager_.Present(sync_interval, present_flags);
 }
 
+bool Graphic::Resize(UINT frame_buffer_width, UINT frame_buffer_height) {
+  if (frame_buffer_width == 0 || frame_buffer_height == 0) {
+    return true;
+  }
+
+  if (frame_buffer_width == frame_buffer_width_ && frame_buffer_height == frame_buffer_height_) {
+    return true;
+  }
+
+  if (device_ == nullptr || command_queue_ == nullptr || swap_chain_manager_.GetSwapChain() == nullptr) {
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[Graphic] Resize called before initialization.");
+    return false;
+  }
+
+  // Resize flow:
+  // 1) Wait GPU idle
+  // 2) Release backbuffers + descriptors (handled by SwapChainManager via RenderTarget destructors)
+  // 3) ResizeBuffers + recreate RTVs
+  // 4) Recreate depth buffer
+  // 5) Update viewport/scissor
+  fence_manager_.WaitForGpu(command_queue_.Get());
+
+  if (!swap_chain_manager_.Resize(frame_buffer_width, frame_buffer_height, FrameCount, descriptor_heap_manager_)) {
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[Graphic] SwapChainManager::Resize failed.");
+    return false;
+  }
+
+  if (!depth_buffer_.Create(device_.Get(),
+        frame_buffer_width,
+        frame_buffer_height,
+        descriptor_heap_manager_.GetDsvAllocator(),
+        &descriptor_heap_manager_.GetSrvPersistentAllocator(),
+        DXGI_FORMAT_R32_TYPELESS)) {
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[Graphic] DepthBuffer::Create failed during resize.");
+    return false;
+  }
+  depth_buffer_.SetDebugName("SceneDepthBuffer");
+
+  frame_buffer_width_ = frame_buffer_width;
+  frame_buffer_height_ = frame_buffer_height;
+
+  viewport_.Width = static_cast<FLOAT>(frame_buffer_width_);
+  viewport_.Height = static_cast<FLOAT>(frame_buffer_height_);
+  viewport_.TopLeftX = 0;
+  viewport_.TopLeftY = 0;
+  viewport_.MaxDepth = 1.0f;
+  viewport_.MinDepth = 0.0f;
+
+  scissor_rect_.top = 0;
+  scissor_rect_.left = 0;
+  scissor_rect_.right = frame_buffer_width_;
+  scissor_rect_.bottom = frame_buffer_height_;
+
+  return true;
+}
+
 void Graphic::Shutdown() {
   // Wait for GPU to finish all work
   fence_manager_.WaitForGpu(command_queue_.Get());

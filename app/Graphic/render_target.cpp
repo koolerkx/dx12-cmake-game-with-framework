@@ -7,6 +7,71 @@
 
 #include "Framework/Logging/logger.h"
 
+RenderTarget::~RenderTarget() {
+  ReleaseDescriptors();
+}
+
+RenderTarget::RenderTarget(RenderTarget&& other) noexcept : GpuResource(std::move(other)) {
+  rtv_allocation_ = other.rtv_allocation_;
+  srv_allocation_ = other.srv_allocation_;
+  rtv_allocator_ = other.rtv_allocator_;
+  srv_allocator_ = other.srv_allocator_;
+  width_ = other.width_;
+  height_ = other.height_;
+  format_ = other.format_;
+  clear_color_ = other.clear_color_;
+
+  other.rtv_allocation_ = {};
+  other.srv_allocation_ = {};
+  other.rtv_allocator_ = nullptr;
+  other.srv_allocator_ = nullptr;
+  other.width_ = 0;
+  other.height_ = 0;
+  other.format_ = DXGI_FORMAT_UNKNOWN;
+}
+
+RenderTarget& RenderTarget::operator=(RenderTarget&& other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+
+  ReleaseDescriptors();
+  GpuResource::operator=(std::move(other));
+
+  rtv_allocation_ = other.rtv_allocation_;
+  srv_allocation_ = other.srv_allocation_;
+  rtv_allocator_ = other.rtv_allocator_;
+  srv_allocator_ = other.srv_allocator_;
+  width_ = other.width_;
+  height_ = other.height_;
+  format_ = other.format_;
+  clear_color_ = other.clear_color_;
+
+  other.rtv_allocation_ = {};
+  other.srv_allocation_ = {};
+  other.rtv_allocator_ = nullptr;
+  other.srv_allocator_ = nullptr;
+  other.width_ = 0;
+  other.height_ = 0;
+  other.format_ = DXGI_FORMAT_UNKNOWN;
+
+  return *this;
+}
+
+void RenderTarget::ReleaseDescriptors() {
+  if (rtv_allocation_.IsValid() && rtv_allocator_ != nullptr) {
+    rtv_allocator_->Free(rtv_allocation_);
+  }
+  if (srv_allocation_.IsValid() && srv_allocator_ != nullptr) {
+    srv_allocator_->Free(srv_allocation_);
+  }
+
+  rtv_allocation_ = {};
+  srv_allocation_ = {};
+  rtv_allocator_ = nullptr;
+  srv_allocator_ = nullptr;
+}
+
 bool RenderTarget::Create(ID3D12Device* device,
   UINT width,
   UINT height,
@@ -18,6 +83,8 @@ bool RenderTarget::Create(ID3D12Device* device,
   UINT sample_quality) {
   assert(device != nullptr);
   assert(width > 0 && height > 0);
+
+  ReleaseDescriptors();
 
   width_ = width;
   height_ = height;
@@ -86,6 +153,8 @@ bool RenderTarget::CreateFromResource(
   assert(device != nullptr);
   assert(resource != nullptr);
 
+  ReleaseDescriptors();
+
   // Get resource description
   D3D12_RESOURCE_DESC resource_desc = resource->GetDesc();
   width_ = static_cast<UINT>(resource_desc.Width);
@@ -132,6 +201,8 @@ bool RenderTarget::CreateRTV(ID3D12Device* device, DescriptorHeapAllocator& rtv_
   assert(device != nullptr);
   assert(resource_ != nullptr);
 
+  rtv_allocator_ = &rtv_allocator;
+
   // Allocate descriptor
   rtv_allocation_ = rtv_allocator.Allocate(1);
   if (!rtv_allocation_.IsValid()) {
@@ -154,6 +225,8 @@ bool RenderTarget::CreateRTV(ID3D12Device* device, DescriptorHeapAllocator& rtv_
 bool RenderTarget::CreateSRV(ID3D12Device* device, DescriptorHeapAllocator& srv_allocator) {
   assert(device != nullptr);
   assert(resource_ != nullptr);
+
+  srv_allocator_ = &srv_allocator;
 
   // Allocate descriptor
   srv_allocation_ = srv_allocator.Allocate(1);

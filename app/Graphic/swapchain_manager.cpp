@@ -91,7 +91,7 @@ bool SwapChainManager::Initialize(ID3D12Device* device,
     return false;
   }
 
-  if (!CreateBackBufferViews(descriptor_manager)) {
+  if (!CreateBackBufferRenderTargets(descriptor_manager)) {
     Logger::Log(LogLevel::Error, LogCategory::Graphic, "[SwapChainManager] CreateBackBufferViews failed.");
     return false;
   }
@@ -99,12 +99,12 @@ bool SwapChainManager::Initialize(ID3D12Device* device,
   return true;
 }
 
-bool SwapChainManager::CreateBackBufferViews(DescriptorHeapManager& descriptor_manager) {
+bool SwapChainManager::CreateBackBufferRenderTargets(DescriptorHeapManager& descriptor_manager) {
   auto& rtvAlloc = descriptor_manager.GetRtvAllocator();
-  backbuffer_targets_.clear();
+  backbuffer_render_targets_.clear();
 
   for (uint32_t i = 0; i < buffer_count_; ++i) {
-    backbuffer_targets_.push_back(RenderTarget{});
+    backbuffer_render_targets_.push_back(RenderTarget{});
 
     ComPtr<ID3D12Resource> buffer;
     HRESULT hr = swap_chain_->GetBuffer(i, IID_PPV_ARGS(buffer.GetAddressOf()));
@@ -118,7 +118,7 @@ bool SwapChainManager::CreateBackBufferViews(DescriptorHeapManager& descriptor_m
       return false;
     }
 
-    if (!backbuffer_targets_[i].CreateFromResource(device_, buffer.Get(), rtvAlloc, DXGI_FORMAT_R8G8B8A8_UNORM)) {
+    if (!backbuffer_render_targets_[i].CreateFromResource(device_, buffer.Get(), rtvAlloc, DXGI_FORMAT_R8G8B8A8_UNORM)) {
       Logger::Logf(LogLevel::Error,
         LogCategory::Graphic,
         Logger::Here(),
@@ -128,7 +128,7 @@ bool SwapChainManager::CreateBackBufferViews(DescriptorHeapManager& descriptor_m
     }
 
     std::wstring name = L"BackBuffer_" + std::to_wstring(i);
-    backbuffer_targets_[i].SetDebugName(name);
+    backbuffer_render_targets_[i].SetDebugName(name);
   }
 
   return true;
@@ -140,7 +140,7 @@ void SwapChainManager::TransitionToRenderTarget(ID3D12GraphicsCommandList* comma
   D3D12_RESOURCE_BARRIER barrier = {};
   barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-  barrier.Transition.pResource = backbuffer_targets_[index].GetResource();
+  barrier.Transition.pResource = backbuffer_render_targets_[index].GetResource();
   barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
   barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
   barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -154,7 +154,7 @@ void SwapChainManager::TransitionToPresent(ID3D12GraphicsCommandList* command_li
   D3D12_RESOURCE_BARRIER barrier = {};
   barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-  barrier.Transition.pResource = backbuffer_targets_[index].GetResource();
+  barrier.Transition.pResource = backbuffer_render_targets_[index].GetResource();
   barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
   barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
   barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
@@ -170,15 +170,18 @@ void SwapChainManager::Present(UINT syncInterval, UINT flags) {
   }
 }
 
-void SwapChainManager::ReleaseBackBuffers() {
-  backbuffer_targets_.clear();
+void SwapChainManager::ReleaseBackBufferRenderTargets() {
+  backbuffer_render_targets_.clear();
 }
 
 bool SwapChainManager::Resize(UINT width, UINT height, uint32_t buffer_count, DescriptorHeapManager& descriptor_manager) {
   assert(swap_chain_ != nullptr);
 
   buffer_count_ = buffer_count;
-  ReleaseBackBuffers();
+
+  // DXGI requires releasing all references to backbuffer resources before calling ResizeBuffers.
+  ReleaseBackBufferRenderTargets();
+
   UINT swapchain_flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
   if (tearing_supported_) {
     swapchain_flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
@@ -197,5 +200,5 @@ bool SwapChainManager::Resize(UINT width, UINT height, uint32_t buffer_count, De
   width_ = width;
   height_ = height;
 
-  return CreateBackBufferViews(descriptor_manager);
+  return CreateBackBufferRenderTargets(descriptor_manager);
 }

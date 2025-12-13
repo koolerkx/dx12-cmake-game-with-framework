@@ -6,6 +6,24 @@
 
 #include "Framework/Logging/logger.h"
 
+DepthBuffer::~DepthBuffer() {
+  ReleaseDescriptors();
+}
+
+void DepthBuffer::ReleaseDescriptors() {
+  if (dsv_allocation_.IsValid() && dsv_allocator_ != nullptr) {
+    dsv_allocator_->Free(dsv_allocation_);
+  }
+  if (srv_allocation_.IsValid() && srv_allocator_ != nullptr) {
+    srv_allocator_->Free(srv_allocation_);
+  }
+
+  dsv_allocation_ = {};
+  srv_allocation_ = {};
+  dsv_allocator_ = nullptr;
+  srv_allocator_ = nullptr;
+}
+
 bool DepthBuffer::Create(ID3D12Device* device,
   UINT width,
   UINT height,
@@ -16,6 +34,8 @@ bool DepthBuffer::Create(ID3D12Device* device,
   UINT sample_quality) {
   assert(device != nullptr);
   assert(width > 0 && height > 0);
+
+  ReleaseDescriptors();
 
   width_ = width;
   height_ = height;
@@ -107,6 +127,8 @@ bool DepthBuffer::CreateDSV(ID3D12Device* device, DescriptorHeapAllocator& dsv_a
   assert(device != nullptr);
   assert(resource_ != nullptr);
 
+  dsv_allocator_ = &dsv_allocator;
+
   // Allocate descriptor
   dsv_allocation_ = dsv_allocator.Allocate(1);
   if (!dsv_allocation_.IsValid()) {
@@ -129,6 +151,8 @@ bool DepthBuffer::CreateDSV(ID3D12Device* device, DescriptorHeapAllocator& dsv_a
 bool DepthBuffer::CreateSRV(ID3D12Device* device, DescriptorHeapAllocator& srv_allocator) {
   assert(device != nullptr);
   assert(resource_ != nullptr);
+
+  srv_allocator_ = &srv_allocator;
 
   // Allocate descriptor
   srv_allocation_ = srv_allocator.Allocate(1);
