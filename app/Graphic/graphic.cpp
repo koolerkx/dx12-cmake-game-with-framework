@@ -4,9 +4,14 @@
 #include <format>
 #include <vector>
 
+#include "Framework/Error/error_helpers_fast.h"
 #include "Framework/Error/framework_error.h"
 #include "RenderPass/forward_pass.h"
 #include "RenderPass/ui_pass.h"
+
+namespace {
+FastErrorCounters g_graphic_fast_errors{};
+}
 
 void Graphic::Transition(GpuResource* resource, D3D12_RESOURCE_STATES new_state) {
   if (!resource) return;
@@ -175,8 +180,17 @@ void Graphic::BeginFrame() {
   fence_manager_.WaitForFenceValue(frame_fence_values_[frame_index_]);
 
   // Reset the per-frame allocator and command list for recording.
-  command_allocators_[frame_index_]->Reset();
-  command_list_->Reset(command_allocators_[frame_index_].Get(), nullptr);
+  {
+    const HRESULT hr_alloc = command_allocators_[frame_index_]->Reset();
+    if (ReturnIfFailedFast(hr_alloc, ContextId::Graphic_BeginFrame_ResetCommandAllocator, frame_index_, &g_graphic_fast_errors)) {
+      return;
+    }
+
+    const HRESULT hr_list = command_list_->Reset(command_allocators_[frame_index_].Get(), nullptr);
+    if (ReturnIfFailedFast(hr_list, ContextId::Graphic_BeginFrame_ResetCommandList, frame_index_, &g_graphic_fast_errors)) {
+      return;
+    }
+  }
 
   // Reset descriptor heaps for this frame
   descriptor_heap_manager_.BeginFrame(frame_index_);
@@ -212,7 +226,12 @@ void Graphic::RenderFrame() {
 
 void Graphic::EndFrame() {
   // Execute command list
-  command_list_->Close();
+  {
+    const HRESULT hr_close = command_list_->Close();
+    if (ReturnIfFailedFast(hr_close, ContextId::Graphic_EndFrame_CloseCommandList, frame_index_, &g_graphic_fast_errors)) {
+      return;
+    }
+  }
 
   std::array<ID3D12CommandList*, 1> cmdlists = {command_list_.Get()};
   command_queue_->ExecuteCommandLists(static_cast<UINT>(cmdlists.size()), cmdlists.data());

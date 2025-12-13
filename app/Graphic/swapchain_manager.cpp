@@ -11,6 +11,12 @@
 #include <iostream>
 #include <string>
 
+#include "Framework/Error/error_helpers_fast.h"
+
+namespace {
+FastErrorCounters g_swapchain_fast_errors{};
+}
+
 bool SwapChainManager::Initialize(ID3D12Device* device,
   IDXGIFactory6* factory,
   ID3D12CommandQueue* command_queue,
@@ -140,7 +146,9 @@ void SwapChainManager::TransitionToPresent(ID3D12GraphicsCommandList* command_li
 
 void SwapChainManager::Present(UINT syncInterval, UINT flags) {
   if (swap_chain_) {
-    swap_chain_->Present(syncInterval, flags);
+    const HRESULT hr = swap_chain_->Present(syncInterval, flags);
+    const uint32_t extra_marker = (static_cast<uint32_t>(syncInterval & 0xFFFFu) << 16) | (static_cast<uint32_t>(flags) & 0xFFFFu);
+    (void)ReturnIfFailedFast(hr, ContextId::Graphic_Present_SwapChainPresent, extra_marker, &g_swapchain_fast_errors);
   }
 }
 
