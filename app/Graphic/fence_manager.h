@@ -3,7 +3,7 @@
 #include <basetsd.h>
 
 #include "d3d12.h"
-#include "types.h"
+#include "Framework/types.h"
 
 class FenceManager {
  public:

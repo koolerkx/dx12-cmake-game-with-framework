@@ -5,7 +5,7 @@
 #include <cstring>
 #include <iostream>
 
-#include "../utils.h"
+#include "Framework/utils.h"
 #include "upload_context.h"
 
 Buffer::~Buffer() {
@@ -13,12 +13,7 @@ Buffer::~Buffer() {
 }
 
 std::shared_ptr<Buffer> Buffer::CreateAndUploadToDefaultHeapForInit(
-  ID3D12Device* device,
-  UploadContext& upload_context,
-  const void* data,
-  size_t size_in_bytes,
-  Type type,
-  const std::string& debug_name) {
+  ID3D12Device* device, UploadContext& upload_context, const void* data, size_t size_in_bytes, Type type, const std::string& debug_name) {
   if (device == nullptr) {
     std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - device is null" << '\n';
     return nullptr;
@@ -60,8 +55,7 @@ std::shared_ptr<Buffer> Buffer::CreateAndUploadToDefaultHeapForInit(
   buffer_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
   ComPtr<ID3D12Resource> default_resource;
-  HRESULT hr = device->CreateCommittedResource(
-    &default_heap_props,
+  HRESULT hr = device->CreateCommittedResource(&default_heap_props,
     D3D12_HEAP_FLAG_NONE,
     &buffer_desc,
     D3D12_RESOURCE_STATE_COPY_DEST,
@@ -69,8 +63,8 @@ std::shared_ptr<Buffer> Buffer::CreateAndUploadToDefaultHeapForInit(
     IID_PPV_ARGS(default_resource.GetAddressOf()));
 
   if (FAILED(hr) || default_resource == nullptr) {
-    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - Failed to create DEFAULT buffer resource (hr=0x" << std::hex << hr << std::dec << ")"
-              << '\n';
+    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - Failed to create DEFAULT buffer resource (hr=0x" << std::hex << hr
+              << std::dec << ")" << '\n';
     return nullptr;
   }
 
@@ -85,8 +79,7 @@ std::shared_ptr<Buffer> Buffer::CreateAndUploadToDefaultHeapForInit(
   upload_heap_props.Type = D3D12_HEAP_TYPE_UPLOAD;
 
   ComPtr<ID3D12Resource> staging_resource;
-  hr = device->CreateCommittedResource(
-    &upload_heap_props,
+  hr = device->CreateCommittedResource(&upload_heap_props,
     D3D12_HEAP_FLAG_NONE,
     &buffer_desc,
     D3D12_RESOURCE_STATE_GENERIC_READ,
@@ -94,20 +87,21 @@ std::shared_ptr<Buffer> Buffer::CreateAndUploadToDefaultHeapForInit(
     IID_PPV_ARGS(staging_resource.GetAddressOf()));
 
   if (FAILED(hr) || staging_resource == nullptr) {
-    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - Failed to create staging UPLOAD buffer (hr=0x" << std::hex << hr << std::dec << ")"
-              << '\n';
+    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - Failed to create staging UPLOAD buffer (hr=0x" << std::hex << hr << std::dec
+              << ")" << '\n';
     return nullptr;
   }
 
   if (!debug_name.empty()) {
-    staging_resource->SetName(utils::Utf8ToWstring(debug_name + "_Staging").c_str());
+    staging_resource->SetName(Utf8ToWstring(debug_name + "_Staging").c_str());
   }
 
   // Copy CPU -> staging
   void* mapped = nullptr;
   hr = staging_resource->Map(0, nullptr, &mapped);
   if (FAILED(hr) || mapped == nullptr) {
-    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - Failed to map staging buffer (hr=0x" << std::hex << hr << std::dec << ")" << '\n';
+    std::cerr << "Buffer::CreateAndUploadToDefaultHeapForInit - Failed to map staging buffer (hr=0x" << std::hex << hr << std::dec << ")"
+              << '\n';
     return nullptr;
   }
   std::memcpy(mapped, data, size_in_bytes);
@@ -176,7 +170,8 @@ bool Buffer::Create(ID3D12Device* device, size_t size, Type type, D3D12_HEAP_TYP
     initial_state = D3D12_RESOURCE_STATE_COMMON;
   }
 
-  HRESULT hr = device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &buffer_desc, initial_state, nullptr, IID_PPV_ARGS(&resource_));
+  HRESULT hr =
+    device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &buffer_desc, initial_state, nullptr, IID_PPV_ARGS(&resource_));
 
   if (FAILED(hr)) {
     std::cerr << "Buffer::Create - Failed to create buffer resource" << '\n';

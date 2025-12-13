@@ -4,7 +4,6 @@
 #include <cassert>
 #include <iostream>
 
-#include "utils.h"
 #include "RenderPass/render_constants.h"
 
 bool SceneRenderer::Initialize(ID3D12Device* device, uint32_t frame_count) {

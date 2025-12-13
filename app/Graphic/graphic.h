@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 
+#include "Framework/types.h"
 #include "RenderPass/forward_pass.h"
 #include "RenderPass/render_pass_manager.h"
 #include "RenderPass/ui_pass.h"
@@ -22,8 +23,8 @@
 #include "shader_manager.h"
 #include "swapchain_manager.h"
 #include "texture_manager.h"
-#include "types.h"
 #include "upload_context.h"
+
 
 class Scene;
 
@@ -32,7 +33,7 @@ class Graphic {
   Graphic() = default;
   ~Graphic() = default;
 
-  bool Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height);
+  void Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height);
   void BeginFrame();
   void RenderFrame();
   void EndFrame();
@@ -169,12 +170,12 @@ class Graphic {
 
   // Initialization helpers
   bool EnableDebugLayer();
-  bool CreateFactory();
-  bool CreateDevice();
-  bool CreateCommandQueue();
-  bool CreateCommandList();
-  bool CreateCommandAllocator();
-  bool InitializeRenderPasses();
+  HRESULT CreateFactory();
+  HRESULT CreateDevice();
+  HRESULT CreateCommandQueue();
+  HRESULT CreateCommandList();
+  HRESULT CreateCommandAllocator();
+  void InitializeRenderPasses();
 
   // Default framework assets (textures, basic meshes, debug materials)
   std::unique_ptr<FrameworkDefaultAssets> default_assets_;

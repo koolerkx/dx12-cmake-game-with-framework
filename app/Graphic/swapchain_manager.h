@@ -8,7 +8,7 @@
 
 #include "descriptor_heap_manager.h"
 #include "render_target.h"
-#include "types.h"
+#include "Framework/types.h"
 
 class SwapChainManager {
  public:

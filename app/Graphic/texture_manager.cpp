@@ -2,7 +2,7 @@
 
 #include <cassert>
 #include <iostream>
-#include "utils.h"
+#include "Framework/utils.h"
 
 bool TextureManager::Initialize(ID3D12Device* device, DescriptorHeapAllocator* srv_allocator, uint32_t max_textures) {
   assert(device != nullptr);
@@ -152,7 +152,7 @@ TextureHandle TextureManager::CreateTextureFromMemory(
   }
 
   // Set debug name
-  slot.debug_name = utils::Utf8ToWstring(name);
+  slot.debug_name = Utf8ToWstring(name);
   slot.texture->SetDebugName(slot.debug_name);
 
   std::cout << "[TextureManager] Created memory texture [" << handle.index << ":" << handle.generation << "] " << name << '\n';

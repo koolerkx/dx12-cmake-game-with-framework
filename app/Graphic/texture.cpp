@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "d3dx12.h"
-#include "utils.h"
+#include "Framework/utils.h"
 
 bool Texture::Create(ID3D12Device* device,
   UINT width,
@@ -72,7 +72,7 @@ bool Texture::LoadFromFile(
     subresource_data);
 
   if (FAILED(hr)) {
-    std::cerr << "[Texture] Failed to load texture: " << utils::WstringToUtf8(file_path) << '\n';
+    std::cerr << "[Texture] Failed to load texture: " << WstringToUtf8(file_path) << '\n';
     return false;
   }
 
