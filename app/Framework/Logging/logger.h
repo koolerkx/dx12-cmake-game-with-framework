@@ -14,7 +14,9 @@ throughout the engine.
 #include <string_view>
 #include <vector>
 
+#include "Framework/Logging/logger_config.h"
 #include "Framework/Logging/sinks.h"
+
 
 enum class LogLevel : uint8_t { Trace, Debug, Info, Warn, Error, Fatal };
 
@@ -39,16 +41,24 @@ class Logger final {
  public:
   Logger() = delete;
 
+  static void Init(LoggerConfig cfg, std::vector<std::unique_ptr<ILogSink>> sinks);
   static void Init(std::vector<std::unique_ptr<ILogSink>> sinks);
   static void Shutdown();
 
   static void Flush();
+  static void EnterPanic() noexcept;
 
   [[nodiscard]] static bool IsInitialized();
   [[nodiscard]] static bool IsEnabled(LogLevel level, LogCategory category);
+  [[nodiscard]] static LoggerConfig GetConfig();
 
   static void Log(
     LogLevel level, LogCategory category, std::string message, const std::source_location& loc = std::source_location::current());
+
+  static void EmitDirectMinimal(LogLevel level,
+    LogCategory category,
+    std::string_view message,
+    const std::source_location& loc = std::source_location::current()) noexcept;
 
   [[nodiscard]] static constexpr std::source_location Here(const std::source_location& loc = std::source_location::current()) noexcept {
     return loc;

@@ -23,9 +23,15 @@ namespace {
 
 void InitFrameworkLogger() {
   std::vector<std::unique_ptr<ILogSink>> sinks;
+
+  LoggerConfig cfg;
+  cfg.file_path_mode = FilePathMode::WorkingDir;
+
   sinks.push_back(std::make_unique<DebugSink>());
   sinks.push_back(std::make_unique<ConsoleSink>());
-  Logger::Init(std::move(sinks));
+  sinks.push_back(std::make_unique<FileSink>(cfg));
+
+  Logger::Init(std::move(cfg), std::move(sinks));
 }
 
 }  // namespace

@@ -373,6 +373,8 @@ void FrameworkFail::Throw(FrameworkErrorDomain domain, FrameworkErrorCode code, 
 
 void FrameworkFail::Panic(
   FrameworkErrorDomain domain, FrameworkErrorCode code, std::string_view message, const std::source_location& loc) noexcept {
+  Logger::EnterPanic();
+
   FrameworkError error;
   error.domain = domain;
   error.code = code;
@@ -380,14 +382,27 @@ void FrameworkFail::Panic(
   error.message = std::string(message);
 
   const auto meta = GetFrameworkErrorMetadata(error.code);
-  const std::string text = FormatErrorForLog(error);
 
-  if (Logger::IsInitialized()) {
-    Logger::Log(LogLevel::Fatal, meta.log_category, text, loc);
-    Logger::Flush();
-  } else {
-    FrameworkBootstrapLog(text, loc);
+  std::string text;
+  text.reserve(256);
+  text.append("[panic] ");
+  text.append(ToString(error.domain));
+  text.append("/");
+  text.append(ToString(error.code));
+
+  if (error.hr.has_value()) {
+    text.append(" hr=");
+    text.append(std::format("0x{:08X}", static_cast<uint32_t>(*error.hr)));
   }
+
+  text.append(" ");
+  text.append(error.message);
+  text.append(" @");
+  text.append(error.loc.file_name());
+  text.push_back(':');
+  text.append(std::to_string(error.loc.line()));
+
+  Logger::EmitDirectMinimal(LogLevel::Fatal, meta.log_category, text, loc);
 
 #if defined(DEBUG) || defined(_DEBUG)
   __debugbreak();
