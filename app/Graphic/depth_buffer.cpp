@@ -2,9 +2,9 @@
 
 #include <cassert>
 
+#include "Framework/Logging/logger.h"
 #include "d3dx12.h"
 
-#include "Framework/Logging/logger.h"
 
 DepthBuffer::~DepthBuffer() {
   ReleaseDescriptors();

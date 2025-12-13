@@ -136,12 +136,46 @@ void Game::OnUpdate(float dt) {
   // Draw axis gizmo at origin - try both modes to see the difference
   debug.DrawAxisGizmo({0.0f, 0.0f, 0.0f}, 100.0f, DebugDepthMode::TestDepth);  // Change to TestDepth to see depth testing
 
-  // Draw a simple wire box around the sprite
+  // Draw a simple wire box around the sprite (AABB version)
   debug.DrawWireBox({-1.5f, -1.5f, -0.5f}, {1.5f, 1.5f, 0.5f}, DebugColor::Yellow(), DebugDepthMode::TestDepth);
 
   // Draw some reference lines
   debug.DrawLine3D({-3.0f, 0.0f, 0.0f}, {3.0f, 0.0f, 0.0f}, DebugColor::Cyan());
   debug.DrawLine3D({0.0f, -3.0f, 0.0f}, {0.0f, 3.0f, 0.0f}, DebugColor::Magenta());
+
+  // ============================================================================
+  // Phase 2 Wire Primitives Demo (Task 2.1-2.3)
+  // ============================================================================
+
+  // Identity quaternion for no rotation
+  DirectX::XMFLOAT4 identity_quat(0.0f, 0.0f, 0.0f, 1.0f);
+
+  // Oriented wire box (rotated 45 degrees around Y axis for visual verification)
+  DirectX::XMVECTOR rotAxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+  DirectX::XMVECTOR quat = DirectX::XMQuaternionRotationAxis(rotAxis, DirectX::XM_PIDIV4);  // 45 degrees
+  DirectX::XMFLOAT4 rotation_quat;
+  DirectX::XMStoreFloat4(&rotation_quat, quat);
+  debug.DrawWireBox({0.0f, 0.0f, 0.0f}, rotation_quat, {2.0f, 2.0f, 2.0f}, DebugColor::Green(), DebugDepthMode::TestDepth);
+
+  // Wire sphere (demonstrate different segment quality)
+  debug.DrawWireSphere({3.0f, 0.0f, 0.0f}, 0.8f, DebugSegments::S16, DebugColor::Blue(), DebugDepthMode::TestDepth);
+  debug.DrawWireSphere({5.0f, 0.0f, 0.0f}, 0.8f, DebugSegments::S32, DebugColor::Cyan(), DebugDepthMode::TestDepth);
+
+  // Wire cylinder (Y-axis aligned)
+  debug.DrawWireCylinder(
+    {0.0f, 3.0f, 0.0f}, identity_quat, 0.5f, 2.0f, DebugAxis::Y, DebugSegments::S24, DebugColor::Red(), DebugDepthMode::TestDepth);
+
+  // Wire cylinder (Z-axis aligned, rotated)
+  debug.DrawWireCylinder(
+    {3.0f, 3.0f, 0.0f}, rotation_quat, 0.5f, 2.5f, DebugAxis::Z, DebugSegments::S24, DebugColor::Magenta(), DebugDepthMode::TestDepth);
+
+  // Wire capsule (normal height > 2*radius)
+  debug.DrawWireCapsule(
+    {0.0f, -3.0f, 0.0f}, identity_quat, 0.5f, 2.5f, DebugAxis::Y, DebugSegments::S24, DebugColor::Yellow(), DebugDepthMode::TestDepth);
+
+  // Wire capsule (degenerate case: height <= 2*radius, should fall back to sphere)
+  debug.DrawWireCapsule(
+    {3.0f, -3.0f, 0.0f}, identity_quat, 0.6f, 1.0f, DebugAxis::Y, DebugSegments::S24, DebugColor::White(), DebugDepthMode::TestDepth);
 
   // 2D Debug visuals (UI overlay)
   // Draw a green line at the top of the screen

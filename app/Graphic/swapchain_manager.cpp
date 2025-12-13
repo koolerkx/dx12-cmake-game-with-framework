@@ -119,11 +119,8 @@ bool SwapChainManager::CreateBackBufferRenderTargets(DescriptorHeapManager& desc
     }
 
     if (!backbuffer_render_targets_[i].CreateFromResource(device_, buffer.Get(), rtvAlloc, DXGI_FORMAT_R8G8B8A8_UNORM)) {
-      Logger::Logf(LogLevel::Error,
-        LogCategory::Graphic,
-        Logger::Here(),
-        "[SwapChainManager] CreateFromResource failed for back buffer {}.",
-        i);
+      Logger::Logf(
+        LogLevel::Error, LogCategory::Graphic, Logger::Here(), "[SwapChainManager] CreateFromResource failed for back buffer {}.", i);
       return false;
     }
 

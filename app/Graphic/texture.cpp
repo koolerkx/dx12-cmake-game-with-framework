@@ -7,9 +7,9 @@
 #include <memory>
 
 #include "Framework/Logging/logger.h"
-
-#include "d3dx12.h"
 #include "Framework/utils.h"
+#include "d3dx12.h"
+
 
 bool Texture::Create(ID3D12Device* device,
   UINT width,

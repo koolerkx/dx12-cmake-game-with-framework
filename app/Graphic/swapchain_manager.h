@@ -6,9 +6,10 @@
 
 #include <vector>
 
+#include "Framework/types.h"
 #include "descriptor_heap_manager.h"
 #include "render_target.h"
-#include "Framework/types.h"
+
 
 class SwapChainManager {
  public:
