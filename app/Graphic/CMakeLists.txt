@@ -111,3 +111,5 @@ target_add_hlsl_auto(graphic "6.5"
 #     "${CMAKE_SOURCE_DIR}/shaders/basic_ps.hlsl"
 # )
 
+add_subdirectory(ThirdParty/imgui)
+target_link_libraries(graphic PRIVATE imgui)
