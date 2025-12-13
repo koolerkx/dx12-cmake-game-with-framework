@@ -1,9 +1,10 @@
 #include "depth_buffer.h"
 
 #include <cassert>
-#include <iostream>
 
 #include "d3dx12.h"
+
+#include "Framework/Logging/logger.h"
 
 bool DepthBuffer::Create(ID3D12Device* device,
   UINT width,
@@ -66,7 +67,14 @@ bool DepthBuffer::Create(ID3D12Device* device,
     IID_PPV_ARGS(resource.GetAddressOf()));
 
   if (FAILED(hr)) {
-    std::cerr << "[DepthBuffer] Failed to create depth stencil resource" << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Resource,
+      Logger::Here(),
+      "[DepthBuffer] Failed to create depth stencil resource. width={} height={} format={} hr=0x{:08X}",
+      width,
+      height,
+      static_cast<uint32_t>(format),
+      static_cast<uint32_t>(hr));
     return false;
   }
 
@@ -102,7 +110,7 @@ bool DepthBuffer::CreateDSV(ID3D12Device* device, DescriptorHeapAllocator& dsv_a
   // Allocate descriptor
   dsv_allocation_ = dsv_allocator.Allocate(1);
   if (!dsv_allocation_.IsValid()) {
-    std::cerr << "[DepthBuffer] Failed to allocate DSV descriptor" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[DepthBuffer] Failed to allocate DSV descriptor");
     return false;
   }
 
@@ -125,7 +133,7 @@ bool DepthBuffer::CreateSRV(ID3D12Device* device, DescriptorHeapAllocator& srv_a
   // Allocate descriptor
   srv_allocation_ = srv_allocator.Allocate(1);
   if (!srv_allocation_.IsValid()) {
-    std::cerr << "[DepthBuffer] Failed to allocate SRV descriptor" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[DepthBuffer] Failed to allocate SRV descriptor");
     return false;
   }
 

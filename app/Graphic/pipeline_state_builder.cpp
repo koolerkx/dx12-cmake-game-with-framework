@@ -1,7 +1,8 @@
 #include "pipeline_state_builder.h"
 
 #include <cstring>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 void PipelineStateBuilder::InitializeDefaults() {
   std::memset(&desc_, 0, sizeof(desc_));
@@ -420,24 +421,28 @@ PipelineStateBuilder& PipelineStateBuilder::UseOverlayDefaults() {
 
 bool PipelineStateBuilder::Build(ID3D12Device* device, ComPtr<ID3D12PipelineState>& out_pso) {
   if (device == nullptr) {
-    std::cerr << "[PipelineStateBuilder] Device is null" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Validation, "[PipelineStateBuilder] Device is null");
     return false;
   }
 
   if (desc_.pRootSignature == nullptr) {
-    std::cerr << "[PipelineStateBuilder] Root signature not set" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Validation, "[PipelineStateBuilder] Root signature not set");
     return false;
   }
 
   if (desc_.VS.pShaderBytecode == nullptr) {
-    std::cerr << "[PipelineStateBuilder] Vertex shader not set" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Validation, "[PipelineStateBuilder] Vertex shader not set");
     return false;
   }
 
   HRESULT hr = device->CreateGraphicsPipelineState(&desc_, IID_PPV_ARGS(out_pso.GetAddressOf()));
 
   if (FAILED(hr)) {
-    std::cerr << "[PipelineStateBuilder] Failed to create graphics pipeline state" << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[PipelineStateBuilder] Failed to create graphics pipeline state. hr=0x{:08X}",
+      static_cast<uint32_t>(hr));
     return false;
   }
 

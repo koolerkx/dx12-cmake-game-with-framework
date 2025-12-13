@@ -3,7 +3,8 @@
 #include <DirectXMath.h>
 
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 using namespace DirectX;
 
@@ -16,11 +17,11 @@ bool FullscreenPassHelper::Initialize(ID3D12Device* device, UploadContext& uploa
   assert(device != nullptr);
 
   if (!CreateFullscreenQuadGeometry(device, upload_context)) {
-    std::cerr << "[FullscreenPassHelper] Failed to create fullscreen quad geometry" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FullscreenPassHelper] Failed to create fullscreen quad geometry");
     return false;
   }
 
-  std::cout << "[FullscreenPassHelper] Initialized" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "[FullscreenPassHelper] Initialized");
   return true;
 }
 
@@ -91,7 +92,7 @@ bool FullscreenPassHelper::CreateFullscreenQuadGeometry(ID3D12Device* device, Up
   vertex_buffer_ = Buffer::CreateAndUploadToDefaultHeapForInit(
     device, upload_context, vertices, sizeof(vertices), Buffer::Type::Vertex, "FullscreenQuad_VertexBuffer");
   if (!vertex_buffer_) {
-    std::cerr << "[FullscreenPassHelper] Failed to create vertex buffer" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[FullscreenPassHelper] Failed to create vertex buffer");
     return false;
   }
 
@@ -102,7 +103,7 @@ bool FullscreenPassHelper::CreateFullscreenQuadGeometry(ID3D12Device* device, Up
   index_buffer_ = Buffer::CreateAndUploadToDefaultHeapForInit(
     device, upload_context, indices, sizeof(indices), Buffer::Type::Index, "FullscreenQuad_IndexBuffer");
   if (!index_buffer_) {
-    std::cerr << "[FullscreenPassHelper] Failed to create index buffer" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[FullscreenPassHelper] Failed to create index buffer");
     return false;
   }
 

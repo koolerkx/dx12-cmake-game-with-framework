@@ -3,7 +3,8 @@
 #include <d3d12.h>
 
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 bool DescriptorHeapAllocator::Initialize(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t capacity, bool shader_visible) {
   assert(device != nullptr);
@@ -24,7 +25,11 @@ bool DescriptorHeapAllocator::Initialize(ID3D12Device* device, D3D12_DESCRIPTOR_
 
   HRESULT hr = device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&heap_));
   if (FAILED(hr)) {
-    std::cerr << "DescriptorAllocator::Initialize - Failed to create descriptor heap" << "\n";
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[DescriptorHeapAllocator] Initialize: CreateDescriptorHeap failed (hr=0x{:08X}).",
+      static_cast<uint32_t>(hr));
     return false;
   }
 
@@ -97,8 +102,13 @@ DescriptorHeapAllocator::Allocation DescriptorHeapAllocator::Allocate(uint32_t c
 
   // No free block
   if (allocated_ + count > capacity_) {
-    std::cerr << "DescriptorAllocator::Allocate - Out of descriptors! "
-              << "Requested: " << count << ", Available: " << (capacity_ - allocated_) << ", Free blocks: " << free_blocks_.size() << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[DescriptorHeapAllocator] Allocate: out of descriptors (requested={}, available={}, free_blocks={}).",
+      count,
+      (capacity_ - allocated_),
+      free_blocks_.size());
     return {};
   }
 

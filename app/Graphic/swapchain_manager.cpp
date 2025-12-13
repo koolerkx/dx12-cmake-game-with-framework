@@ -8,10 +8,10 @@
 #include <winnt.h>
 
 #include <cassert>
-#include <iostream>
 #include <string>
 
 #include "Framework/Error/error_helpers_fast.h"
+#include "Framework/Logging/logger.h"
 
 namespace {
 FastErrorCounters g_swapchain_fast_errors{};
@@ -72,19 +72,28 @@ bool SwapChainManager::Initialize(ID3D12Device* device,
   HRESULT hr = factory->CreateSwapChainForHwnd(command_queue, hwnd, &swap_chain_desc, nullptr, nullptr, swap_chain1.GetAddressOf());
 
   if (FAILED(hr) || swap_chain1 == nullptr) {
-    std::cerr << "[SwapChainManager] Failed to create swap chain." << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[SwapChainManager] CreateSwapChainForHwnd failed (hr=0x{:08X}).",
+      static_cast<uint32_t>(hr));
     return false;
   }
 
-  swap_chain1.As(&swap_chain_);
+  hr = swap_chain1.As(&swap_chain_);
 
   if (FAILED(hr) || swap_chain_ == nullptr) {
-    std::cerr << "[SwapChainManager] Failed to create swap chain." << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[SwapChainManager] Query IDXGISwapChain4 failed (hr=0x{:08X}).",
+      static_cast<uint32_t>(hr));
     return false;
   }
 
   if (!CreateBackBufferViews(descriptor_manager)) {
-    std::cerr << "[SwapChainManager] Failed to create back buffer views" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[SwapChainManager] CreateBackBufferViews failed.");
+    return false;
   }
 
   return true;
@@ -100,12 +109,21 @@ bool SwapChainManager::CreateBackBufferViews(DescriptorHeapManager& descriptor_m
     ComPtr<ID3D12Resource> buffer;
     HRESULT hr = swap_chain_->GetBuffer(i, IID_PPV_ARGS(buffer.GetAddressOf()));
     if (FAILED(hr)) {
-      std::cerr << "Failed to get back buffer " << i << '\n';
+      Logger::Logf(LogLevel::Error,
+        LogCategory::Graphic,
+        Logger::Here(),
+        "[SwapChainManager] GetBuffer failed for back buffer {} (hr=0x{:08X}).",
+        i,
+        static_cast<uint32_t>(hr));
       return false;
     }
 
     if (!backbuffer_targets_[i].CreateFromResource(device_, buffer.Get(), rtvAlloc, DXGI_FORMAT_R8G8B8A8_UNORM)) {
-      std::cerr << "Failed to create RenderTarget for back buffer " << i << '\n';
+      Logger::Logf(LogLevel::Error,
+        LogCategory::Graphic,
+        Logger::Here(),
+        "[SwapChainManager] CreateFromResource failed for back buffer {}.",
+        i);
       return false;
     }
 
@@ -168,7 +186,11 @@ bool SwapChainManager::Resize(UINT width, UINT height, uint32_t buffer_count, De
   HRESULT hr = swap_chain_->ResizeBuffers(buffer_count_, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, swapchain_flags);
 
   if (FAILED(hr)) {
-    std::cerr << "[SwapChainManager] Failed to resize swap chain." << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[SwapChainManager] ResizeBuffers failed (hr=0x{:08X}).",
+      static_cast<uint32_t>(hr));
     return false;
   }
 

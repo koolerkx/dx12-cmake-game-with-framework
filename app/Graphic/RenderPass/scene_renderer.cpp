@@ -2,7 +2,8 @@
 
 #include <algorithm>
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 #include "RenderPass/render_constants.h"
 
@@ -14,7 +15,7 @@ bool SceneRenderer::Initialize(ID3D12Device* device, uint32_t frame_count) {
   bool result = frame_cb_.Create(device, total_size, Buffer::Type::Constant, D3D12_HEAP_TYPE_UPLOAD);
 
   if (!result) {
-    std::cerr << "[SceneRenderer] Failed to create frame constant buffer." << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[SceneRenderer] Failed to create frame constant buffer.");
     return false;
   }
   frame_cb_.SetDebugName("Scene_FrameCB");
@@ -32,7 +33,7 @@ void SceneRenderer::BeginFrame(uint32_t frame_index) {
 
 void SceneRenderer::Submit(const RenderPacket& packet) {
   if (!packet.IsValid()) {
-    std::cerr << "[SceneRenderer] Warning: Invalid render packet submitted" << '\n';
+    Logger::Log(LogLevel::Warn, LogCategory::Validation, "[SceneRenderer] Invalid render packet submitted.");
     return;
   }
 
@@ -145,7 +146,10 @@ bool SceneRenderer::SetSceneData(const SceneData& scene_data) {
   const size_t per_frame_size = kMaxSceneUpdatesPerFrame * kAlignedSceneDataSize;
   const size_t frame_end = current_frame_base_offset_ + per_frame_size;
   if (current_cb_offset_ + kAlignedSceneDataSize > frame_end) {
-    std::cerr << "[SceneRenderer] Error: Exceeded max SetSceneData calls per frame (kMaxSceneUpdatesPerFrame)" << '\n';
+    Logger::Log(LogLevel::Error,
+      LogCategory::Validation,
+      "[SceneRenderer] Exceeded max SetSceneData calls per frame (kMaxSceneUpdatesPerFrame)."
+    );
     return false;
   }
 
@@ -197,15 +201,17 @@ uint64_t SceneRenderer::GenerateSortKey(const RenderPacket& packet) const {
 }
 
 void SceneRenderer::PrintStats() const {
-  std::cout << "\n=== Scene Renderer Statistics ===" << '\n';
-  std::cout << "Packets Submitted: " << packets_.size() << '\n';
-  std::cout << "Draw Calls: " << draw_call_count_ << '\n';
-  std::cout << "PSO Switches: " << pso_switch_count_ << '\n';
-
+  float batching_efficiency = 0.0f;
   if (draw_call_count_ > 0) {
-    float batching_efficiency = 1.0f - (static_cast<float>(pso_switch_count_) / static_cast<float>(draw_call_count_));
-    std::cout << "Batching Efficiency: " << (batching_efficiency * 100.0f) << "%" << '\n';
+    batching_efficiency = 1.0f - (static_cast<float>(pso_switch_count_) / static_cast<float>(draw_call_count_));
   }
 
-  std::cout << "=================================\n" << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Graphic,
+    Logger::Here(),
+    "=== Scene Renderer Statistics ===\nPackets Submitted: {}\nDraw Calls: {}\nPSO Switches: {}\nBatching Efficiency: {:.2f}%\n=================================",
+    packets_.size(),
+    draw_call_count_,
+    pso_switch_count_,
+    batching_efficiency * 100.0f);
 }

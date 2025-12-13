@@ -1,11 +1,12 @@
 #include "depth_prepass.h"
 
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 bool DepthPrepass::Initialize(ID3D12Device* device) {
   assert(device != nullptr);
-  std::cout << "[DepthPrepass] Initialized" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "[DepthPrepass] Initialized");
   return true;
 }
 

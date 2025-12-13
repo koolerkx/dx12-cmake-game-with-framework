@@ -1,7 +1,8 @@
 #include "render_pass_manager.h"
 
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 #include "RenderPass/render_pass.h"
 
@@ -10,17 +11,17 @@ bool RenderPassManager::Initialize(ID3D12Device* device, uint32_t frame_count, U
 
   // Initialize shared scene renderer
   if (!scene_renderer_.Initialize(device, frame_count)) {
-    std::cerr << "[RenderPassManager] Failed to initialize scene renderer" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[RenderPassManager] Failed to initialize scene renderer.");
     return false;
   }
 
   // Initialize fullscreen pass helper
   if (!fullscreen_helper_.Initialize(device, upload_context)) {
-    std::cerr << "[RenderPassManager] Failed to initialize fullscreen pass helper" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[RenderPassManager] Failed to initialize fullscreen pass helper.");
     return false;
   }
 
-  std::cout << "[RenderPassManager] Initialized" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "[RenderPassManager] Initialized.");
   return true;
 }
 
@@ -31,7 +32,7 @@ void RenderPassManager::RegisterPass(const std::string& name, std::unique_ptr<Re
   passes_.push_back(std::move(pass));
   pass_map_[name] = pass_ptr;
 
-  std::cout << "[RenderPassManager] Registered pass: " << name << '\n';
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "[RenderPassManager] Registered pass: {}", name);
 }
 
 RenderPass* RenderPassManager::GetPass(const std::string& name) {
@@ -44,7 +45,7 @@ RenderPass* RenderPassManager::GetPass(const std::string& name) {
 
 void RenderPassManager::SubmitPacket(const RenderPacket& packet) {
   if (!packet.IsValid()) {
-    std::cerr << "[RenderPassManager] Warning: Invalid render packet submitted" << '\n';
+    Logger::Log(LogLevel::Warn, LogCategory::Validation, "[RenderPassManager] Invalid render packet submitted.");
     return;
   }
 
@@ -53,13 +54,21 @@ void RenderPassManager::SubmitPacket(const RenderPacket& packet) {
 
 void RenderPassManager::SubmitToPass(const std::string& name, const RenderPacket& packet) {
   if (!packet.IsValid()) {
-    std::cerr << "[RenderPassManager] Warning: Invalid render packet submitted to pass '" << name << "'" << '\n';
+    Logger::Logf(LogLevel::Warn,
+      LogCategory::Validation,
+      Logger::Here(),
+      "[RenderPassManager] Invalid render packet submitted to pass '{}'.",
+      name);
     return;
   }
 
   RenderPass* pass = GetPass(name);
   if (!pass) {
-    std::cerr << "[RenderPassManager] Warning: Pass '" << name << "' not found; falling back to unified queue" << '\n';
+    Logger::Logf(LogLevel::Warn,
+      LogCategory::Validation,
+      Logger::Here(),
+      "[RenderPassManager] Pass '{}' not found; falling back to unified queue.",
+      name);
     render_queue_.push_back(packet);
     return;
   }
@@ -124,16 +133,19 @@ void RenderPassManager::Clear() {
 }
 
 void RenderPassManager::PrintStats() const {
-  std::cout << "\n=== Render Pass Manager Statistics ===" << '\n';
-  std::cout << "Total Packets: " << render_queue_.size() << '\n';
-  std::cout << "Registered Passes: " << passes_.size() << '\n';
-
-  std::cout << "\nEnabled Passes:" << '\n';
+  std::string enabled;
+  enabled.reserve(passes_.size() * 24);
   for (const auto& pass : passes_) {
-    std::cout << "  - " << pass->GetName() << ": " << (pass->IsEnabled() ? "Enabled" : "Disabled") << '\n';
+    enabled += std::format("  - {}: {}\n", pass->GetName(), (pass->IsEnabled() ? "Enabled" : "Disabled"));
   }
 
-  std::cout << "======================================\n" << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Graphic,
+    Logger::Here(),
+    "=== Render Pass Manager Statistics ===\nTotal Packets: {}\nRegistered Passes: {}\n\nEnabled Passes:\n{}======================================",
+    render_queue_.size(),
+    passes_.size(),
+    enabled);
 
   // Print scene renderer stats
   scene_renderer_.PrintStats();

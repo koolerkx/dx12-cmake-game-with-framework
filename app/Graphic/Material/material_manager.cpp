@@ -1,7 +1,8 @@
 #include "material_manager.h"
 
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 #include "material_instance.h"
 
@@ -15,21 +16,29 @@ MaterialTemplate* MaterialManager::CreateTemplate(const std::string& name,
 
   // Check if already exists
   if (HasTemplate(name)) {
-    std::cerr << "[MaterialManager] Template '" << name << "' already exists" << '\n';
+    Logger::Logf(LogLevel::Warn,
+      LogCategory::Validation,
+      Logger::Here(),
+      "[MaterialManager] Template '{}' already exists",
+      name);
     return GetTemplate(name);
   }
 
   // Create new template
   auto material_template = std::make_unique<MaterialTemplate>();
   if (!material_template->Initialize(pso, root_signature, name, texture_slots, constant_buffers)) {
-    std::cerr << "[MaterialManager] Failed to initialize template '" << name << "'" << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[MaterialManager] Failed to initialize template '{}'",
+      name);
     return nullptr;
   }
 
   MaterialTemplate* ptr = material_template.get();
   templates_[name] = std::move(material_template);
 
-  std::cout << "[MaterialManager] Created template: " << name << '\n';
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "[MaterialManager] Created template: {}", name);
 
   return ptr;
 }
@@ -38,20 +47,28 @@ MaterialInstance* MaterialManager::CreateInstance(const std::string& name, Mater
   assert(material_template != nullptr);
 
   if (HasInstance(name)) {
-    std::cerr << "[MaterialManager] Instance '" << name << "' already exists" << '\n';
+    Logger::Logf(LogLevel::Warn,
+      LogCategory::Validation,
+      Logger::Here(),
+      "[MaterialManager] Instance '{}' already exists",
+      name);
     return GetInstance(name);
   }
 
   auto instance = std::make_unique<MaterialInstance>();
   if (!instance->Initialize(material_template)) {
-    std::cerr << "[MaterialManager] Failed to initialize instance '" << name << "'" << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "[MaterialManager] Failed to initialize instance '{}'",
+      name);
     return nullptr;
   }
 
   MaterialInstance* ptr = instance.get();
   instances_[name] = std::move(instance);
 
-  std::cout << "[MaterialManager] Created instance: " << name << '\n';
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "[MaterialManager] Created instance: {}", name);
 
   return ptr;
 }
@@ -99,7 +116,7 @@ bool MaterialManager::HasInstance(const std::string& name) const {
 void MaterialManager::RemoveTemplate(const std::string& name) {
   auto it = templates_.find(name);
   if (it != templates_.end()) {
-    std::cout << "[MaterialManager] Removed template: " << name << '\n';
+    Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "[MaterialManager] Removed template: {}", name);
     templates_.erase(it);
   }
 }
@@ -107,36 +124,51 @@ void MaterialManager::RemoveTemplate(const std::string& name) {
 void MaterialManager::RemoveInstance(const std::string& name) {
   auto it = instances_.find(name);
   if (it != instances_.end()) {
-    std::cout << "[MaterialManager] Removed instance: " << name << '\n';
+    Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "[MaterialManager] Removed instance: {}", name);
     instances_.erase(it);
   }
 }
 
 void MaterialManager::Clear() {
-  std::cout << "[MaterialManager] Clearing " << templates_.size() << " templates and " << instances_.size() << " instances" << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Graphic,
+    Logger::Here(),
+    "[MaterialManager] Clearing {} templates and {} instances",
+    templates_.size(),
+    instances_.size());
   instances_.clear();
   templates_.clear();
 }
 
 void MaterialManager::PrintStats() const {
-  std::cout << "\n=== Material Manager Statistics ===" << '\n';
-  std::cout << "Total Templates: " << templates_.size() << '\n';
-  std::cout << "Total Instances: " << instances_.size() << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "=== Material Manager Statistics ===");
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "Total Templates: {}", templates_.size());
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "Total Instances: {}", instances_.size());
 
-  std::cout << "\nRegistered Templates:" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "Registered Templates:");
   for (const auto& [name, template_ptr] : templates_) {
-    std::cout << "  - " << name << " (Textures: " << template_ptr->GetTextureSlotCount()
-              << ", CBs: " << template_ptr->GetConstantBufferCount() << ")" << '\n';
+    Logger::Logf(LogLevel::Info,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "  - {} (Textures: {}, CBs: {})",
+      name,
+      template_ptr ? template_ptr->GetTextureSlotCount() : 0,
+      template_ptr ? template_ptr->GetConstantBufferCount() : 0);
   }
 
-  std::cout << "\nRegistered Instances:" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "Registered Instances:");
   for (const auto& [name, instance_ptr] : instances_) {
-    std::cout << "  - " << name;
     if (instance_ptr && instance_ptr->GetTemplate()) {
-      std::cout << " (Template: " << instance_ptr->GetTemplate()->GetName() << ")";
+      Logger::Logf(LogLevel::Info,
+        LogCategory::Graphic,
+        Logger::Here(),
+        "  - {} (Template: {})",
+        name,
+        instance_ptr->GetTemplate()->GetName());
+    } else {
+      Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "  - {}", name);
     }
-    std::cout << '\n';
   }
 
-  std::cout << "===================================\n" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "===================================");
 }

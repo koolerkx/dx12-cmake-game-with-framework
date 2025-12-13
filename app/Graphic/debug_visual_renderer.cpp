@@ -1,12 +1,13 @@
 #include "debug_visual_renderer.h"
 
 #include <cassert>
-#include <iostream>
 
 #include "framework_default_assets.h"
 #include "graphic.h"
 #include "material_instance.h"
 #include "material_template.h"
+
+#include "Framework/Logging/logger.h"
 
 void DebugVisualRenderer::Initialize(Graphic& graphic) {
   if (is_initialized_) {
@@ -21,7 +22,9 @@ void DebugVisualRenderer::Initialize(Graphic& graphic) {
   debug_line_material_depth_ = defaults.GetDebugLineMaterialDepth();
 
   if (!debug_line_material_overlay_ || !debug_line_material_depth_) {
-    std::cerr << "[DebugVisualRenderer] Failed to get debug line materials (overlay/depth) from DefaultAssets" << '\n';
+    Logger::Log(LogLevel::Error,
+      LogCategory::Graphic,
+      "[DebugVisualRenderer] Failed to get debug line materials (overlay/depth) from DefaultAssets");
     return;
   }
 
@@ -38,12 +41,12 @@ void DebugVisualRenderer::Initialize(Graphic& graphic) {
 
   // Create per-frame upload buffers
   if (!CreateFrameBuffers()) {
-    std::cerr << "[DebugVisualRenderer] Failed to create frame buffers" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Graphic, "[DebugVisualRenderer] Failed to create frame buffers");
     return;
   }
 
   is_initialized_ = true;
-  std::cout << "[DebugVisualRenderer] Initialized successfully" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "[DebugVisualRenderer] Initialized successfully");
 }
 
 void DebugVisualRenderer::Shutdown() {
@@ -60,7 +63,7 @@ void DebugVisualRenderer::Shutdown() {
   graphic_ = nullptr;
   is_initialized_ = false;
 
-  std::cout << "[DebugVisualRenderer] Shutdown complete" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "[DebugVisualRenderer] Shutdown complete");
 }
 
 void DebugVisualRenderer::BeginFrame(uint32_t frameIndex) {
@@ -109,7 +112,9 @@ void DebugVisualRenderer::RenderDepthTested(const DebugVisualCommandBuffer& cmds
   }
 
   if (sceneData.scene_cb_gpu_address == 0) {
-    std::cerr << "[DebugVisualRenderer] Skipping depth-tested debug lines because Scene CB address is invalid" << '\n';
+    Logger::Log(LogLevel::Warn,
+      LogCategory::Validation,
+      "[DebugVisualRenderer] Skipping depth-tested debug lines because Scene CB address is invalid");
     return;
   }
 
@@ -226,7 +231,11 @@ bool DebugVisualRenderer::CreateFrameBuffers() {
     // Create upload buffer
     size_t buffer_size = MAX_DEBUG_VERTICES * sizeof(DebugVertex);
     if (!frame.vertex_buffer.Create(graphic_->GetDevice(), buffer_size, Buffer::Type::Vertex, D3D12_HEAP_TYPE_UPLOAD)) {
-      std::cerr << "[DebugVisualRenderer] Failed to create vertex buffer for frame " << i << '\n';
+      Logger::Logf(LogLevel::Error,
+        LogCategory::Resource,
+        Logger::Here(),
+        "[DebugVisualRenderer] Failed to create vertex buffer for frame {}",
+        i);
       return false;
     }
 
@@ -236,7 +245,12 @@ bool DebugVisualRenderer::CreateFrameBuffers() {
     HRESULT hr = frame.vertex_buffer.GetResource()->Map(0, &read_range, &mapped_data);
 
     if (FAILED(hr)) {
-      std::cerr << "[DebugVisualRenderer] Failed to map vertex buffer for frame " << i << '\n';
+      Logger::Logf(LogLevel::Error,
+        LogCategory::Resource,
+        Logger::Here(),
+        "[DebugVisualRenderer] Failed to map vertex buffer for frame {}. hr=0x{:08X}",
+        i,
+        static_cast<uint32_t>(hr));
       return false;
     }
 
@@ -285,7 +299,7 @@ UINT DebugVisualRenderer::FillVertexData(const DebugVisualCommandBuffer& cmds,
 
     // Check for overflow
     if (vertex_index + 2 > max_vertices) {
-      std::cerr << "[DebugVisualRenderer] Vertex overflow, truncating." << '\n';
+      Logger::Log(LogLevel::Warn, LogCategory::Validation, "[DebugVisualRenderer] Vertex overflow, truncating.");
       assert(false && "DebugVisualRenderer vertex buffer overflow");
       break;
     }

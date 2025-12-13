@@ -1,7 +1,8 @@
 #include "material_template.h"
 
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 // TODO: validate the param index doesn't violate the engine convention (fixed root signature buffer)
 bool MaterialTemplate::Initialize(ID3D12PipelineState* pso,
@@ -19,8 +20,13 @@ bool MaterialTemplate::Initialize(ID3D12PipelineState* pso,
   texture_slots_ = texture_slots;
   constant_buffers_ = constant_buffers;
 
-  std::cout << "[MaterialTemplate] Initialized: " << name_ << " with " << texture_slots_.size() << " texture slots, "
-            << constant_buffers_.size() << " constant buffers" << '\n';
+  Logger::Logf(LogLevel::Info,
+    LogCategory::Graphic,
+    Logger::Here(),
+    "[MaterialTemplate] Initialized: {} with {} texture slots, {} constant buffers",
+    name_,
+    texture_slots_.size(),
+    constant_buffers_.size());
 
   return true;
 }
@@ -58,19 +64,25 @@ const ConstantBufferDefinition* MaterialTemplate::GetConstantBufferByIndex(int i
 }
 
 void MaterialTemplate::PrintInfo() const {
-  std::cout << "\n=== MaterialTemplate: " << name_ << " ===" << '\n';
-  std::cout << "PSO: " << (pso_ != nullptr ? "Valid" : "Invalid") << '\n';
-  std::cout << "Root Signature: " << (root_signature_ != nullptr ? "Valid" : "Invalid") << '\n';
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "=== MaterialTemplate: {} ===", name_);
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "PSO: {}", (pso_ != nullptr ? "Valid" : "Invalid"));
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "Root Signature: {}", (root_signature_ != nullptr ? "Valid" : "Invalid"));
 
-  std::cout << "\nTexture Slots (" << texture_slots_.size() << "):" << '\n';
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "Texture Slots ({}):", texture_slots_.size());
   for (const auto& slot : texture_slots_) {
-    std::cout << "  - " << slot.name << " (root param: " << slot.root_parameter_index << ")" << '\n';
+    Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "  - {} (root param: {})", slot.name, slot.root_parameter_index);
   }
 
-  std::cout << "\nConstant Buffers (" << constant_buffers_.size() << "):" << '\n';
+  Logger::Logf(LogLevel::Info, LogCategory::Graphic, Logger::Here(), "Constant Buffers ({}):", constant_buffers_.size());
   for (const auto& cb : constant_buffers_) {
-    std::cout << "  - " << cb.name << " (root param: " << cb.root_parameter_index << ", size: " << cb.size_in_bytes << " bytes)" << '\n';
+    Logger::Logf(LogLevel::Info,
+      LogCategory::Graphic,
+      Logger::Here(),
+      "  - {} (root param: {}, size: {} bytes)",
+      cb.name,
+      cb.root_parameter_index,
+      cb.size_in_bytes);
   }
 
-  std::cout << "================================\n" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "================================");
 }

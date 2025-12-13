@@ -2,9 +2,10 @@
 
 #include <cassert>
 #include <cstring>
-#include <iostream>
 
 #include "d3dx12.h"
+
+#include "Framework/Logging/logger.h"
 
 bool RenderTarget::Create(ID3D12Device* device,
   UINT width,
@@ -52,7 +53,14 @@ bool RenderTarget::Create(ID3D12Device* device,
     IID_PPV_ARGS(resource.GetAddressOf()));
 
   if (FAILED(hr)) {
-    std::cerr << "[RenderTarget] Failed to create render target resource" << '\n';
+    Logger::Logf(LogLevel::Error,
+      LogCategory::Resource,
+      Logger::Here(),
+      "[RenderTarget] Failed to create render target resource. width={} height={} format={} hr=0x{:08X}",
+      width,
+      height,
+      static_cast<uint32_t>(format),
+      static_cast<uint32_t>(hr));
     return false;
   }
 
@@ -127,7 +135,7 @@ bool RenderTarget::CreateRTV(ID3D12Device* device, DescriptorHeapAllocator& rtv_
   // Allocate descriptor
   rtv_allocation_ = rtv_allocator.Allocate(1);
   if (!rtv_allocation_.IsValid()) {
-    std::cerr << "[RenderTarget] Failed to allocate RTV descriptor" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[RenderTarget] Failed to allocate RTV descriptor");
     return false;
   }
 
@@ -150,7 +158,7 @@ bool RenderTarget::CreateSRV(ID3D12Device* device, DescriptorHeapAllocator& srv_
   // Allocate descriptor
   srv_allocation_ = srv_allocator.Allocate(1);
   if (!srv_allocation_.IsValid()) {
-    std::cerr << "[RenderTarget] Failed to allocate SRV descriptor" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Resource, "[RenderTarget] Failed to allocate SRV descriptor");
     return false;
   }
 

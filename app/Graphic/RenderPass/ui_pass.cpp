@@ -1,11 +1,12 @@
 #include "ui_pass.h"
 
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 bool UIPass::Initialize(ID3D12Device* device) {
   assert(device != nullptr);
-  std::cout << "[UIPass] Initialized" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "[UIPass] Initialized");
   return true;
 }
 

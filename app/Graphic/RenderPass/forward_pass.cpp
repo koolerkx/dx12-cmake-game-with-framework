@@ -1,11 +1,12 @@
 #include "forward_pass.h"
 
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 bool ForwardPass::Initialize(ID3D12Device* device) {
   assert(device != nullptr);
-  std::cout << "[ForwardPass] Initialized" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "[ForwardPass] Initialized");
   return true;
 }
 

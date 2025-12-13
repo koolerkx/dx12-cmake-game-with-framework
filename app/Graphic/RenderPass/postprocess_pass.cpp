@@ -1,11 +1,12 @@
 #include "postprocess_pass.h"
 
 #include <cassert>
-#include <iostream>
+
+#include "Framework/Logging/logger.h"
 
 bool PostProcessPass::Initialize(ID3D12Device* device) {
   assert(device != nullptr);
-  std::cout << "[PostProcessPass] Initialized" << '\n';
+  Logger::Log(LogLevel::Info, LogCategory::Graphic, "[PostProcessPass] Initialized");
   return true;
 }
 
@@ -25,7 +26,7 @@ void PostProcessPass::Render(ID3D12GraphicsCommandList* command_list, SceneRende
   (void)scene_renderer;
 
   if (fullscreen_helper_ == nullptr || output_target_ == nullptr || pso_ == nullptr || root_signature_ == nullptr) {
-    std::cerr << "[PostProcessPass] Missing required resources" << '\n';
+    Logger::Log(LogLevel::Error, LogCategory::Validation, "[PostProcessPass] Missing required resources");
     return;
   }
 

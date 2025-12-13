@@ -1,7 +1,6 @@
 #include "framework_default_assets.h"
 
 #include <cstdint>
-#include <iostream>
 #include <vector>
 
 #include "graphic.h"
@@ -14,6 +13,8 @@
 #include "shader_manager.h"
 #include "texture_manager.h"
 #include "vertex_types.h"
+
+#include "Framework/Logging/logger.h"
 
 namespace {
 constexpr const char* kSpriteWorldOpaqueInstance = "SpriteWorldOpaque_Default";
@@ -175,28 +176,28 @@ void FrameworkDefaultAssets::CreateDefaultMaterials(Graphic& gfx) {
   if (!shader_mgr.HasShader("BasicVS")) {
     if (!shader_mgr.LoadShader(L"Content/shaders/basic.vs.cso", ShaderType::Vertex, "BasicVS")) {
       // Fallback to loaded shader or log error
-      std::cerr << "[FrameworkDefaultAssets] Failed to load BasicVS shader" << '\n';
+        Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to load BasicVS shader");
       return;
     }
   }
 
   if (!shader_mgr.HasShader("BasicPS")) {
     if (!shader_mgr.LoadShader(L"Content/shaders/basic.ps.cso", ShaderType::Pixel, "BasicPS")) {
-      std::cerr << "[FrameworkDefaultAssets] Failed to load BasicPS shader" << '\n';
+        Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to load BasicPS shader");
       return;
     }
   }
 
   if (!shader_mgr.HasShader("DebugLineVS")) {
     if (!shader_mgr.LoadShader(L"Content/shaders/debug_line.vs.cso", ShaderType::Vertex, "DebugLineVS")) {
-      std::cerr << "[FrameworkDefaultAssets] Failed to load DebugLineVS shader" << '\n';
+        Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to load DebugLineVS shader");
       return;
     }
   }
 
   if (!shader_mgr.HasShader("DebugLinePS")) {
     if (!shader_mgr.LoadShader(L"Content/shaders/debug_line.ps.cso", ShaderType::Pixel, "DebugLinePS")) {
-      std::cerr << "[FrameworkDefaultAssets] Failed to load DebugLinePS shader" << '\n';
+        Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to load DebugLinePS shader");
       return;
     }
   }
@@ -225,7 +226,7 @@ void FrameworkDefaultAssets::CreateSpriteMaterials(Graphic& gfx) {
     .AllowInputLayout();
 
   if (!rs_builder.Build(gfx.GetDevice(), sprite_root_signature)) {
-    std::cerr << "[FrameworkDefaultAssets] Failed to create Sprite2D root signature" << '\n';
+     Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to create Sprite2D root signature");
     return;
   }
 
@@ -262,11 +263,11 @@ void FrameworkDefaultAssets::CreateSpriteMaterials(Graphic& gfx) {
         sprite_world_opaque_material_ = material_mgr.CreateInstance(kSpriteWorldOpaqueInstance, sprite_world_opaque_template_);
         if (sprite_world_opaque_material_) {
           sprite_world_opaque_material_->SetTexture("BaseColor", white_texture_);
-          std::cout << "[FrameworkDefaultAssets] Created SpriteWorldOpaque material" << '\n';
+           Logger::Log(LogLevel::Info, LogCategory::Graphic, "[FrameworkDefaultAssets] Created SpriteWorldOpaque material");
         }
       }
     } else {
-      std::cerr << "[FrameworkDefaultAssets] Failed to create SpriteWorldOpaque PSO" << '\n';
+        Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to create SpriteWorldOpaque PSO");
     }
   }
 
@@ -296,11 +297,11 @@ void FrameworkDefaultAssets::CreateSpriteMaterials(Graphic& gfx) {
           material_mgr.CreateInstance(kSpriteWorldTransparentInstance, sprite_world_transparent_template_);
         if (sprite_world_transparent_material_) {
           sprite_world_transparent_material_->SetTexture("BaseColor", white_texture_);
-          std::cout << "[FrameworkDefaultAssets] Created SpriteWorldTransparent material" << '\n';
+           Logger::Log(LogLevel::Info, LogCategory::Graphic, "[FrameworkDefaultAssets] Created SpriteWorldTransparent material");
         }
       }
     } else {
-      std::cerr << "[FrameworkDefaultAssets] Failed to create SpriteWorldTransparent PSO" << '\n';
+        Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to create SpriteWorldTransparent PSO");
     }
   }
 
@@ -330,11 +331,11 @@ void FrameworkDefaultAssets::CreateSpriteMaterials(Graphic& gfx) {
         sprite_ui_material_ = material_mgr.CreateInstance(kSpriteUIInstance, sprite_ui_template_);
         if (sprite_ui_material_) {
           sprite_ui_material_->SetTexture("BaseColor", white_texture_);
-          std::cout << "[FrameworkDefaultAssets] Created SpriteUI material" << '\n';
+           Logger::Log(LogLevel::Info, LogCategory::Graphic, "[FrameworkDefaultAssets] Created SpriteUI material");
         }
       }
     } else {
-      std::cerr << "[FrameworkDefaultAssets] Failed to create SpriteUI PSO" << '\n';
+        Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to create SpriteUI PSO");
     }
   }
 }
@@ -352,7 +353,7 @@ void FrameworkDefaultAssets::CreateDebugLineMaterials(Graphic& gfx) {
     .AllowInputLayout();
 
   if (!rs_builder.Build(gfx.GetDevice(), debug_root_signature)) {
-    std::cerr << "[FrameworkDefaultAssets] Failed to create DebugLine root signature" << '\n';
+     Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to create DebugLine root signature");
     return;
   }
 
@@ -378,7 +379,7 @@ void FrameworkDefaultAssets::CreateDebugLineMaterials(Graphic& gfx) {
       .SetFillMode(D3D12_FILL_MODE_SOLID);
 
     if (!pso_builder.Build(gfx.GetDevice(), overlay_pso)) {
-      std::cerr << "[FrameworkDefaultAssets] Failed to create DebugLine overlay PSO" << '\n';
+      Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to create DebugLine overlay PSO");
       return;
     }
 
@@ -388,7 +389,7 @@ void FrameworkDefaultAssets::CreateDebugLineMaterials(Graphic& gfx) {
     if (debug_line_template_overlay_) {
       debug_line_material_overlay_ = material_mgr.CreateInstance(kDebugLineOverlayInstance, debug_line_template_overlay_);
       if (debug_line_material_overlay_) {
-        std::cout << "[FrameworkDefaultAssets] Created DebugLine overlay material" << '\n';
+         Logger::Log(LogLevel::Info, LogCategory::Graphic, "[FrameworkDefaultAssets] Created DebugLine overlay material");
       }
     }
   }
@@ -411,7 +412,7 @@ void FrameworkDefaultAssets::CreateDebugLineMaterials(Graphic& gfx) {
       .SetFillMode(D3D12_FILL_MODE_SOLID);
 
     if (!pso_builder.Build(gfx.GetDevice(), depth_pso)) {
-      std::cerr << "[FrameworkDefaultAssets] Failed to create DebugLine depth PSO" << '\n';
+      Logger::Log(LogLevel::Error, LogCategory::Graphic, "[FrameworkDefaultAssets] Failed to create DebugLine depth PSO");
       return;
     }
 
@@ -420,7 +421,7 @@ void FrameworkDefaultAssets::CreateDebugLineMaterials(Graphic& gfx) {
     if (debug_line_template_depth_) {
       debug_line_material_depth_ = material_mgr.CreateInstance(kDebugLineDepthInstance, debug_line_template_depth_);
       if (debug_line_material_depth_) {
-        std::cout << "[FrameworkDefaultAssets] Created DebugLine depth material" << '\n';
+         Logger::Log(LogLevel::Info, LogCategory::Graphic, "[FrameworkDefaultAssets] Created DebugLine depth material");
       }
     }
   }
