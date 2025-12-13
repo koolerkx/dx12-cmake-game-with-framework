@@ -25,8 +25,8 @@
 #include "texture_manager.h"
 #include "upload_context.h"
 
-
 class Scene;
+struct ID3D12InfoQueue;
 
 class Graphic {
  public:
@@ -136,6 +136,7 @@ class Graphic {
   // Core D3D12 objects
   ComPtr<ID3D12Device5> device_ = nullptr;
   ComPtr<IDXGIFactory6> dxgi_factory_ = nullptr;
+  ComPtr<ID3D12InfoQueue> info_queue_ = nullptr;
 
   uint32_t frame_index_ = 0;
   std::array<ComPtr<ID3D12CommandAllocator>, FrameCount> command_allocators_ = {};
@@ -179,6 +180,7 @@ class Graphic {
   HRESULT CreateCommandList();
   HRESULT CreateCommandAllocator();
   void InitializeRenderPasses();
+  void ProcessD3D12InfoQueueMessages();
 
   // Default framework assets (textures, basic meshes, debug materials)
   std::unique_ptr<FrameworkDefaultAssets> default_assets_;

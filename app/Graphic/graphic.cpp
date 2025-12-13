@@ -1,5 +1,7 @@
 #include "graphic.h"
 
+#include <d3d12sdklayers.h>
+
 #include <array>
 #include <format>
 #include <vector>
@@ -11,7 +13,40 @@
 
 namespace {
 FastErrorCounters g_graphic_fast_errors{};
+
+LogLevel MapD3DSeverityToLogLevel(D3D12_MESSAGE_SEVERITY severity) {
+  switch (severity) {
+    case D3D12_MESSAGE_SEVERITY_CORRUPTION:
+      return LogLevel::Fatal;
+    case D3D12_MESSAGE_SEVERITY_ERROR:
+      return LogLevel::Error;
+    case D3D12_MESSAGE_SEVERITY_WARNING:
+      return LogLevel::Warn;
+    case D3D12_MESSAGE_SEVERITY_INFO:
+      return LogLevel::Info;
+    case D3D12_MESSAGE_SEVERITY_MESSAGE:
+    default:
+      return LogLevel::Debug;
+  }
 }
+
+const char* D3D12SeverityToString(D3D12_MESSAGE_SEVERITY severity) {
+  switch (severity) {
+    case D3D12_MESSAGE_SEVERITY_CORRUPTION:
+      return "CORRUPTION";
+    case D3D12_MESSAGE_SEVERITY_ERROR:
+      return "ERROR";
+    case D3D12_MESSAGE_SEVERITY_WARNING:
+      return "WARNING";
+    case D3D12_MESSAGE_SEVERITY_INFO:
+      return "INFO";
+    case D3D12_MESSAGE_SEVERITY_MESSAGE:
+      return "MESSAGE";
+    default:
+      return "UNKNOWN";
+  }
+}
+}  // namespace
 
 void Graphic::Transition(GpuResource* resource, D3D12_RESOURCE_STATES new_state) {
   if (!resource) return;
@@ -38,6 +73,28 @@ void Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
 
   FrameworkDx::ThrowIfFailed(CreateFactory(), FrameworkErrorCode::DxgiFactoryCreateFailed, "CreateFactory");
   FrameworkDx::ThrowIfFailed(CreateDevice(), FrameworkErrorCode::D3d12DeviceCreateFailed, "CreateDevice");
+
+  // Get ID3D12InfoQueue and set filter level (remove info and message)
+  if (SUCCEEDED(device_->QueryInterface(IID_PPV_ARGS(&info_queue_)))) {
+    D3D12_MESSAGE_SEVERITY severities[] = {
+      D3D12_MESSAGE_SEVERITY_INFO,
+      D3D12_MESSAGE_SEVERITY_MESSAGE,
+    };
+
+    D3D12_INFO_QUEUE_FILTER filter = {};
+    filter.DenyList.NumSeverities = _countof(severities);
+    filter.DenyList.pSeverityList = severities;
+
+    HRESULT hr = info_queue_->PushStorageFilter(&filter);
+    if (FAILED(hr)) {
+      Logger::Log(LogLevel::Warn, LogCategory::Graphic, "D3D12 InfoQueue PushStorageFilter failed.");
+    }
+
+    info_queue_->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+    info_queue_->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+  } else {
+    Logger::Log(LogLevel::Warn, LogCategory::Graphic, "Failed to retrieve ID3D12InfoQueue interface. D3D12 logging will be limited.");
+  }
 
   // Initialize primitive geometry 2D
   primitive_geometry_2d_ = std::make_unique<PrimitiveGeometry2D>(device_.Get());
@@ -72,7 +129,7 @@ void Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_h
         frame_buffer_width,
         frame_buffer_height,
         descriptor_heap_manager_.GetDsvAllocator(),
-      &descriptor_heap_manager_.GetSrvPersistentAllocator(),
+        &descriptor_heap_manager_.GetSrvPersistentAllocator(),
         DXGI_FORMAT_R32_TYPELESS)) {
     FrameworkFail::Throw(FrameworkErrorDomain::Graphic, FrameworkErrorCode::DepthBufferCreateFailed, "DepthBuffer::Create");
   }
@@ -318,6 +375,9 @@ void Graphic::Shutdown() {
   // Wait for GPU to finish all work
   fence_manager_.WaitForGpu(command_queue_.Get());
 
+  // map D3D12 info queue messages
+  ProcessD3D12InfoQueueMessages();
+
   // Print statistics before cleanup
   texture_manager_.PrintStats();
   material_manager_.PrintStats();
@@ -451,4 +511,37 @@ HRESULT Graphic::CreateCommandList() {
 
   command_list_->Close();
   return S_OK;
+}
+
+// read messages from the info queue
+void Graphic::ProcessD3D12InfoQueueMessages() {
+  if (!info_queue_) return;
+
+  const UINT64 message_count = info_queue_->GetNumStoredMessagesAllowedByRetrievalFilter();
+  if (message_count == 0) return;
+
+  std::vector<uint8_t> buffer;
+
+  for (UINT64 i = 0; i < message_count; ++i) {
+    SIZE_T msg_size = 0;
+    info_queue_->GetMessage(i, nullptr, &msg_size);
+    if (msg_size == 0) continue;
+
+    buffer.resize(msg_size);
+    D3D12_MESSAGE* message = reinterpret_cast<D3D12_MESSAGE*>(buffer.data());
+
+    HRESULT hr = info_queue_->GetMessage(i, message, &msg_size);
+    if (SUCCEEDED(hr) && message) {
+      LogLevel level = MapD3DSeverityToLogLevel(message->Severity);
+      Logger::Logf(level,
+        LogCategory::Graphic,
+        Logger::Here(),
+        "[D3D12][{}] ID: {} | {}",
+        D3D12SeverityToString(message->Severity),
+        static_cast<int>(message->ID),
+        message->pDescription ? message->pDescription : "");
+    }
+  }
+
+  info_queue_->ClearStoredMessages();
 }
