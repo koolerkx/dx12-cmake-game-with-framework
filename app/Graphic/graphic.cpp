@@ -29,7 +29,7 @@ void Graphic::Clear(DepthBuffer* depth, float depth_val, uint8_t stencil_val) {
 }
 
 void Graphic::RenderPasses() {
-  render_pass_manager_.RenderFrame(command_list_.Get(), texture_manager_);
+  render_pass_manager_.RenderFrame(*this, texture_manager_);
 }
 
 void Graphic::Initialize(HWND hwnd, UINT frame_buffer_width, UINT frame_buffer_height) {
@@ -218,10 +218,18 @@ void Graphic::BeginFrame() {
 void Graphic::RenderFrame() {
   // Execute all render passes through the pass manager
   // The pass manager will handle filtering and executing each pass
-  render_pass_manager_.RenderFrame(command_list_.Get(), texture_manager_);
+  render_pass_manager_.RenderFrame(*this, texture_manager_);
 
   // Clear render queue for next frame
   render_pass_manager_.Clear();
+
+  // Ensure backbuffer is in PRESENT state before closing the frame.
+  // This records a transition barrier onto the current command list so
+  // Present will always observe the correct state.
+  auto* backbufferRT = swap_chain_manager_.GetRenderTarget(frame_index_);
+  if (backbufferRT != nullptr && backbufferRT->IsValid()) {
+    Transition(backbufferRT, D3D12_RESOURCE_STATE_PRESENT);
+  }
 }
 
 void Graphic::EndFrame() {

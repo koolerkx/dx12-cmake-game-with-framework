@@ -7,16 +7,14 @@
 bool PostProcessPass::Initialize(ID3D12Device* device) {
   assert(device != nullptr);
   Logger::Log(LogLevel::Info, LogCategory::Graphic, "[PostProcessPass] Initialized");
+  // Disable by default until wired into the pass manager
+  SetEnabled(false);
   return true;
 }
 
 void PostProcessPass::Begin(ID3D12GraphicsCommandList* command_list) {
   assert(command_list != nullptr);
-
-  // Transition output target to render target state
-  if (output_target_ != nullptr) {
-    output_target_->TransitionTo(command_list, D3D12_RESOURCE_STATE_RENDER_TARGET);
-  }
+  // IO (transitions/clears/binding) are handled by RenderPassManager via GetPassIO().
 }
 
 void PostProcessPass::Render(ID3D12GraphicsCommandList* command_list, SceneRenderer& scene_renderer, TextureManager& texture_manager) {
@@ -40,9 +38,27 @@ void PostProcessPass::Render(ID3D12GraphicsCommandList* command_list, SceneRende
 
 void PostProcessPass::End(ID3D12GraphicsCommandList* command_list) {
   assert(command_list != nullptr);
+  // IO transitions are handled by RenderPassManager.
+}
 
-  // Transition output target to shader resource state for next pass
+PassIODesc PostProcessPass::GetPassIO() const {
+  PassIODesc io;
+
+  // Color: if we have an explicit output target, mark a color attachment (non-backbuffer)
+  // Post-process renders to a color target; default to backbuffer when output_target_ is null.
+  io.color.enabled = true;
   if (output_target_ != nullptr) {
-    output_target_->TransitionTo(command_list, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    io.color.kind = ColorAttachmentIO::Kind::Custom;
+    io.color.target = output_target_;
+  } else {
+    io.color.kind = ColorAttachmentIO::Kind::Backbuffer;
+    io.color.target = nullptr;
   }
+  io.color.state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+  io.color.clear = false;
+
+  // Depth: postprocess typically doesn't write depth
+  io.depth.enabled = false;
+
+  return io;
 }

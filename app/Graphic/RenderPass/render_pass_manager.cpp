@@ -3,8 +3,10 @@
 #include <cassert>
 
 #include "Framework/Logging/logger.h"
-
 #include "RenderPass/render_pass.h"
+#include "render_target.h"
+#include "depth_buffer.h"
+#include "graphic.h"
 
 bool RenderPassManager::Initialize(ID3D12Device* device, uint32_t frame_count, UploadContext& upload_context) {
   assert(device != nullptr);
@@ -54,11 +56,8 @@ void RenderPassManager::SubmitPacket(const RenderPacket& packet) {
 
 void RenderPassManager::SubmitToPass(const std::string& name, const RenderPacket& packet) {
   if (!packet.IsValid()) {
-    Logger::Logf(LogLevel::Warn,
-      LogCategory::Validation,
-      Logger::Here(),
-      "[RenderPassManager] Invalid render packet submitted to pass '{}'.",
-      name);
+    Logger::Logf(
+      LogLevel::Warn, LogCategory::Validation, Logger::Here(), "[RenderPassManager] Invalid render packet submitted to pass '{}'.", name);
     return;
   }
 
@@ -76,7 +75,8 @@ void RenderPassManager::SubmitToPass(const std::string& name, const RenderPacket
   pass_queues_[pass].push_back(packet);
 }
 
-void RenderPassManager::RenderFrame(ID3D12GraphicsCommandList* command_list, TextureManager& texture_manager) {
+void RenderPassManager::RenderFrame(Graphic& graphic, TextureManager& texture_manager) {
+  ID3D12GraphicsCommandList* command_list = graphic.GetCommandList();
   assert(command_list != nullptr);
 
   if (render_queue_.empty()) {
@@ -114,15 +114,111 @@ void RenderPassManager::RenderFrame(ID3D12GraphicsCommandList* command_list, Tex
       }
     }
 
-    // Begin pass
-    pass->Begin(command_list);
+      // Apply IO (transitions, clears, binding) for this pass. If ApplyPassIO
+      // returns false it indicates a fatal IO issue (e.g., invalid custom
+      // target) and the pass will be skipped.
+      bool ok = ApplyPassIO(pass.get(), graphic);
+      if (!ok) {
+        continue; // skip this pass
+      }
 
-    // Render pass
-    pass->Render(command_list, scene_renderer_, texture_manager);
+      // Begin pass (pass-level setup should not bind RT/DSV anymore)
+      pass->Begin(command_list);
 
-    // End pass
-    pass->End(command_list);
+      // Render pass
+      pass->Render(command_list, scene_renderer_, texture_manager);
+
+      // End pass
+      pass->End(command_list);
   }
+}
+
+bool RenderPassManager::ApplyPassIO(RenderPass* pass, Graphic& graphic) {
+  assert(pass != nullptr);
+
+  PassIODesc io = pass->GetPassIO();
+  ID3D12GraphicsCommandList* command_list = graphic.GetCommandList();
+  assert(command_list != nullptr);
+
+  // Resolve color target (backbuffer or custom)
+  RenderTarget* color_rt = nullptr;
+  if (io.color.enabled) {
+    if (io.color.kind == ColorAttachmentIO::Kind::Backbuffer) {
+      color_rt = graphic.GetBackBufferRenderTarget();
+    } else { // Custom
+      color_rt = io.color.target;
+    }
+
+    if (color_rt != nullptr && color_rt->IsValid()) {
+      graphic.Transition(color_rt, io.color.state);
+      if (io.color.clear) {
+        graphic.Clear(color_rt, color_rt->GetClearColor().data());
+      }
+    } else if (io.color.enabled && io.color.kind == ColorAttachmentIO::Kind::Custom) {
+      // Custom target explicitly requested but pointer invalid. In debug builds
+      // treat as assert; in release, warn and skip this pass to avoid silent
+      // incorrect bindings.
+#if defined(_DEBUG) || defined(DEBUG)
+      assert(false && "RenderPass requests custom color target but RenderTarget* is null or invalid.");
+      return false;
+#else
+      Logger::Log(LogLevel::Warn, LogCategory::Graphic, "[RenderPassManager] Pass requests custom color target but provided RenderTarget* is null or invalid. Skipping pass.");
+      return false;
+#endif
+    }
+  }
+
+  // Resolve depth target (main or custom)
+  DepthBuffer* depth = nullptr;
+  if (io.depth.enabled) {
+    if (io.depth.kind == DepthAttachmentIO::Kind::MainDepth) {
+      depth = graphic.GetDepthBuffer();
+    } else if (io.depth.kind == DepthAttachmentIO::Kind::Custom) {
+      depth = io.depth.target;
+    }
+
+      if (depth != nullptr && depth->IsValid()) {
+        graphic.Transition(depth, io.depth.state);
+        if (io.depth.clear) {
+          graphic.Clear(depth, io.depth.clear_depth, io.depth.clear_stencil);
+        }
+      } else if (io.depth.enabled && io.depth.kind == DepthAttachmentIO::Kind::Custom) {
+        // Custom depth requested but pointer invalid — treat similarly to color.
+  #if defined(_DEBUG) || defined(DEBUG)
+        assert(false && "RenderPass requests custom depth target but DepthBuffer* is null or invalid.");
+        return false;
+  #else
+        Logger::Log(LogLevel::Warn, LogCategory::Graphic, "[RenderPassManager] Pass requests custom depth target but provided DepthBuffer* is null or invalid. Skipping pass.");
+        return false;
+  #endif
+      }
+  }
+
+  // Bind RTV/DSV according to resolved targets
+  if (color_rt != nullptr && color_rt->IsValid()) {
+    D3D12_CPU_DESCRIPTOR_HANDLE rtv = color_rt->GetRTV();
+    if (depth != nullptr && depth->IsValid()) {
+      D3D12_CPU_DESCRIPTOR_HANDLE dsv = depth->GetDSV();
+      command_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+    } else {
+      command_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+    }
+  } else if ((color_rt == nullptr || !io.color.enabled) && depth != nullptr && depth->IsValid()) {
+    // Depth-only pass: bind DSV with no RTV
+    D3D12_CPU_DESCRIPTOR_HANDLE dsv = depth->GetDSV();
+    command_list->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
+  }
+
+  // Ensure viewport/scissor are set from Graphic if the pass opts in
+  if (io.use_default_viewport_scissor) {
+    D3D12_VIEWPORT vp = graphic.GetScreenViewport();
+    D3D12_RECT sc = graphic.GetScissorRect();
+    command_list->RSSetViewports(1, &vp);
+    command_list->RSSetScissorRects(1, &sc);
+  }
+
+  // (Custom depth already warned above if invalid.)
+  return true;
 }
 
 void RenderPassManager::Clear() {
@@ -142,7 +238,8 @@ void RenderPassManager::PrintStats() const {
   Logger::Logf(LogLevel::Info,
     LogCategory::Graphic,
     Logger::Here(),
-    "=== Render Pass Manager Statistics ===\nTotal Packets: {}\nRegistered Passes: {}\n\nEnabled Passes:\n{}======================================",
+    "=== Render Pass Manager Statistics ===\nTotal Packets: {}\nRegistered Passes: {}\n\nEnabled "
+    "Passes:\n{}======================================",
     render_queue_.size(),
     passes_.size(),
     enabled);

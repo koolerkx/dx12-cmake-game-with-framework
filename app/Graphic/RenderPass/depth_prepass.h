@@ -15,6 +15,8 @@ class DepthPrepass : public RenderPass {
 
   void Begin(ID3D12GraphicsCommandList* command_list) override;
 
+  PassIODesc GetPassIO() const override;
+
   void Render(ID3D12GraphicsCommandList* command_list, SceneRenderer& scene_renderer, TextureManager& texture_manager) override;
 
   void End(ID3D12GraphicsCommandList* command_list) override;

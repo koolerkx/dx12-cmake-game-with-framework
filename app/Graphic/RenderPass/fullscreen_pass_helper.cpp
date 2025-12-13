@@ -26,14 +26,13 @@ bool FullscreenPassHelper::Initialize(ID3D12Device* device, UploadContext& uploa
 }
 
 void FullscreenPassHelper::DrawQuad(
-  ID3D12GraphicsCommandList* command_list, ID3D12PipelineState* pso, ID3D12RootSignature* root_signature, const RenderTarget& output) {
+  ID3D12GraphicsCommandList* command_list, ID3D12PipelineState* pso, ID3D12RootSignature* root_signature, const RenderTarget&) {
   assert(command_list != nullptr);
   assert(pso != nullptr);
   assert(root_signature != nullptr);
 
   // Set render target
-  D3D12_CPU_DESCRIPTOR_HANDLE rtv = output.GetRTV();
-  command_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+  // Render target binding is now the responsibility of the caller/manager.
 
   // Set PSO and root signature
   command_list->SetPipelineState(pso);
@@ -48,15 +47,14 @@ void FullscreenPassHelper::DrawQuadWithTexture(ID3D12GraphicsCommandList* comman
   ID3D12PipelineState* pso,
   ID3D12RootSignature* root_signature,
   TextureHandle input,
-  const RenderTarget& output,
+  const RenderTarget&,
   TextureManager& texture_manager) {
   assert(command_list != nullptr);
   assert(pso != nullptr);
   assert(root_signature != nullptr);
 
   // Set render target
-  D3D12_CPU_DESCRIPTOR_HANDLE rtv = output.GetRTV();
-  command_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+  // Render target binding is now the responsibility of the caller/manager.
 
   // Set PSO and root signature
   command_list->SetPipelineState(pso);

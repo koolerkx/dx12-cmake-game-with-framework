@@ -20,14 +20,39 @@ RenderFilter ForwardPass::GetFilter() const {
 
 void ForwardPass::Begin(ID3D12GraphicsCommandList* command_list) {
   assert(command_list != nullptr);
+  // Begin no longer binds RTV/DSV directly; binding is declared via GetPassIO().
+}
 
-  // Set render targets
-  if (render_target_ != nullptr && depth_buffer_ != nullptr) {
-    D3D12_CPU_DESCRIPTOR_HANDLE rtv = render_target_->GetRTV();
-    D3D12_CPU_DESCRIPTOR_HANDLE dsv = depth_buffer_->GetDSV();
+PassIODesc ForwardPass::GetPassIO() const {
+  PassIODesc io;
 
-    command_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+  // Color: use custom render target if set, otherwise backbuffer
+  io.color.enabled = true;
+  if (render_target_ != nullptr) {
+    io.color.kind = ColorAttachmentIO::Kind::Custom;
+    io.color.target = render_target_;
+  } else {
+    io.color.kind = ColorAttachmentIO::Kind::Backbuffer;
+    io.color.target = nullptr;
   }
+  io.color.state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+  io.color.clear = true;  // forward pass typically clears the render target
+
+  // Depth: use custom depth buffer if set, otherwise main depth
+  io.depth.enabled = true;
+  if (depth_buffer_ != nullptr) {
+    io.depth.kind = DepthAttachmentIO::Kind::Custom;
+    io.depth.target = depth_buffer_;
+  } else {
+    io.depth.kind = DepthAttachmentIO::Kind::MainDepth;
+    io.depth.target = nullptr;
+  }
+  io.depth.state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+  io.depth.clear = true;
+  io.depth.clear_depth = 1.0f;
+  io.depth.clear_stencil = 0;
+
+  return io;
 }
 
 void ForwardPass::Render(ID3D12GraphicsCommandList* command_list, SceneRenderer& scene_renderer, TextureManager& texture_manager) {

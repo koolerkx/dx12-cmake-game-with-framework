@@ -21,11 +21,28 @@ RenderFilter UIPass::GetFilter() const {
 void UIPass::Begin(ID3D12GraphicsCommandList* command_list) {
   assert(command_list != nullptr);
 
-  // Set render target (no depth buffer for UI)
+  // Begin no longer binds RTV directly; binding is declared via GetPassIO().
+}
+
+PassIODesc UIPass::GetPassIO() const {
+  PassIODesc io;
+
+  // Color: use custom render target if set, otherwise backbuffer (load existing contents)
+  io.color.enabled = true;
   if (render_target_ != nullptr) {
-    D3D12_CPU_DESCRIPTOR_HANDLE rtv = render_target_->GetRTV();
-    command_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+    io.color.kind = ColorAttachmentIO::Kind::Custom;
+    io.color.target = render_target_;
+  } else {
+    io.color.kind = ColorAttachmentIO::Kind::Backbuffer;
+    io.color.target = nullptr;
   }
+  io.color.state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+  io.color.clear = false; // load
+
+  // Depth: UI doesn't touch depth
+  io.depth.enabled = false;
+
+  return io;
 }
 
 void UIPass::Render(ID3D12GraphicsCommandList* command_list, SceneRenderer& scene_renderer, TextureManager& texture_manager) {

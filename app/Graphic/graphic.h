@@ -44,6 +44,8 @@ class Graphic {
   void Transition(GpuResource* resource, D3D12_RESOURCE_STATES new_state);
   void Clear(RenderTarget* rt, const float* clear_color);
   void Clear(DepthBuffer* depth, float depth_val, uint8_t stencil_val);
+  // Legacy wrapper: delegates to the canonical RenderFrame() path in Graphic.
+  // Retained for compatibility; prefer calling RenderFrame() directly.
   void RenderPasses();
 
   // Execute a short-lived command list for one-shot work (uploads, copies)
