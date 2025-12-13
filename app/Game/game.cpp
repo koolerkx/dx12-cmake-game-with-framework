@@ -381,11 +381,11 @@ GameObject* Game::CreateCylinder(const PrimitiveCreateParams& params) {
   float sqy = params.rotation_quat.y * params.rotation_quat.y;
   float sqz = params.rotation_quat.z * params.rotation_quat.z;
 
-  euler.x = std::atan2(2.0f * (params.rotation_quat.x * params.rotation_quat.w - params.rotation_quat.y * params.rotation_quat.z),
-    sqw - sqx - sqy + sqz);
+  euler.x = std::atan2(
+    2.0f * (params.rotation_quat.x * params.rotation_quat.w - params.rotation_quat.y * params.rotation_quat.z), sqw - sqx - sqy + sqz);
   euler.y = std::asin(2.0f * (params.rotation_quat.x * params.rotation_quat.z + params.rotation_quat.y * params.rotation_quat.w));
-  euler.z = std::atan2(2.0f * (params.rotation_quat.z * params.rotation_quat.w - params.rotation_quat.x * params.rotation_quat.y),
-    sqw + sqx - sqy - sqz);
+  euler.z = std::atan2(
+    2.0f * (params.rotation_quat.z * params.rotation_quat.w - params.rotation_quat.x * params.rotation_quat.y), sqw + sqx - sqy - sqz);
 
   transform->SetRotation(euler);
   obj->AddComponent(transform);
@@ -416,12 +416,140 @@ GameObject* Game::CreateCylinder(const PrimitiveCreateParams& params) {
   return obj;
 }
 
+GameObject* Game::CreateSphere(const PrimitiveCreateParams& params) {
+  // Ensure DefaultAssets are available
+  assert(graphic_);
+  const auto& defaults = graphic_->GetDefaultAssets();
+
+  // Create GameObject
+  GameObject* obj = scene_.CreateGameObject();
+
+  // Set name
+  if (!params.name.empty()) {
+    obj->SetName(params.name);
+  } else {
+    obj->SetName("Sphere");
+  }
+
+  // Transform
+  auto* transform = new TransformComponent();
+  transform->SetPosition(params.position);
+  transform->SetScale(params.scale);
+
+  // Convert quaternion to Euler angles
+  DirectX::XMFLOAT3 euler;
+  float sqw = params.rotation_quat.w * params.rotation_quat.w;
+  float sqx = params.rotation_quat.x * params.rotation_quat.x;
+  float sqy = params.rotation_quat.y * params.rotation_quat.y;
+  float sqz = params.rotation_quat.z * params.rotation_quat.z;
+
+  euler.x = std::atan2(
+    2.0f * (params.rotation_quat.x * params.rotation_quat.w - params.rotation_quat.y * params.rotation_quat.z), sqw - sqx - sqy + sqz);
+  euler.y = std::asin(2.0f * (params.rotation_quat.x * params.rotation_quat.z + params.rotation_quat.y * params.rotation_quat.w));
+  euler.z = std::atan2(
+    2.0f * (params.rotation_quat.z * params.rotation_quat.w - params.rotation_quat.x * params.rotation_quat.y), sqw + sqx - sqy - sqz);
+
+  transform->SetRotation(euler);
+  obj->AddComponent(transform);
+
+  // Renderer
+  auto* renderer = new RendererComponent();
+  renderer->SetMesh(defaults.GetSphereMesh().get());
+
+  // Material selection: use provided material or default SpriteWorldOpaque material
+  MaterialInstance* material_to_use = params.material;
+  if (!material_to_use) {
+    material_to_use = defaults.GetSpriteWorldOpaqueMaterial();
+  }
+
+  if (material_to_use) {
+    renderer->SetMaterial(material_to_use);
+  } else {
+    std::cerr << "[Game] Warning: No material available for sphere creation" << '\n';
+  }
+
+  // Set rendering properties
+  renderer->SetLayer(params.layer);
+  renderer->SetTag(params.tag);
+  renderer->SetSortOrder(params.sort_order);
+
+  obj->AddComponent(renderer);
+
+  return obj;
+}
+
+GameObject* Game::CreateCapsule(const PrimitiveCreateParams& params) {
+  // Ensure DefaultAssets are available
+  assert(graphic_);
+  const auto& defaults = graphic_->GetDefaultAssets();
+
+  // Create GameObject
+  GameObject* obj = scene_.CreateGameObject();
+
+  // Set name
+  if (!params.name.empty()) {
+    obj->SetName(params.name);
+  } else {
+    obj->SetName("Capsule");
+  }
+
+  // Transform
+  auto* transform = new TransformComponent();
+  transform->SetPosition(params.position);
+  transform->SetScale(params.scale);
+
+  // Convert quaternion to Euler angles
+  DirectX::XMFLOAT3 euler;
+  float sqw = params.rotation_quat.w * params.rotation_quat.w;
+  float sqx = params.rotation_quat.x * params.rotation_quat.x;
+  float sqy = params.rotation_quat.y * params.rotation_quat.y;
+  float sqz = params.rotation_quat.z * params.rotation_quat.z;
+
+  euler.x = std::atan2(
+    2.0f * (params.rotation_quat.x * params.rotation_quat.w - params.rotation_quat.y * params.rotation_quat.z), sqw - sqx - sqy + sqz);
+  euler.y = std::asin(2.0f * (params.rotation_quat.x * params.rotation_quat.z + params.rotation_quat.y * params.rotation_quat.w));
+  euler.z = std::atan2(
+    2.0f * (params.rotation_quat.z * params.rotation_quat.w - params.rotation_quat.x * params.rotation_quat.y), sqw + sqx - sqy - sqz);
+
+  transform->SetRotation(euler);
+  obj->AddComponent(transform);
+
+  // Renderer
+  auto* renderer = new RendererComponent();
+  renderer->SetMesh(defaults.GetCapsuleMesh().get());
+
+  // Material selection: use provided material or default SpriteWorldOpaque material
+  MaterialInstance* material_to_use = params.material;
+  if (!material_to_use) {
+    material_to_use = defaults.GetSpriteWorldOpaqueMaterial();
+  }
+
+  if (material_to_use) {
+    renderer->SetMaterial(material_to_use);
+  } else {
+    std::cerr << "[Game] Warning: No material available for capsule creation" << '\n';
+  }
+
+  // Set rendering properties
+  renderer->SetLayer(params.layer);
+  renderer->SetTag(params.tag);
+  renderer->SetSortOrder(params.sort_order);
+
+  obj->AddComponent(renderer);
+
+  return obj;
+}
+
 GameObject* Game::CreatePrimitive(PrimitiveType type, const PrimitiveCreateParams& params) {
   switch (type) {
     case PrimitiveType::Cube:
       return CreateCube(params);
     case PrimitiveType::Cylinder:
       return CreateCylinder(params);
+    case PrimitiveType::Sphere:
+      return CreateSphere(params);
+    case PrimitiveType::Capsule:
+      return CreateCapsule(params);
     default:
       std::cerr << "[Game] Error: Unknown primitive type" << '\n';
       return nullptr;
@@ -458,7 +586,7 @@ MaterialInstance* Game::CreateMaterialInstanceForPrimitive(TextureHandle base_co
   // Create a new material instance from the same template
   auto& material_mgr = graphic_->GetMaterialManager();
   MaterialInstance* new_material = material_mgr.CreateInstance(instance_name, material_template);
-  
+
   if (!new_material) {
     std::cerr << "[Game] Error: Failed to create material instance '" << instance_name << "'" << '\n';
     return nullptr;
@@ -528,6 +656,67 @@ void Game::CreateNewDemoScene() {
   GameObject* test_cube2 = CreatePrimitive(PrimitiveType::Cube, cube2_params);
   if (test_cube2) {
     std::cout << "[Game] Created cube using CreatePrimitive API" << '\n';
+  }
+
+  // Test sphere using primitive mesh
+  PrimitiveCreateParams sphere_params;
+  sphere_params.position = {0.0f, 0.0f, -2.0f};
+  sphere_params.scale = {1.0f, 1.0f, 1.0f};
+  sphere_params.name = "TestSphere";
+  sphere_params.layer = RenderLayer::Opaque;
+  sphere_params.tag = RenderTag::Dynamic;
+
+  GameObject* test_sphere = CreateSphere(sphere_params);
+  if (test_sphere) {
+    std::cout << "[Game] Created test sphere with primitive mesh" << '\n';
+  }
+
+  // Test capsule using CreatePrimitive API
+  PrimitiveCreateParams capsule_params;
+  capsule_params.position = {0.0f, 2.0f, 0.0f};
+  capsule_params.scale = {1.0f, 1.0f, 1.0f};
+  capsule_params.name = "TestCapsule";
+  capsule_params.layer = RenderLayer::Opaque;
+  capsule_params.tag = RenderTag::Dynamic;
+
+  GameObject* test_capsule = CreatePrimitive(PrimitiveType::Capsule, capsule_params);
+  if (test_capsule) {
+    std::cout << "[Game] Created test capsule using CreatePrimitive API" << '\n';
+  }
+
+  // Create a textured primitive for testing material application.
+  // Prefer the pre-created block_test_world_material_ (loaded from file at Initialize()),
+  // otherwise create a temporary material instance from the loaded texture handle.
+  if (block_test_world_material_) {
+    PrimitiveCreateParams textured_params;
+    textured_params.position = {-4.0f, 0.0f, 0.0f};
+    textured_params.scale = {1.0f, 1.0f, 1.0f};
+    textured_params.name = "TestCube_Textured_MaterialInstance";
+    textured_params.layer = RenderLayer::Opaque;
+    textured_params.tag = RenderTag::Dynamic;
+    textured_params.material = block_test_world_material_;
+
+    GameObject* textured_cube = CreatePrimitive(PrimitiveType::Capsule, textured_params);
+    if (textured_cube) {
+      std::cout << "[Game] Created textured cube using block_test_world_material_" << '\n';
+    }
+  } else if (block_test_texture_.IsValid()) {
+    // Create a material instance on-the-fly using the loaded texture handle
+    MaterialInstance* dyn_mat = CreateMaterialInstanceForPrimitive(block_test_texture_, "BlockTest_Primitive_Mat");
+    if (dyn_mat) {
+      PrimitiveCreateParams textured_params;
+      textured_params.position = {-4.0f, 0.0f, 1.0f};
+      textured_params.scale = {1.0f, 1.0f, 1.0f};
+      textured_params.name = "TestCube_Textured_DynMat";
+      textured_params.layer = RenderLayer::Opaque;
+      textured_params.tag = RenderTag::Dynamic;
+      textured_params.material = dyn_mat;
+
+      GameObject* textured_cube2 = CreatePrimitive(PrimitiveType::Capsule, textured_params);
+      if (textured_cube2) {
+        std::cout << "[Game] Created textured cube using dynamic material instance" << '\n';
+      }
+    }
   }
 
   // // Block-test sprite in world (Forward pass layer)

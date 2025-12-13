@@ -51,6 +51,19 @@ void FrameworkDefaultAssets::Initialize(Graphic& graphic) {
     cylinder_mesh_ = nullptr;
   }
 
+  // Create sphere and capsule meshes
+  try {
+    sphere_mesh_ = CreateSphereMesh(graphic.GetDevice(), graphic.GetUploadContext());
+  } catch (...) {
+    sphere_mesh_ = nullptr;
+  }
+  
+  try {
+    capsule_mesh_ = CreateCapsuleMesh(graphic.GetDevice(), graphic.GetUploadContext());
+  } catch (...) {
+    capsule_mesh_ = nullptr;
+  }
+
   // Create default textures in a single upload batch using the upload context
   graphic.ExecuteImmediate([&](ID3D12GraphicsCommandList* cmd) {
     auto& tex_mgr = graphic.GetTextureManager();
@@ -124,6 +137,8 @@ void FrameworkDefaultAssets::Shutdown() {
   rect2d_mesh_.reset();
   cube_mesh_.reset();
   cylinder_mesh_.reset();
+  sphere_mesh_.reset();
+  capsule_mesh_.reset();
   sprite_world_opaque_template_ = nullptr;
   sprite_world_transparent_template_ = nullptr;
   sprite_ui_template_ = nullptr;
@@ -504,6 +519,14 @@ std::shared_ptr<Mesh> FrameworkDefaultAssets::GetCylinderMesh() const {
   return cylinder_mesh_;
 }
 
+std::shared_ptr<Mesh> FrameworkDefaultAssets::GetSphereMesh() const {
+  return sphere_mesh_;
+}
+
+std::shared_ptr<Mesh> FrameworkDefaultAssets::GetCapsuleMesh() const {
+  return capsule_mesh_;
+}
+
 std::shared_ptr<Mesh> FrameworkDefaultAssets::CreateCubeMesh(ID3D12Device* device, UploadContext& upload_context) {
   // Cube with 24 vertices (4 per face) and 36 indices (6 faces * 2 triangles * 3 indices)
   // Each face has unique vertices to allow proper UV mapping
@@ -746,6 +769,248 @@ std::shared_ptr<Mesh> FrameworkDefaultAssets::CreateCylinderMesh(ID3D12Device* d
     D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST
   );
   mesh->SetDebugName("Primitive_Cylinder");
+  
+  return mesh;
+}
+
+std::shared_ptr<Mesh> FrameworkDefaultAssets::CreateSphereMesh(ID3D12Device* device, UploadContext& upload_context) {
+  // Sphere with lat-long UV mapping
+  constexpr int segments = 24;  // Longitude divisions
+  constexpr int stacks = 16;    // Latitude divisions
+  constexpr float radius = 0.5f;
+  
+  std::vector<VertexPositionTexture2D> vertices;
+  std::vector<uint16_t> indices;
+  
+  // Reserve space: (segments + 1) * (stacks + 1) vertices
+  vertices.reserve((segments + 1) * (stacks + 1));
+  // Reserve space: segments * stacks * 6 indices (2 triangles per quad)
+  indices.reserve(segments * stacks * 6);
+  
+  // Generate vertices
+  for (int stack = 0; stack <= stacks; ++stack) {
+    float phi = static_cast<float>(stack) / stacks * DirectX::XM_PI;  // 0 to PI
+    float y = std::cos(phi) * radius;
+    float ring_radius = std::sin(phi) * radius;
+    
+    for (int seg = 0; seg <= segments; ++seg) {
+      float theta = static_cast<float>(seg) / segments * DirectX::XM_2PI;  // 0 to 2PI
+      float x = std::cos(theta) * ring_radius;
+      float z = std::sin(theta) * ring_radius;
+      
+      float u = static_cast<float>(seg) / segments;
+      float v = static_cast<float>(stack) / stacks;
+      
+      vertices.push_back({{x, y, z}, {u, v}});
+    }
+  }
+  
+  // Generate indices (CCW winding)
+  for (int stack = 0; stack < stacks; ++stack) {
+    for (int seg = 0; seg < segments; ++seg) {
+      int current = stack * (segments + 1) + seg;
+      int next = current + segments + 1;
+      
+      // First triangle: current, current+1, next
+      indices.push_back(static_cast<uint16_t>(current));
+      indices.push_back(static_cast<uint16_t>(current + 1));
+      indices.push_back(static_cast<uint16_t>(next));
+      
+      // Second triangle: current+1, next+1, next
+      indices.push_back(static_cast<uint16_t>(current + 1));
+      indices.push_back(static_cast<uint16_t>(next + 1));
+      indices.push_back(static_cast<uint16_t>(next));
+    }
+  }
+  
+  // Create vertex and index buffers
+  auto vb = Buffer::CreateAndUploadToDefaultHeapForInit(
+    device,
+    upload_context,
+    vertices.data(),
+    vertices.size() * sizeof(VertexPositionTexture2D),
+    Buffer::Type::Vertex,
+    "Primitive_Sphere_VB"
+  );
+  
+  auto ib = Buffer::CreateAndUploadToDefaultHeapForInit(
+    device,
+    upload_context,
+    indices.data(),
+    indices.size() * sizeof(uint16_t),
+    Buffer::Type::Index,
+    "Primitive_Sphere_IB"
+  );
+  
+  // Create and initialize mesh
+  auto mesh = std::make_shared<Mesh>();
+  mesh->Initialize(
+    vb,
+    ib,
+    sizeof(VertexPositionTexture2D),
+    static_cast<uint32_t>(indices.size()),
+    DXGI_FORMAT_R16_UINT,
+    D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST
+  );
+  mesh->SetDebugName("Primitive_Sphere");
+  
+  return mesh;
+}
+
+std::shared_ptr<Mesh> FrameworkDefaultAssets::CreateCapsuleMesh(ID3D12Device* device, UploadContext& upload_context) {
+  // Capsule = Cylinder + two hemispheres (top and bottom)
+  constexpr int segments = 24;     // Circumference divisions
+  constexpr int hemisphere_stacks = 8;  // Vertical divisions for each hemisphere
+  constexpr float radius = 0.5f;
+  constexpr float cylinder_height = 0.5f;  // Height of cylindrical portion
+  constexpr float half_cyl_height = cylinder_height * 0.5f;
+  
+  std::vector<VertexPositionTexture2D> vertices;
+  std::vector<uint16_t> indices;
+  
+  // Estimate vertex count: cylinder (2*segments) + 2 hemispheres (segments * (hemisphere_stacks+1) * 2)
+  vertices.reserve(2 * segments + 2 * segments * (hemisphere_stacks + 1));
+  indices.reserve(segments * 6 + 2 * segments * hemisphere_stacks * 6);
+  
+  // 1. Cylinder middle section vertices
+  const uint16_t cyl_start = 0;
+  for (int i = 0; i < segments; ++i) {
+    float angle = (static_cast<float>(i) / segments) * DirectX::XM_2PI;
+    float x = std::cos(angle) * radius;
+    float z = std::sin(angle) * radius;
+    float u = static_cast<float>(i) / segments;
+    
+    // Bottom of cylinder (at top of bottom hemisphere) - UV V = 0.25 (connects to bottom hemi equator)
+    vertices.push_back({{x, -half_cyl_height, z}, {u, 0.25f}});
+    // Top of cylinder (at bottom of top hemisphere) - UV V = 0.75 (connects to top hemi equator)
+    vertices.push_back({{x, +half_cyl_height, z}, {u, 0.75f}});
+  }
+  
+  // Cylinder indices (same as regular cylinder side)
+  for (int i = 0; i < segments; ++i) {
+    const int next_i = (i + 1) % segments;
+    uint16_t b_curr = cyl_start + static_cast<uint16_t>(i) * 2u;
+    uint16_t t_curr = b_curr + 1u;
+    uint16_t b_next = cyl_start + static_cast<uint16_t>(next_i) * 2u;
+    uint16_t t_next = b_next + 1u;
+    
+    indices.push_back(b_curr);
+    indices.push_back(t_curr);
+    indices.push_back(b_next);
+    
+    indices.push_back(b_next);
+    indices.push_back(t_curr);
+    indices.push_back(t_next);
+  }
+  
+  // 2. Bottom hemisphere (from equator to south pole)
+  const uint16_t bottom_hemi_start = static_cast<uint16_t>(vertices.size());
+  for (int stack = 0; stack <= hemisphere_stacks; ++stack) {
+    // phi goes from 0 (equator) to PI/2 (south pole)
+    float phi = (static_cast<float>(stack) / hemisphere_stacks) * (DirectX::XM_PI * 0.5f);
+    float y = -std::cos(phi) * radius - half_cyl_height;  // Negative y, offset down
+    float ring_radius = std::sin(phi) * radius;
+    
+    for (int seg = 0; seg < segments; ++seg) {
+      float theta = (static_cast<float>(seg) / segments) * DirectX::XM_2PI;
+      float x = std::cos(theta) * ring_radius;
+      float z = std::sin(theta) * ring_radius;
+      
+      float u = static_cast<float>(seg) / segments;
+      // V maps from 0.25 (equator) down to 0.0 (south pole)
+      float v = 0.25f - (static_cast<float>(stack) / hemisphere_stacks) * 0.25f;
+      
+      vertices.push_back({{x, y, z}, {u, v}});
+    }
+  }
+  
+  // Bottom hemisphere indices
+  for (int stack = 0; stack < hemisphere_stacks; ++stack) {
+    for (int seg = 0; seg < segments; ++seg) {
+      int current = bottom_hemi_start + stack * segments + seg;
+      int next_seg = (seg + 1) % segments;
+      int next_stack = current + segments;
+      int next_both = bottom_hemi_start + (stack + 1) * segments + next_seg;
+      
+      indices.push_back(static_cast<uint16_t>(current));
+      indices.push_back(static_cast<uint16_t>(current + ((next_seg == 0) ? (1 - segments) : 1)));
+      indices.push_back(static_cast<uint16_t>(next_stack));
+      
+      indices.push_back(static_cast<uint16_t>(current + ((next_seg == 0) ? (1 - segments) : 1)));
+      indices.push_back(static_cast<uint16_t>(next_both));
+      indices.push_back(static_cast<uint16_t>(next_stack));
+    }
+  }
+  
+  // 3. Top hemisphere (from equator to north pole)
+  const uint16_t top_hemi_start = static_cast<uint16_t>(vertices.size());
+  for (int stack = 0; stack <= hemisphere_stacks; ++stack) {
+    // phi goes from 0 (equator) to PI/2 (north pole)
+    float phi = (static_cast<float>(stack) / hemisphere_stacks) * (DirectX::XM_PI * 0.5f);
+    float y = std::cos(phi) * radius + half_cyl_height;  // Positive y, offset up
+    float ring_radius = std::sin(phi) * radius;
+    
+    for (int seg = 0; seg < segments; ++seg) {
+      float theta = (static_cast<float>(seg) / segments) * DirectX::XM_2PI;
+      float x = std::cos(theta) * ring_radius;
+      float z = std::sin(theta) * ring_radius;
+      
+      float u = static_cast<float>(seg) / segments;
+      // V maps from 0.75 (equator) up to 1.0 (north pole)
+      float v = 0.75f + (static_cast<float>(stack) / hemisphere_stacks) * 0.25f;
+      
+      vertices.push_back({{x, y, z}, {u, v}});
+    }
+  }
+  
+  // Top hemisphere indices
+  for (int stack = 0; stack < hemisphere_stacks; ++stack) {
+    for (int seg = 0; seg < segments; ++seg) {
+      int current = top_hemi_start + stack * segments + seg;
+      int next_seg = (seg + 1) % segments;
+      int next_stack = current + segments;
+      int next_both = top_hemi_start + (stack + 1) * segments + next_seg;
+      
+      indices.push_back(static_cast<uint16_t>(current));
+      indices.push_back(static_cast<uint16_t>(current + ((next_seg == 0) ? (1 - segments) : 1)));
+      indices.push_back(static_cast<uint16_t>(next_stack));
+      
+      indices.push_back(static_cast<uint16_t>(current + ((next_seg == 0) ? (1 - segments) : 1)));
+      indices.push_back(static_cast<uint16_t>(next_both));
+      indices.push_back(static_cast<uint16_t>(next_stack));
+    }
+  }
+  
+  // Create vertex and index buffers
+  auto vb = Buffer::CreateAndUploadToDefaultHeapForInit(
+    device,
+    upload_context,
+    vertices.data(),
+    vertices.size() * sizeof(VertexPositionTexture2D),
+    Buffer::Type::Vertex,
+    "Primitive_Capsule_VB"
+  );
+  
+  auto ib = Buffer::CreateAndUploadToDefaultHeapForInit(
+    device,
+    upload_context,
+    indices.data(),
+    indices.size() * sizeof(uint16_t),
+    Buffer::Type::Index,
+    "Primitive_Capsule_IB"
+  );
+  
+  // Create and initialize mesh
+  auto mesh = std::make_shared<Mesh>();
+  mesh->Initialize(
+    vb,
+    ib,
+    sizeof(VertexPositionTexture2D),
+    static_cast<uint32_t>(indices.size()),
+    DXGI_FORMAT_R16_UINT,
+    D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST
+  );
+  mesh->SetDebugName("Primitive_Capsule");
   
   return mesh;
 }

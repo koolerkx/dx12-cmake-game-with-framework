@@ -33,6 +33,8 @@ class FrameworkDefaultAssets {
   // Primitive 3D meshes for blockout
   std::shared_ptr<Mesh> GetCubeMesh() const;
   std::shared_ptr<Mesh> GetCylinderMesh() const;
+  std::shared_ptr<Mesh> GetSphereMesh() const;
+  std::shared_ptr<Mesh> GetCapsuleMesh() const;
 
   // Default materials used by sprite rendering and debug lines
   MaterialInstance* GetSprite2DDefaultMaterial() const;  // Alias to UI sprite
@@ -59,6 +61,8 @@ class FrameworkDefaultAssets {
   std::shared_ptr<Mesh> rect2d_mesh_ = nullptr;
   std::shared_ptr<Mesh> cube_mesh_ = nullptr;
   std::shared_ptr<Mesh> cylinder_mesh_ = nullptr;
+  std::shared_ptr<Mesh> sphere_mesh_ = nullptr;
+  std::shared_ptr<Mesh> capsule_mesh_ = nullptr;
 
   // Material templates and instances for default materials
   MaterialTemplate* sprite_world_opaque_template_ = nullptr;
@@ -83,6 +87,8 @@ class FrameworkDefaultAssets {
   // Primitive mesh creation helpers
   std::shared_ptr<Mesh> CreateCubeMesh(ID3D12Device* device, UploadContext& upload_context);
   std::shared_ptr<Mesh> CreateCylinderMesh(ID3D12Device* device, UploadContext& upload_context);
+  std::shared_ptr<Mesh> CreateSphereMesh(ID3D12Device* device, UploadContext& upload_context);
+  std::shared_ptr<Mesh> CreateCapsuleMesh(ID3D12Device* device, UploadContext& upload_context);
   void CreateSpriteMaterials(Graphic& gfx);
   void CreateDebugLineMaterials(Graphic& gfx);
 };

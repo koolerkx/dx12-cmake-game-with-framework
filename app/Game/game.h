@@ -42,8 +42,9 @@ struct PrimitiveCreateParams {
 // Primitive type enumeration for unified creation API
 enum class PrimitiveType {
   Cube,
-  Cylinder
-  // Sphere, Capsule can be added later
+  Cylinder,
+  Sphere,
+  Capsule
 };
 
 class Game {
@@ -85,6 +86,8 @@ class Game {
   // Create primitive meshes using DefaultAssets
   GameObject* CreateCube(const PrimitiveCreateParams& params);
   GameObject* CreateCylinder(const PrimitiveCreateParams& params);
+  GameObject* CreateSphere(const PrimitiveCreateParams& params);
+  GameObject* CreateCapsule(const PrimitiveCreateParams& params);
   GameObject* CreatePrimitive(PrimitiveType type, const PrimitiveCreateParams& params);
   
   // Material creation helper for primitives
