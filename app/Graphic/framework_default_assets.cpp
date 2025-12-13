@@ -345,11 +345,11 @@ void FrameworkDefaultAssets::CreateDebugLineMaterials(Graphic& gfx) {
   auto& material_mgr = gfx.GetMaterialManager();
 
   // Shared root signature for both overlay and depth-tested debug lines
+  // Updated for instancing: removed b0 world matrix (now comes from instance buffer)
   ComPtr<ID3D12RootSignature> debug_root_signature;
   RootSignatureBuilder rs_builder;
   rs_builder
-    .AddRootConstant(16, 0, D3D12_SHADER_VISIBILITY_VERTEX)  // b0 - World matrix (row-major float4x4)
-    .AddRootCBV(1, D3D12_SHADER_VISIBILITY_VERTEX)           // b1 - FrameCB (view/proj)
+    .AddRootCBV(1, D3D12_SHADER_VISIBILITY_VERTEX)  // b1 - FrameCB (view/proj)
     .AllowInputLayout();
 
   if (!rs_builder.Build(gfx.GetDevice(), debug_root_signature)) {
@@ -359,7 +359,7 @@ void FrameworkDefaultAssets::CreateDebugLineMaterials(Graphic& gfx) {
 
   const ShaderBlob* vs = shader_mgr.GetShader("DebugLineVS");
   const ShaderBlob* ps = shader_mgr.GetShader("DebugLinePS");
-  auto input_layout = GetInputLayout_DebugVertex();
+  auto input_layout = GetInputLayout_DebugLineInstanced();
 
   // Overlay PSO (depth disabled)
   {

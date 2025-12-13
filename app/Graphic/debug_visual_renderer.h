@@ -66,26 +66,32 @@ class DebugVisualRenderer {
     const Buffer& frame_cb,
     const DebugVisualSettings& settings);
 
-  // Statistics
+  // Statistics and diagnostics
   uint32_t GetLastFrameVertexCount() const {
     return last_frame_vertex_count_;
+  }
+  uint32_t GetLastFrameInstanceCount() const {
+    return last_frame_instance_count_;
+  }
+  uint32_t GetLastFrameDrawCallCount() const {
+    return last_frame_draw_call_count_;
   }
   bool IsInitialized() const {
     return is_initialized_;
   }
 
  private:
-  static constexpr UINT MAX_DEBUG_VERTICES = 64 * 1024;  // 64K vertices max per frame
+  static constexpr UINT MAX_DEBUG_INSTANCES = 64 * 1024;  // 64K line instances max per frame (was 64K vertices = 32K lines)
 
   // Per-frame data
   struct FrameData {
-    Buffer vertex_buffer;  // Upload heap buffer for this frame
-    DebugVertex* mapped_ptr = nullptr;
-    UINT vertex_count = 0;
+    Buffer instance_buffer;  // Upload heap buffer for instance data
+    DebugLineInstanceData* mapped_ptr = nullptr;
+    UINT instance_count = 0;
     bool is_mapped = false;
 
     void Reset() {
-      vertex_count = 0;
+      instance_count = 0;
       // Keep buffer mapped persistently
     }
   };
@@ -95,7 +101,16 @@ class DebugVisualRenderer {
   Graphic* graphic_ = nullptr;
   uint32_t frame_count_ = 1;
   uint32_t current_frame_index_ = 0;
-  uint32_t last_frame_vertex_count_ = 0;
+  
+  // Frame statistics for diagnostics
+  uint32_t last_frame_vertex_count_ = 0;      // Total vertices rendered (instances * 2)
+  uint32_t last_frame_instance_count_ = 0;    // Total line instances rendered
+  uint32_t last_frame_draw_call_count_ = 0;   // Number of draw calls issued
+
+  // Unit segment vertex buffer (shared across all frames)
+  // Contains 2 vertices: (-0.5, 0, 0) and (0.5, 0, 0)
+  Buffer unit_segment_vb_;
+  D3D12_VERTEX_BUFFER_VIEW unit_segment_vbv_{};
 
   // Per-frame buffers
   std::vector<std::unique_ptr<FrameData>> frames_;
@@ -108,10 +123,11 @@ class DebugVisualRenderer {
 
   // Internal helpers
   bool CreateFrameBuffers();
+  bool CreateUnitSegmentBuffer();
   void ReleaseFrameBuffers();
-  UINT FillVertexData(const DebugVisualCommandBuffer& cmds,
-    DebugVertex* vertex_buffer,
-    UINT max_vertices,
+  UINT FillInstanceData(const DebugVisualCommandBuffer& cmds,
+    DebugLineInstanceData* instance_buffer,
+    UINT max_instances,
     DebugDepthMode depthMode,
     const DebugVisualSettings& settings);
 };
